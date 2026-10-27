@@ -625,7 +625,98 @@ button { cursor: pointer; }
   .hud-center-pills { gap: 6px; }
   .anniversary-chip, .love-counter-chip { padding: 6px 10px; font-size: 9px; }
 }
+
+/* Interactive Mini-Map Corridor Radar */
+.mini-radar {
+  position: absolute;
+  top: 82px;
+  left: 20px;
+  width: 52px;
+  height: 180px;
+  background: rgba(22, 18, 28, 0.78);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 216, 117, 0.45);
+  border-radius: 26px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 0 16px rgba(255, 117, 143, 0.15);
+  padding: 8px 6px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  z-index: 5;
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+.mini-radar:hover {
+  transform: scale(1.05);
+  border-color: rgba(255, 216, 117, 0.85);
+}
+.radar-header {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 6px;
+}
+.radar-live-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #ff476f;
+  box-shadow: 0 0 8px #ff476f;
+  animation: pulse-dot 1.5s infinite;
+}
+@keyframes pulse-dot {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.4); opacity: 0.6; }
+}
+.radar-title {
+  display: none;
+}
+.radar-track {
+  position: relative;
+  width: 24px;
+  flex: 1;
+  background: rgba(255, 255, 255, 0.05);
+  border-radius: 12px;
+  border: 1px dashed rgba(255, 216, 117, 0.3);
+}
+.radar-track-line {
+  position: absolute;
+  top: 10px;
+  bottom: 10px;
+  left: 50%;
+  width: 2px;
+  transform: translateX(-50%);
+  background: linear-gradient(180deg, #ff758f, #ffd875, #c084fc);
+  border-radius: 2px;
+}
+.radar-pin {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 13px;
+  z-index: 3;
+  transition: top 0.15s ease-out;
+  filter: drop-shadow(0 2px 4px rgba(0,0,0,0.8));
+}
+.radar-player-pin {
+  font-size: 15px;
+  filter: drop-shadow(0 0 6px #ff758f);
+}
+.radar-companion-pin {
+  font-size: 12px;
+  filter: drop-shadow(0 0 4px #c084fc);
+}
+.radar-poi {
+  position: absolute;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  font-size: 10px;
+  opacity: 0.85;
+  pointer-events: none;
+}
+
 @media (max-width: 700px) {
+  .mini-radar { display: none; }
   .intro-screen { display:block; overflow:auto; overflow-x:hidden; }
   .intro-panel { min-height:100%; padding:20px 22px 20px; }
   .intro-copy { margin-top:22px; }
