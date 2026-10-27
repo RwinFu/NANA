@@ -20,7 +20,7 @@ const touchKnobInner = $('#dynamic-touch-indicator .touch-knob-inner');
 const mobileTapMarker = $('#mobile-tap-marker');
 const touchHintPill = $('#touch-hint-pill');
 
-const storageKey = 'our-museum-gift-v5';
+const storageKey = 'our-museum-gift-v6';
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}') || {}; } catch { saved = {}; }
 const state = {
@@ -219,7 +219,7 @@ function addLoveCount(event) {
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
 const isMobileViewport = () => window.innerWidth < 700 || Boolean(window.matchMedia?.('(pointer: coarse)').matches && window.innerWidth < 1100);
-const colorMaterial = (color, roughness = 0.7, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
+const colorMaterial = (color, roughness = 0.6, metalness = 0.05) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
 function shortestAngleDiff(from, to) {
   const diff = (to - from) % (Math.PI * 2);
@@ -294,9 +294,10 @@ let loveMonument = null;
 let loveMonumentLabel = null;
 let crystalHeartMesh = null;
 let fireplaceLight = null;
+let playerFollowLight = null;
 let floatingParticleSystem = null;
 const fairyBulbs = [];
-const candleFlickers = [];
+const candleFlames = [];
 
 const keys = new Set();
 const frameTargets = [];
@@ -327,7 +328,7 @@ function createRenderer() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.25;
+  renderer.toneMappingExposure = 1.35;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   return true;
@@ -530,27 +531,6 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.85, height = 3
       }
       break;
 
-    case 'honey-walnut':
-      addBox(group, width - 0.10, 0.03, 0.025, accentMat, 0, halfH - 0.07, 0.10, { castShadow: false });
-      addBox(group, width - 0.10, 0.03, 0.025, accentMat, 0, -halfH + 0.07, 0.10, { castShadow: false });
-      addBox(group, 0.03, height - 0.10, 0.025, accentMat, halfW - 0.07, 0, 0.10, { castShadow: false });
-      addBox(group, 0.03, height - 0.10, 0.025, accentMat, -halfW + 0.07, 0, 0.10, { castShadow: false });
-      break;
-
-    case 'crimson-velvet':
-      for (const sx of [-1, 1]) {
-        for (const sy of [-1, 1]) {
-          const heartGroup = new THREE.Group();
-          heartGroup.position.set(sx * (halfW - 0.13), sy * (halfH - 0.13), 0.14);
-          heartGroup.scale.set(0.075, 0.075, 0.075);
-          const c1 = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 8), accentMat); c1.position.set(-0.35, 0.35, 0); heartGroup.add(c1);
-          const c2 = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 8), accentMat); c2.position.set(0.35, 0.35, 0); heartGroup.add(c2);
-          const cone = new THREE.Mesh(new THREE.ConeGeometry(0.78, 1.2, 8), accentMat); cone.rotation.z = Math.PI; cone.position.set(0, -0.2, 0); heartGroup.add(cone);
-          group.add(heartGroup);
-        }
-      }
-      break;
-
     default:
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
@@ -606,20 +586,16 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.85, height = 3
   }
   frameTargets.push(art);
 
-  // Dedicated Sconce & Spotlight
+  // Dedicated Sconce with glowing bulb
   const sconceGroup = new THREE.Group();
   sconceGroup.position.set(0, halfH + 0.32, 0.18);
   const sconceArm = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.22, 6), colorMaterial(fs.accentColor, 0.3, 0.7));
   sconceArm.rotation.x = Math.PI / 3; sconceGroup.add(sconceArm);
   const shade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.12, 8), colorMaterial(fs.frameColor, 0.4, 0.3));
   shade.rotation.x = Math.PI / 2; shade.position.set(0, 0.07, 0.09); sconceGroup.add(shade);
-  const bulbGlow = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffeaae }));
+  const bulbGlow = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffeaae }));
   bulbGlow.position.set(0, 0.07, 0.12); sconceGroup.add(bulbGlow);
   group.add(sconceGroup);
-
-  const frameSpot = new THREE.PointLight(0xffe6b0, isMobileViewport() ? 1.6 : 2.2, 5.2, 2);
-  frameSpot.position.set(0, halfH + 0.22, 0.48);
-  group.add(frameSpot);
 
   // Plaque Below Frame
   const plaqueWidth = Math.max(width - 0.05, 2.3);
@@ -659,10 +635,10 @@ function createPrincessAvatar(options = {}) {
   const goldTrim = colorMaterial(0xffd875, 0.25, 0.85);
   const pearlMat = colorMaterial(0xffffff, 0.15, 0.9);
   const hairMat = colorMaterial(options.hair || 0x2b1c18, 0.85);
-  const eyeColor = new THREE.MeshStandardMaterial({ color: 0x1f1412, roughness: 0.3 });
-  const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+  const eyeColor = new THREE.MeshBasicMaterial({ color: 0x1f1412 });
+  const eyeWhite = new THREE.MeshBasicMaterial({ color: 0xffffff });
   const blushMat = colorMaterial(0xff4d6d, 0.3, 0.1);
-  const rubyGem = new THREE.MeshPhysicalMaterial({ color: 0xff1a4b, emissive: 0xaa0022, roughness: 0.1, metalness: 0.2, transmission: 0.6 });
+  const rubyGem = new THREE.MeshBasicMaterial({ color: 0xff2a5c });
 
   // --- Voluminous Princess Ballgown Skirt ---
   const skirtGroup = new THREE.Group();
@@ -838,6 +814,11 @@ function createPrincessAvatar(options = {}) {
   const label = createSpriteLabel(options.name || 'پرنسس من', '#ffd875');
   label.position.y = 2.82; rig.add(label);
 
+  // Soft personal glow on the princess
+  playerFollowLight = new THREE.PointLight(0xfff0e4, 1.8, 8.0, 2);
+  playerFollowLight.position.set(0, 2.2, 0.5);
+  root.add(playerFollowLight);
+
   root.userData = {
     rig, leftLeg, rightLeg, leftArm, rightArm, head, skirtGroup, bowGroup, label,
     shirtMaterial: dressPink, phase: Math.random() * 6.28
@@ -858,8 +839,8 @@ function createCompanionAvatar(options = {}) {
   const pantsMat = colorMaterial(0x1e1c24, 0.75);
   const shoe = colorMaterial(0x141218, 0.6);
   const hair = colorMaterial(options.hair || 0x2e2420, 0.90);
-  const eye = new THREE.MeshStandardMaterial({ color: 0x241a18, roughness: 0.5 });
-  const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+  const eye = new THREE.MeshBasicMaterial({ color: 0x241a18 });
+  const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
 
   const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.27, 0.34, 10), pantsMat);
   hips.position.y = 0.78; hips.castShadow = true; rig.add(hips);
@@ -943,23 +924,26 @@ function createGalleryWalkway() {
     scene.add(petal);
   }
 
-  // Romantic Tea-light Candles along the sides of the aisle runner
+  // Romantic Glowing Candles along the sides of the aisle runner
   const candleWax = colorMaterial(0xfffaf0, 0.3);
-  const candleFlame = new THREE.MeshBasicMaterial({ color: 0xffaa33 });
+  const candleFlameMat = new THREE.MeshBasicMaterial({ color: 0xffaa33 });
+  const candleHaloMat = new THREE.MeshBasicMaterial({ color: 0xffcc44, transparent: true, opacity: 0.45 });
+
   for (let z = -2.0; z >= -65.0; z -= 3.0) {
     for (const sx of [-2.05, 2.05]) {
       const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 8), candleWax);
       candle.position.set(sx, 0.08, z);
       scene.add(candle);
 
-      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.06, 6), candleFlame);
-      flame.position.set(sx, 0.17, z);
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.028, 0.07, 6), candleFlameMat);
+      flame.position.set(sx, 0.175, z);
       scene.add(flame);
 
-      const light = new THREE.PointLight(0xffb84d, 1.4, 3.8, 2);
-      light.position.set(sx, 0.22, z);
-      scene.add(light);
-      candleFlickers.push({ light, flame, baseIntensity: 1.4, phase: Math.random() * 6.28 });
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), candleHaloMat);
+      halo.position.set(sx, 0.18, z);
+      scene.add(halo);
+
+      candleFlames.push({ flame, halo, phase: Math.random() * 6.28 });
     }
   }
 
@@ -1007,9 +991,7 @@ function createCrystalChandelier(x, y, z) {
   scene.add(chanGroup);
 
   const goldMat = colorMaterial(0xffd875, 0.2, 0.85);
-  const crystalMat = new THREE.MeshPhysicalMaterial({
-    color: 0xffffff, roughness: 0.1, transmission: 0.8, ior: 1.5, emissive: 0xffe2b2, emissiveIntensity: 0.4
-  });
+  const crystalMat = new THREE.MeshBasicMaterial({ color: 0xfff6dd });
 
   const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 6), goldMat);
   chain.position.y = -0.4; chanGroup.add(chain);
@@ -1026,10 +1008,6 @@ function createCrystalChandelier(x, y, z) {
 
   const centerCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.14), crystalMat);
   centerCrystal.position.set(0, -1.05, 0); chanGroup.add(centerCrystal);
-
-  const light = new THREE.PointLight(0xffe2a8, 3.8, 11.0, 2);
-  light.position.set(0, -0.95, 0);
-  chanGroup.add(light);
 }
 
 function createFloralArch(x, z) {
@@ -1216,11 +1194,9 @@ function createPathLight(x, z) {
   pole.position.set(x, 0.725, z); pole.castShadow = true; scene.add(pole);
   const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.05, 8), metal);
   cap.position.set(x, 1.45, z); scene.add(cap);
-  const lanternMat = new THREE.MeshStandardMaterial({ color: 0xffd28b, emissive: 0xffab3d, emissiveIntensity: 1.2, roughness: 0.2 });
+  const lanternMat = new THREE.MeshBasicMaterial({ color: 0xffe28b });
   const lantern = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.22, 8), lanternMat);
   lantern.position.set(x, 1.32, z); scene.add(lantern);
-  const light = new THREE.PointLight(0xffbd66, 2.8, 6.2, 2);
-  light.position.set(x, 1.3, z); scene.add(light);
 }
 
 function createLoveMonument(x, z) {
@@ -1236,15 +1212,7 @@ function createLoveMonument(x, z) {
 
   const heartGroup = new THREE.Group();
   heartGroup.position.set(0, 1.62, 0);
-  const heartMat = new THREE.MeshPhysicalMaterial({
-    color: 0xff2a5c,
-    emissive: 0x990022,
-    emissiveIntensity: 0.6,
-    roughness: 0.1,
-    metalness: 0.1,
-    transmission: 0.5,
-    ior: 1.5,
-  });
+  const heartMat = new THREE.MeshBasicMaterial({ color: 0xff2a5c });
 
   const c1 = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), heartMat); c1.position.set(-0.16, 0.16, 0); heartGroup.add(c1);
   const c2 = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), heartMat); c2.position.set(0.16, 0.16, 0); heartGroup.add(c2);
@@ -1252,7 +1220,7 @@ function createLoveMonument(x, z) {
   group.add(heartGroup);
   crystalHeartMesh = heartGroup;
 
-  const heartLight = new THREE.PointLight(0xff3366, 3.5, 7.5, 2);
+  const heartLight = new THREE.PointLight(0xff3366, 3.2, 8.5, 2);
   heartLight.position.set(0, 1.65, 0);
   group.add(heartLight);
 
@@ -1295,14 +1263,14 @@ function createFireplaceAndAnniversaryMantle() {
     log.position.set(mantelX + (i - 1.5) * 0.18, 0.28 + i * 0.08, mantelZ + 0.25);
     scene.add(log);
   }
-  const emberMat = new THREE.MeshStandardMaterial({ color: 0xff4d22, emissive: 0xff3300, emissiveIntensity: 2.5 });
+  const emberMat = new THREE.MeshBasicMaterial({ color: 0xff5511 });
   for (let i = 0; i < 8; i++) {
     const ember = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), emberMat);
     ember.position.set(mantelX + (Math.random() - 0.5) * 1.4, 0.22, mantelZ + 0.22 + (Math.random() - 0.5) * 0.3);
     scene.add(ember);
   }
 
-  fireplaceLight = new THREE.PointLight(0xff6e2b, 6.0, 14.0, 2);
+  fireplaceLight = new THREE.PointLight(0xff6e2b, 4.5, 14.0, 2);
   fireplaceLight.position.set(mantelX, 1.0, mantelZ + 0.55);
   scene.add(fireplaceLight);
 
@@ -1319,14 +1287,14 @@ function createFireplaceAndAnniversaryMantle() {
   interactiveTargets.push(annivTarget);
 
   for (const sx of [-2.8, 2.8]) {
-    const sconce = new THREE.PointLight(0xffd17d, 3.2, 8.0, 2);
-    sconce.position.set(sx, 4.35, mantelZ + 0.4);
-    scene.add(sconce);
+    const sconceGlow = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffe299 }));
+    sconceGlow.position.set(sx, 4.35, mantelZ + 0.4);
+    scene.add(sconceGlow);
   }
 }
 
 function createFairyLights() {
-  const bulbMat = new THREE.MeshStandardMaterial({ color: 0xffe299, emissive: 0xffb84d, emissiveIntensity: 1.8 });
+  const bulbMat = new THREE.MeshBasicMaterial({ color: 0xffe299 });
   const bulbGeom = new THREE.SphereGeometry(0.045, 6, 6);
 
   // Porch fairy lights
@@ -1339,7 +1307,7 @@ function createFairyLights() {
     const bulb = new THREE.Mesh(bulbGeom, bulbMat);
     bulb.position.set(x, y, z);
     scene.add(bulb);
-    fairyBulbs.push({ mesh: bulb, baseIntensity: 1.8, phase: Math.random() * 6.28 });
+    fairyBulbs.push({ mesh: bulb, phase: Math.random() * 6.28 });
   }
 
   // Ceiling fairy lights along the entire long corridor
@@ -1353,7 +1321,7 @@ function createFairyLights() {
       const bulb = new THREE.Mesh(bulbGeom, bulbMat);
       bulb.position.set(x, y, z);
       scene.add(bulb);
-      fairyBulbs.push({ mesh: bulb, baseIntensity: 1.6, phase: Math.random() * 6.28 });
+      fairyBulbs.push({ mesh: bulb, phase: Math.random() * 6.28 });
     }
   }
 }
@@ -1545,11 +1513,12 @@ function buildHome() {
   leftDoorPivot = createDoorPivot(1);
   rightDoorPivot = createDoorPivot(-1);
 
-  const wallGlow = new THREE.MeshStandardMaterial({ color: 0xffd39a, emissive: 0xffb34f, emissiveIntensity: 1.0, roughness: 0.3 });
+  const wallGlow = new THREE.MeshBasicMaterial({ color: 0xffdfaa });
   for (const x of [-3.2, 3.2]) {
     addBox(scene, 0.32, 0.52, 0.25, walnut, x, 3.6, 0.56);
-    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), wallGlow); glow.position.set(x, 3.6, 0.72); scene.add(glow);
-    const light = new THREE.PointLight(0xffc277, 4.5, 9, 2); light.position.set(x, 3.55, 0.82); scene.add(light);
+    const glow = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), wallGlow);
+    glow.position.set(x, 3.6, 0.72);
+    scene.add(glow);
   }
 
   const dedicationTex = createDedicationTexture();
@@ -1569,19 +1538,26 @@ function buildHome() {
   createFairyLights();
   createFloatingParticles();
 
-  scene.add(new THREE.HemisphereLight(0xe8d0dc, 0x242d2a, 1.15));
-  const moon = new THREE.DirectionalLight(0xb4c5e8, 1.3); moon.position.set(-14, 20, 10); moon.castShadow = true;
-  moon.shadow.mapSize.set(isMobileViewport() ? 512 : 1024, isMobileViewport() ? 512 : 1024);
-  scene.add(moon);
+  // --- Optimized Rock-Solid Global Lighting (Guaranteed Bright & Rich on ALL Mobile Devices) ---
+  const ambientLight = new THREE.AmbientLight(0xfff6ea, 1.75);
+  scene.add(ambientLight);
 
-  // Warm interior ambient lights along the long corridor
-  for (let z = -6.0; z >= -62.0; z -= 14.0) {
-    const interiorLight = new THREE.PointLight(0xffd19c, 6.0, 24, 2);
-    interiorLight.position.set(0, 5.8, z);
-    scene.add(interiorLight);
-  }
+  const hemiLight = new THREE.HemisphereLight(0xffe6ee, 0x2d2229, 1.35);
+  scene.add(hemiLight);
 
-  const porchLight = new THREE.PointLight(0xffc97e, 5.5, 14, 2); porchLight.position.set(0, 4.6, 1.5); scene.add(porchLight);
+  const sunMoon = new THREE.DirectionalLight(0xfff8ed, 2.2);
+  sunMoon.position.set(-14, 24, 12);
+  sunMoon.castShadow = true;
+  sunMoon.shadow.mapSize.set(isMobileViewport() ? 512 : 1024, isMobileViewport() ? 512 : 1024);
+  scene.add(sunMoon);
+
+  const fillLight = new THREE.DirectionalLight(0xffdbe6, 1.1);
+  fillLight.position.set(14, 18, -12);
+  scene.add(fillLight);
+
+  const porchLight = new THREE.PointLight(0xffc97e, 3.5, 12, 2);
+  porchLight.position.set(0, 4.6, 1.5);
+  scene.add(porchLight);
 
   const starPositions = [];
   let seed = 19;
@@ -1599,7 +1575,7 @@ function buildHome() {
 
 function createWorld() {
   scene = new THREE.Scene();
-  scene.background = new THREE.Color(0x111422);
+  scene.background = new THREE.Color(0x131526);
   camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 140);
   camera.position.set(0, 3.8, 21.0);
   if (!createRenderer()) return;
@@ -1692,7 +1668,7 @@ function animateAvatar(avatar, time, walking, offset = 0, speed = 1) {
     u.skirtGroup.rotation.x = walking ? Math.cos(phase) * 0.05 : 0;
   }
   if (u.bowGroup) {
-    u.bowGroup.rotation.x = walking ? Math.sin(phase) * 0.08 : 0;
+    u.bowGroup.rotation.x = walking ? Math.sin(phase * 0.08) : 0;
   }
 
   u.rig.position.y = walking ? Math.abs(Math.sin(phase * 0.5)) * (0.04 * speed) : Math.sin(time * 1.3 + u.phase) * 0.015;
@@ -1801,7 +1777,7 @@ function updateGame(dt, elapsed) {
   }
 
   if (fireplaceLight) {
-    fireplaceLight.intensity = 5.6 + Math.sin(elapsed * 9.5) * 0.8 + Math.cos(elapsed * 14.2) * 0.5;
+    fireplaceLight.intensity = 4.2 + Math.sin(elapsed * 9.5) * 0.6 + Math.cos(elapsed * 14.2) * 0.4;
   }
 
   if (crystalHeartMesh) {
@@ -1809,17 +1785,10 @@ function updateGame(dt, elapsed) {
     crystalHeartMesh.position.y = 1.62 + Math.sin(elapsed * 2.2) * 0.06;
   }
 
-  if (fairyBulbs.length > 0) {
-    fairyBulbs.forEach((bulb) => {
-      const flicker = Math.sin(elapsed * 3.5 + bulb.phase) * 0.3;
-      bulb.mesh.material.emissiveIntensity = bulb.baseIntensity + flicker;
-    });
-  }
-
-  if (candleFlickers.length > 0) {
-    candleFlickers.forEach((candle) => {
-      const flick = Math.sin(elapsed * 8.0 + candle.phase) * 0.25;
-      candle.light.intensity = candle.baseIntensity + flick;
+  if (candleFlames.length > 0) {
+    candleFlames.forEach((candle) => {
+      const flick = 0.85 + Math.sin(elapsed * 8.0 + candle.phase) * 0.18;
+      candle.flame.scale.set(flick, flick, flick);
     });
   }
 
