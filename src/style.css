@@ -333,11 +333,14 @@ button { cursor: pointer; }
   background: linear-gradient(142deg,var(--tone1,#e3d9cb),var(--tone2,#b7c5bf));
   box-shadow: 0 16px 36px rgba(0, 0, 0, 0.15); border-radius: 8px;
 }
-.memory-art-placeholder img { position: absolute; inset: 0; z-index: 0; width: 100%; height: 100%; object-fit: contain; background: #fbf9f4; }
-.memory-art-placeholder img[hidden] { display: none; }
+.memory-art-placeholder img {
+  position: absolute; inset: 0; z-index: 5; width: 100%; height: 100%;
+  object-fit: contain; background: #16121a; display: block;
+}
+.memory-art-placeholder img[hidden] { display: none !important; }
 .memory-art-placeholder.has-photo .art-sun,
 .memory-art-placeholder.has-photo .art-hill,
-.memory-art-placeholder.has-photo .art-placeholder-label { display: none; }
+.memory-art-placeholder.has-photo .art-placeholder-label { display: none !important; }
 
 .image-caption { padding-top: 12px; color: #9c7b50; font-family: var(--serif); font-size: 11px; font-weight: 600; text-align: center; }
 
