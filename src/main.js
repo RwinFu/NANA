@@ -13,6 +13,7 @@ const touchPad = $('#touch-pad');
 const memoryOverlay = $('#memory-overlay');
 const helpOverlay = $('#help-overlay');
 const anniversaryOverlay = $('#anniversary-overlay');
+const loveletterOverlay = $('#loveletter-overlay');
 const floatingHeartsLayer = $('#floating-hearts');
 
 const storageKey = 'our-museum-gift-v2';
@@ -40,10 +41,23 @@ document.querySelectorAll('.swatch').forEach((button) => {
 
 // Sound synthesizer using Web Audio API
 let audioCtx = null;
+let musicPlaying = false;
+let musicTimer = null;
+let musicGain = null;
+
+function initAudio() {
+  if (!audioCtx) {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    musicGain = audioCtx.createGain();
+    musicGain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    musicGain.connect(audioCtx.destination);
+  }
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+}
+
 function playRomanticChime(frequency = 587.33) {
   try {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    initAudio();
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.type = 'sine';
@@ -67,6 +81,72 @@ function playCelebrationChord() {
   });
 }
 
+// Procedural Romantic Piano Melody Generator
+const romanticProgression = [
+  // C major chord & arpeggios
+  [261.63, 329.63, 392.00, 523.25, 659.25],
+  // G major chord & arpeggios
+  [196.00, 246.94, 293.66, 392.00, 493.88],
+  // A minor chord & arpeggios
+  [220.00, 261.63, 329.63, 440.00, 523.25],
+  // F major chord & arpeggios
+  [174.61, 220.00, 261.63, 349.23, 440.00],
+];
+
+let progressionIndex = 0;
+let noteIndex = 0;
+
+function playPianoNote(freq, duration = 1.4) {
+  if (!audioCtx || !musicPlaying) return;
+  try {
+    const osc = audioCtx.createOscillator();
+    const noteGain = audioCtx.createGain();
+    osc.type = 'triangle';
+    osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+
+    noteGain.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    noteGain.gain.exponentialRampToValueAtTime(0.0001, audioCtx.currentTime + duration);
+
+    osc.connect(noteGain);
+    noteGain.connect(musicGain);
+
+    osc.start();
+    osc.stop(audioCtx.currentTime + duration);
+  } catch (e) {
+    // Ignore error
+  }
+}
+
+function scheduleMusicStep() {
+  if (!musicPlaying) return;
+  const chord = romanticProgression[progressionIndex];
+  const note = chord[noteIndex % chord.length];
+
+  playPianoNote(note, 1.6);
+  noteIndex++;
+  if (noteIndex >= chord.length) {
+    noteIndex = 0;
+    progressionIndex = (progressionIndex + 1) % romanticProgression.length;
+  }
+
+  musicTimer = setTimeout(scheduleMusicStep, 480);
+}
+
+function toggleMusic() {
+  initAudio();
+  musicPlaying = !musicPlaying;
+  const btn = $('#music-toggle-btn');
+  if (musicPlaying) {
+    btn?.classList.add('is-playing');
+    scheduleMusicStep();
+    showToast('🎵 موسیقی پیانو روشن شد');
+  } else {
+    btn?.classList.remove('is-playing');
+    clearTimeout(musicTimer);
+    showToast('موسیقی خاموش شد');
+  }
+}
+
 function triggerConfetti(x = 0.5, y = 0.6) {
   try {
     confetti({
@@ -83,7 +163,6 @@ function triggerConfetti(x = 0.5, y = 0.6) {
   }
 }
 
-// Persian numerals helper
 function toPersianDigits(n) {
   const numStr = Number(n).toLocaleString('en-US');
   return numStr.replace(/[0-9]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
@@ -171,7 +250,6 @@ let pitchVelocity = 0;
 
 let cameraDistance = 7.8;
 let targetDistance = 7.8;
-let cameraHeight = 3.65;
 
 const cameraLookTarget = new THREE.Vector3(0, 1.2, 14);
 const desiredCameraLook = new THREE.Vector3(0, 1.2, 14);
@@ -185,6 +263,11 @@ let doorProgress = 0;
 let doorTarget = 0;
 let entryQueued = false;
 let insideHouse = false;
+
+// Cinematic Tour State
+let isTouring = false;
+let tourStep = 0;
+let tourTimer = null;
 
 // Drag & touch pointers
 let isDragging = false;
@@ -368,7 +451,6 @@ function makePlaqueTexture(memory, index) {
   }, 512, 112);
 }
 
-// 12 Custom Distinct Frame Architectural Builder
 function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2.95) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
@@ -1097,6 +1179,19 @@ function createLivingRoomFurniture() {
   vase.position.set(0, 0.62, 0); sofaGroup.add(vase);
   const rose = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), colorMaterial(0xff3366, 0.4, 0.2));
   rose.position.set(0, 0.82, 0); sofaGroup.add(rose);
+
+  // Love Letter Book on table
+  const bookMat = colorMaterial(0x8f2d48, 0.4, 0.3);
+  const book = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.06, 0.28), bookMat);
+  book.position.set(0.42, 0.49, 0.15);
+  book.rotation.y = 0.25;
+  sofaGroup.add(book);
+
+  const bookTarget = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.5), new THREE.MeshBasicMaterial({ visible: false }));
+  bookTarget.position.set(0.42, 0.52, -10.85);
+  bookTarget.userData = { type: 'love-letter' };
+  scene.add(bookTarget);
+  interactiveTargets.push(bookTarget);
 }
 
 function buildHome() {
@@ -1237,13 +1332,11 @@ function createWorld() {
 function updateCamera(smoothFactor = 1, dt = 0.016) {
   if (!camera || !player) return;
 
-  // Damping on camera angles & distance
   const rotDamp = 1 - Math.exp(-dt * 15.0);
   cameraYaw = lerp(cameraYaw, targetYaw, rotDamp);
   cameraPitch = lerp(cameraPitch, targetPitch, rotDamp);
   cameraDistance = lerp(cameraDistance, targetDistance, 1 - Math.exp(-dt * 12.0));
 
-  // Compute lead offset based on walking direction
   const leadOffset = new THREE.Vector3(playerVelocity.x * 0.22, 0, playerVelocity.z * 0.22);
   const lookDesiredY = 1.15;
   desiredCameraLook.set(
@@ -1252,10 +1345,8 @@ function updateCamera(smoothFactor = 1, dt = 0.016) {
     player.position.z + leadOffset.z
   );
 
-  // Smoothly damp the lookAt target point to eliminate jitter
   cameraLookTarget.lerp(desiredCameraLook, 1 - Math.exp(-dt * 14.0));
 
-  // Compute camera position with pitch & yaw spherical coordinates
   const cosPitch = Math.cos(cameraPitch);
   const sinPitch = Math.sin(cameraPitch);
   const sinYaw = Math.sin(cameraYaw);
@@ -1267,7 +1358,6 @@ function updateCamera(smoothFactor = 1, dt = 0.016) {
     cameraLookTarget.z + cosYaw * cosPitch * cameraDistance
   );
 
-  // Soft clamp camera position to avoid dipping through ground
   if (desiredPos.y < 0.8) desiredPos.y = 0.8;
 
   camera.position.lerp(desiredPos, 1 - Math.exp(-dt * 16.0));
@@ -1318,12 +1408,65 @@ function setHouseZone(inside) {
   updateSceneLocation();
 }
 
+// Cinematic Auto-Tour Handler
+function startCinematicTour() {
+  if (!started) return;
+  isTouring = true;
+  $('#cinema-tour-btn')?.classList.add('is-touring');
+  showToast('🎬 تور سینمایی خودکار شروع شد');
+
+  // Guide player inside first if outside
+  if (!insideHouse) {
+    doorTarget = 1;
+    movementTarget = new THREE.Vector3(0, 0, -6.5);
+  }
+
+  tourStep = 0;
+  advanceTourStep();
+}
+
+function advanceTourStep() {
+  if (!isTouring) return;
+  if (tourStep >= frameRecords.length) {
+    stopCinematicTour();
+    showToast('✨ تور سینمایی تمام شد! سالگردتون مبارک');
+    openAnniversaryModal();
+    return;
+  }
+
+  const record = frameRecords[tourStep];
+  const approachDistance = 2.6;
+  movementTarget = new THREE.Vector3(
+    record.x + Math.sin(record.rotationY) * approachDistance,
+    0,
+    record.z + Math.cos(record.rotationY) * approachDistance,
+  );
+
+  targetYaw = record.rotationY + Math.PI;
+
+  tourTimer = setTimeout(() => {
+    if (!isTouring) return;
+    openMemory(record.memory, record.index);
+    tourTimer = setTimeout(() => {
+      if (!isTouring) return;
+      closeMemory();
+      tourStep++;
+      advanceTourStep();
+    }, 4500);
+  }, 3800);
+}
+
+function stopCinematicTour() {
+  isTouring = false;
+  clearTimeout(tourTimer);
+  $('#cinema-tour-btn')?.classList.remove('is-touring');
+}
+
 // Main Physics & Update Loop
 function updateGame(dt, elapsed) {
   updateDoor(dt);
   TWEEN.update();
 
-  // Inertia damping on camera rotation
   if (!isDragging) {
     targetYaw += yawVelocity * dt;
     targetPitch = clamp(targetPitch + pitchVelocity * dt, 0.02, 0.62);
@@ -1331,18 +1474,15 @@ function updateGame(dt, elapsed) {
     pitchVelocity = lerp(pitchVelocity, 0, 1 - Math.exp(-dt * 8.0));
   }
 
-  // Animate Fireplace Light Flickering
   if (fireplaceLight) {
     fireplaceLight.intensity = 5.2 + Math.sin(elapsed * 9.5) * 0.8 + Math.cos(elapsed * 14.2) * 0.5;
   }
 
-  // Animate Crystal Heart Rotation and Pulse
   if (crystalHeartMesh) {
     crystalHeartMesh.rotation.y = elapsed * 0.85;
     crystalHeartMesh.position.y = 1.62 + Math.sin(elapsed * 2.2) * 0.06;
   }
 
-  // Animate Fairy Lights Twinkle
   if (fairyBulbs.length > 0) {
     fairyBulbs.forEach((bulb) => {
       const flicker = Math.sin(elapsed * 3.5 + bulb.phase) * 0.3;
@@ -1350,7 +1490,6 @@ function updateGame(dt, elapsed) {
     });
   }
 
-  // Animate Floating Particles
   updateFloatingParticles(dt, elapsed);
 
   if (!started || !player) {
@@ -1358,7 +1497,7 @@ function updateGame(dt, elapsed) {
     return;
   }
 
-  if (currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden) {
+  if (currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden || !loveletterOverlay.hidden) {
     animateAvatar(player, elapsed, false);
     animateAvatar(companion, elapsed, false, 1.4);
     updateCamera(1, dt);
@@ -1371,6 +1510,10 @@ function updateGame(dt, elapsed) {
 
   const forwardInput = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
   const sideInput = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
+
+  if (forwardInput || sideInput) {
+    if (isTouring) stopCinematicTour();
+  }
 
   const desiredVelocity = new THREE.Vector3();
 
@@ -1398,7 +1541,6 @@ function updateGame(dt, elapsed) {
     }
   }
 
-  // Smooth acceleration & deceleration damping
   const accelDamp = 1 - Math.exp(-dt * 15.0);
   playerVelocity.x = lerp(playerVelocity.x, desiredVelocity.x, accelDamp);
   playerVelocity.z = lerp(playerVelocity.z, desiredVelocity.z, accelDamp);
@@ -1425,7 +1567,7 @@ function updateGame(dt, elapsed) {
   if (insideHouse && doorPassable && player.position.z > 0.85) setHouseZone(false);
   playerPosition.copy(player.position);
 
-  // Companion follows with smooth spring
+  // Companion follows
   const side = new THREE.Vector3(Math.cos(cameraYaw), 0, Math.sin(cameraYaw)).multiplyScalar(-1.05);
   const behind = new THREE.Vector3(Math.sin(cameraYaw), 0, Math.cos(cameraYaw)).multiplyScalar(0.42);
   const followTarget = player.position.clone().add(side).add(behind);
@@ -1459,7 +1601,7 @@ function render() {
 
 function syncAnimationLoop() {
   if (!renderer) return;
-  const shouldRender = started && !document.hidden && memoryOverlay.hidden && helpOverlay.hidden && anniversaryOverlay.hidden;
+  const shouldRender = started && !document.hidden && memoryOverlay.hidden && helpOverlay.hidden && anniversaryOverlay.hidden && loveletterOverlay.hidden;
   if (shouldRender) {
     clock?.start();
     renderer.setAnimationLoop(render);
@@ -1478,7 +1620,6 @@ function updateInteractions() {
   nearestMemory = null;
   nearestInteractable = null;
 
-  // Check love monument distance
   if (!insideHouse && loveMonument) {
     const dMon = Math.hypot(player.position.x - loveMonument.x, player.position.z - loveMonument.z);
     if (dMon < 2.8) {
@@ -1492,7 +1633,6 @@ function updateInteractions() {
     }
   }
 
-  // Check anniversary mantle distance inside
   if (insideHouse) {
     const dMantel = Math.hypot(player.position.x - 0, player.position.z - (-21.5));
     if (dMantel < 3.2) {
@@ -1500,6 +1640,17 @@ function updateInteractions() {
       card.classList.remove('is-hidden');
       copy.textContent = 'طاقِ تبریک سالگرد؛ برای جشن گرفتن دکمه را بزن';
       buttonLabel.textContent = '💍 جشنِ سالگرد عشقمون';
+      button.disabled = false;
+      updateProgress();
+      return;
+    }
+
+    const dBook = Math.hypot(player.position.x - 0.42, player.position.z - (-10.85));
+    if (dBook < 2.4) {
+      nearestInteractable = { type: 'love-letter' };
+      card.classList.remove('is-hidden');
+      copy.textContent = 'کتابچه‌ی نامه‌ی عاشقانه روی میز؛ برای خواندن دکمه را بزن';
+      buttonLabel.textContent = '💌 خواندن نامه‌ی عاشقانه';
       button.disabled = false;
       updateProgress();
       return;
@@ -1624,6 +1775,21 @@ function closeAnniversaryModal() {
   updateInteractions();
 }
 
+function openLoveLetterModal() {
+  $('#loveletter-from-sign').textContent = state.fromName;
+  loveletterOverlay.hidden = false;
+  playRomanticChime(523.25);
+  syncAnimationLoop();
+  $('#close-loveletter').focus({ preventScroll: true });
+}
+
+function closeLoveLetterModal() {
+  loveletterOverlay.hidden = true;
+  syncAnimationLoop();
+  canvas.focus({ preventScroll: true });
+  updateInteractions();
+}
+
 function beginEntry() {
   entryQueued = true;
   doorTarget = 1;
@@ -1631,7 +1797,7 @@ function beginEntry() {
 }
 
 function interactNearest() {
-  if (!started || currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden) return;
+  if (!started || currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden || !loveletterOverlay.hidden) return;
 
   if (nearestInteractable?.type === 'love-monument') {
     addLoveCount();
@@ -1639,6 +1805,10 @@ function interactNearest() {
   }
   if (nearestInteractable?.type === 'anniversary-mantle') {
     openAnniversaryModal();
+    return;
+  }
+  if (nearestInteractable?.type === 'love-letter') {
+    openLoveLetterModal();
     return;
   }
 
@@ -1777,6 +1947,10 @@ function raycastInteractive(event) {
       openAnniversaryModal();
       return;
     }
+    if (hitObj.userData?.type === 'love-letter') {
+      openLoveLetterModal();
+      return;
+    }
   }
 
   if (insideHouse) {
@@ -1797,7 +1971,6 @@ function handleResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// Touch joystick
 function resetJoystick() {
   const knob = $('#joystick-knob');
   if (knob) knob.style.transform = 'translate3d(0, 0, 0)';
@@ -1823,11 +1996,14 @@ function setupEvents() {
     });
   });
 
-  $('#camera-reset-button')?.addEventListener('click', resetCameraView);
-
-  $('#anniversary-btn')?.addEventListener('click', () => {
-    openAnniversaryModal();
+  $('#music-toggle-btn')?.addEventListener('click', toggleMusic);
+  $('#cinema-tour-btn')?.addEventListener('click', () => {
+    if (isTouring) stopCinematicTour();
+    else startCinematicTour();
   });
+  $('#camera-reset-button')?.addEventListener('click', resetCameraView);
+  $('#loveletter-btn')?.addEventListener('click', openLoveLetterModal);
+  $('#anniversary-btn')?.addEventListener('click', openAnniversaryModal);
 
   $('#love-counter-btn')?.addEventListener('click', (e) => {
     addLoveCount(e);
@@ -1844,6 +2020,10 @@ function setupEvents() {
   $('#close-anniversary')?.addEventListener('click', closeAnniversaryModal);
   $('#anniv-close-action')?.addEventListener('click', closeAnniversaryModal);
   $('#anniversary-backdrop')?.addEventListener('click', closeAnniversaryModal);
+
+  $('#close-loveletter')?.addEventListener('click', closeLoveLetterModal);
+  $('#loveletter-close-btn')?.addEventListener('click', closeLoveLetterModal);
+  $('#loveletter-backdrop')?.addEventListener('click', closeLoveLetterModal);
 
   $('#close-memory')?.addEventListener('click', closeMemory);
   $('#memory-backdrop')?.addEventListener('click', closeMemory);
@@ -1886,9 +2066,8 @@ function setupEvents() {
     }
   });
 
-  // Smooth Wheel Zoom with Clamp
   window.addEventListener('wheel', (e) => {
-    if (currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden) return;
+    if (currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden || !loveletterOverlay.hidden) return;
     targetDistance = clamp(targetDistance + e.deltaY * 0.005, 3.2, 12.0);
   }, { passive: true });
 
@@ -1899,6 +2078,7 @@ function setupEvents() {
     }
     if (e.code === 'Escape') {
       if (!anniversaryOverlay.hidden) closeAnniversaryModal();
+      else if (!loveletterOverlay.hidden) closeLoveLetterModal();
       else if (!memoryOverlay.hidden) closeMemory();
       else if (!helpOverlay.hidden) { helpOverlay.hidden = true; syncAnimationLoop(); }
       return;
@@ -1910,7 +2090,6 @@ function setupEvents() {
     keys.delete(e.code);
   });
 
-  // Smooth Canvas Drag & Inertia
   canvas.addEventListener('pointerdown', (e) => {
     if (e.target.closest('#touch-pad')) return;
     isDragging = true;
@@ -1949,7 +2128,6 @@ function setupEvents() {
   window.addEventListener('pointerup', finishDrag);
   window.addEventListener('pointercancel', finishDrag);
 
-  // Touch Pinch-to-zoom & Multi-touch
   canvas.addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) {
       prevPinchDist = Math.hypot(
@@ -1975,7 +2153,6 @@ function setupEvents() {
     if (e.touches.length < 2) prevPinchDist = null;
   });
 
-  // Touchpad joystick
   touchPad?.addEventListener('pointerdown', (e) => {
     joystickPointerId = e.pointerId;
     const rect = $('#touch-pad .joystick-base').getBoundingClientRect();

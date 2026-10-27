@@ -178,10 +178,29 @@ button { cursor: pointer; }
 .dedication-chip b { color: #d8818c; font-size: 12px; font-weight: 400; }
 .chip-dot { width: 5px; height: 5px; border-radius: 50%; background: #d0b27c; box-shadow: 0 0 9px #d0b27c; }
 
-.hud-actions { display: flex; gap: 8px; }
-.icon-button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 1px solid #ffffff30; border-radius: 50%; background: #151923a8; color: #e8dfce; font-family: var(--serif); font-size: 15px; transition: background .2s, border-color .2s; backdrop-filter: blur(7px); }
-.icon-button:hover { background: #c5a66b30; border-color: #cbb88a; }
+.hud-actions { display: flex; gap: 7px; }
+.icon-button { width: 34px; height: 34px; display: grid; place-items: center; padding: 0; border: 1px solid #ffffff30; border-radius: 50%; background: #151923a8; color: #e8dfce; font-family: var(--serif); font-size: 15px; transition: background .2s, border-color .2s, transform .2s; backdrop-filter: blur(7px); }
+.icon-button:hover { background: #c5a66b30; border-color: #cbb88a; transform: scale(1.05); }
+.icon-button:active { transform: scale(0.95); }
 .icon-button svg { width: 16px; height: 16px; }
+
+/* Music playing pulse animation */
+.icon-button.is-playing {
+  border-color: #ffd875;
+  background: rgba(255, 216, 117, 0.2);
+  box-shadow: 0 0 15px rgba(255, 216, 117, 0.4);
+}
+.icon-button.is-playing .music-icon-note {
+  animation: pulse-sparkle 1.2s infinite ease-in-out;
+}
+
+/* Cinema Tour button active */
+.icon-button.is-touring {
+  border-color: #ff4d6d;
+  background: rgba(255, 77, 109, 0.25);
+  box-shadow: 0 0 15px rgba(255, 77, 109, 0.5);
+  animation: pulse-sparkle 1.5s infinite;
+}
 
 .tour-progress { position: absolute; top: 76px; right: clamp(16px, 3.2vw, 44px); display: flex; align-items: center; gap: 9px; color: #b9b7b0; font-size: 9px; }
 .progress-label { color: #d8d2c6; }
@@ -223,10 +242,10 @@ button { cursor: pointer; }
 .toast { position: absolute; top: 110px; left: 50%; transform: translate(-50%,-8px); padding: 10px 18px; border: 1px solid #ffd87555; border-radius: 8px; background: #171b27f2; color: #f0e7d7; font-size: 11px; opacity: 0; box-shadow: 0 10px 30px #0006; transition: opacity .25s, transform .25s; pointer-events: none; z-index: 20; }
 .toast.show { opacity: 1; transform: translate(-50%,0); }
 
-/* Memory panel */
-.memory-overlay, .help-overlay, .anniversary-overlay { position: absolute; inset: 0; z-index: 15; display: grid; place-items: center; padding: 22px; }
-.memory-overlay[hidden], .help-overlay[hidden], .anniversary-overlay[hidden] { display: none; }
-.memory-backdrop, .help-backdrop, .anniversary-backdrop { position: absolute; inset: 0; background: #070910cc; backdrop-filter: blur(10px); animation: fade-in .3s ease both; }
+/* Overlays */
+.memory-overlay, .help-overlay, .anniversary-overlay, .loveletter-overlay { position: absolute; inset: 0; z-index: 15; display: grid; place-items: center; padding: 22px; }
+.memory-overlay[hidden], .help-overlay[hidden], .anniversary-overlay[hidden], .loveletter-overlay[hidden] { display: none; }
+.memory-backdrop, .help-backdrop, .anniversary-backdrop, .loveletter-backdrop { position: absolute; inset: 0; background: #070910cc; backdrop-filter: blur(10px); animation: fade-in .3s ease both; }
 
 .memory-card { position: relative; z-index: 1; display: grid; grid-template-columns: 1.05fr .95fr; width: min(920px, 100%); min-height: 495px; max-height: min(90vh, 700px); overflow: hidden; border: 1px solid #ffffff24; border-radius: 14px; background: #f5f1e9; color: #242733; box-shadow: 0 25px 80px #0009; animation: card-in .38s cubic-bezier(.2,.7,.2,1) both; direction: ltr; }
 
@@ -335,10 +354,27 @@ button { cursor: pointer; }
 .anniversary-love-action:hover { transform: translateY(-1px) scale(1.02); box-shadow: 0 10px 30px rgba(255, 77, 109, 0.5); }
 .anniv-close-action { margin-top: 0; background: #262c3b; border-color: #3b4254; }
 
+/* Love Letter Modal */
+.loveletter-card {
+  position: relative; z-index: 1; width: min(520px, 100%); padding: 38px 34px 28px;
+  border: 2px solid #d4af3777; border-radius: 14px;
+  background: #fbf7ee; color: #2e2820;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.6), inset 0 0 40px #f0e6d2;
+  animation: card-in .35s cubic-bezier(.2,.7,.2,1) both; direction: rtl; text-align: right;
+}
+.loveletter-seal { text-align: center; font-size: 38px; margin-bottom: 8px; filter: drop-shadow(0 4px 10px rgba(0,0,0,0.15)); }
+.loveletter-card .kicker { text-align: center; color: #a88448; margin-bottom: 6px; }
+.loveletter-card h2 { margin: 0 0 18px; text-align: center; font-family: var(--serif); font-size: 28px; font-weight: 400; color: #3b2e24; }
+.loveletter-body { font-size: 13px; line-height: 2.2; color: #52473c; border-top: 1px dashed #d8caba; border-bottom: 1px dashed #d8caba; padding: 14px 0; margin-bottom: 16px; }
+.loveletter-body p { margin: 6px 0; }
+.loveletter-signature { display: flex; flex-direction: column; align-items: flex-end; color: #826e5b; font-size: 11px; margin-bottom: 20px; }
+.loveletter-signature strong { font-size: 14px; color: #a32d43; margin-top: 2px; }
+.loveletter-close-btn { min-height: 44px; margin-top: 0; background: #3b2e24; border-color: #524133; }
+
 /* Help overlay */
 .help-card { position:relative; z-index:1; width:min(440px,100%); padding:38px 32px 26px; border:1px solid #ffffff24; border-radius:12px; background:#f7f3ea; color:#252936; box-shadow:0 24px 80px #0008; animation:card-in .3s ease both; direction:rtl; }
 .help-card h2 { margin:0 0 20px; font-family:var(--serif); font-size:28px; font-weight:400; }
-.help-card .kicker { text-align:right; }.guide-row { display:flex; align-items:center; gap:12px; padding:11px 0; border-top:1px solid #e3ddd1; color:#69675f; font-size:10.5px; }
+.help-card .kicker { text-align:right; }.guide-row { display:flex; align-items:center; gap:12px; padding:10px 0; border-top:1px solid #e3ddd1; color:#69675f; font-size:10.5px; }
 .guide-key { min-width:88px; padding:6px 8px; border:1px solid #ddd4c2; border-radius:5px; background:#fffdf8; color:#89724d; text-align:center; font-family:Arial,sans-serif; font-size:9px; direction:ltr; font-weight: 600; }
 .guide-note { margin:16px 0 20px; color:#98938a; font-size:10px; line-height:1.9; }
 .help-close-action { min-height:44px; margin-top: 0; }
@@ -379,7 +415,7 @@ button { cursor: pointer; }
   .anniversary-chip { padding: 5px 8px; font-size: 8px; }
   .love-counter-chip { padding: 5px 8px; font-size: 8px; }
   .dedication-chip { gap:5px; padding:5px 8px; font-size:8px; }
-  .hud-actions { gap:4px; }.icon-button { width:30px;height:30px; }
+  .hud-actions { gap:4px; }.icon-button { width:30px;height:30px; font-size: 13px; }
   .tour-progress { top:78px; right:12px; font-size:8px; }
   .progress-track { width:60px; }
   .scene-location { display:none; }
@@ -391,7 +427,7 @@ button { cursor: pointer; }
   .touch-pad { left:12px; bottom:max(15px,env(safe-area-inset-bottom)); transform:scale(.90); transform-origin:bottom left; }
   .look-hint { top:152px; bottom:auto; }
   .interaction-card { bottom:calc(150px + env(safe-area-inset-bottom)); font-size:9px; }
-  .memory-overlay, .help-overlay, .anniversary-overlay { padding:12px; }
+  .memory-overlay, .help-overlay, .anniversary-overlay, .loveletter-overlay { padding:12px; }
   .memory-card { grid-template-columns:1fr; width:min(480px,100%); max-height:calc(100dvh - 24px); overflow-y:auto; }
   .memory-image-wrap { padding:22px 20px 14px; min-height:260px; }
   .memory-art-placeholder { min-height:210px; }
@@ -405,5 +441,7 @@ button { cursor: pointer; }
   .anniversary-card h2 { font-size: 26px; }
   .anniversary-stats-grid { gap: 6px; padding: 10px 6px; }
   .stat-number { font-size: 16px; }
+  .loveletter-card { padding: 28px 20px 22px; }
+  .loveletter-card h2 { font-size: 24px; }
   .help-card { padding:30px 20px 20px; }
 }

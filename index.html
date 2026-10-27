@@ -24,7 +24,7 @@
           <div class="intro-copy">
             <p class="kicker">OUR HOME · ANNIVERSARY & VALENTINE</p>
             <h1 id="intro-title">خانه‌ی <em>ما</em></h1>
-            <p class="intro-description">از حیاط و زیر ریسه‌های نور وارد خانه شو؛ میان ۱۲ قاب عکس با طراحی اختصاصی قدم بزنید و سالگرد زیبایمان را جشن بگیرید.</p>
+            <p class="intro-description">از حیاط و زیر ریسه‌های نور وارد خانه شو؛ میان ۱۲ قاب عکس با طراحی اختصاصی قدم بزنید، به موسیقی پیانو گوش دهید و سالگرد زیبایمان را جشن بگیرید.</p>
           </div>
 
           <form class="gift-form" id="setup-form">
@@ -69,7 +69,7 @@
               <span>از حیاط وارد شو</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <div class="form-footnote"><span class="tiny-lock" aria-hidden="true">✦</span> هر قاب عکس دارای طراحی و معماری منحصربه‌فرد خودش است.</div>
+            <div class="form-footnote"><span class="tiny-lock" aria-hidden="true">✦</span> همراه با موسیقی ملایم پیانو، قاب‌های اختصاصی و تور سینمایی.</div>
           </form>
           <div class="intro-footer"><span>یک تجربه‌ی شخصی، آرام و عاشقانه</span><span class="footer-dot"></span><span>با عشق و نور</span></div>
         </div>
@@ -119,8 +119,17 @@
             <div class="dedication-chip"><span class="chip-dot"></span><span id="hud-from">من</span><b>♡</b><span id="hud-to">عزیزم</span></div>
           </div>
           <div class="hud-actions">
+            <button class="icon-button" id="music-toggle-btn" type="button" aria-label="موسیقی پس‌زمینه" title="موسیقی پس‌زمینه پیانو">
+              <span class="music-icon-note">🎵</span>
+            </button>
+            <button class="icon-button" id="cinema-tour-btn" type="button" aria-label="تور سینمایی خودکار" title="شروع تور سینمایی خودکار">
+              🎬
+            </button>
             <button class="icon-button" id="camera-reset-button" type="button" aria-label="تنظیم زاویه دوربین" title="تنظیم زاویه و بازنشانی دوربین">
               <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="3.2" fill="none" stroke="currentColor" stroke-width="1.6"/><path d="M4 8V6a2 2 0 0 1 2-2h2M4 16v2a2 2 0 0 0 2 2h2m12-16h-2a2 2 0 0 0-2 2v0m4 12v2a2 2 0 0 1-2 2h-2" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+            </button>
+            <button class="icon-button" id="loveletter-btn" type="button" aria-label="نامه‌ی عاشقانه" title="کتابچه نامه‌ی عاشقانه">
+              💌
             </button>
             <button class="icon-button" id="help-button" type="button" aria-label="راهنما" title="راهنما">?</button>
             <button class="icon-button" id="fullscreen-button" type="button" aria-label="تمام‌صفحه" title="تمام‌صفحه"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
@@ -129,13 +138,16 @@
 
         <div class="tour-progress"><span class="progress-label">خاطرات دیده‌شده</span><span class="progress-track"><i id="progress-bar"></i></span><span id="progress-count">۰ / ۱۲</span></div>
         <div class="scene-location" id="scene-location"><span class="location-pip"></span><span>حیاط خانه</span></div>
+        
         <div class="interaction-card is-hidden" id="interaction-card">
           <span class="interaction-icon">↵</span><span id="interaction-copy">به در خانه نزدیک شو و E بزن</span>
         </div>
+        
         <div class="bottom-hud">
           <div class="control-hint"><span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span><span>حرکت</span><i></i><span class="keycap key-e">E</span><span>تعامل</span><i></i><span class="keycap">اسکرول</span><span>زوم</span></div>
           <button class="interact-button" id="interact-button" type="button"><span class="interact-key">E</span><span>تا جلوی خانه حرکت کن</span><span class="interact-arrow">↗</span></button>
         </div>
+        
         <div class="touch-controls" id="touch-controls">
           <div class="touch-pad" id="touch-pad" role="application" aria-label="جوی‌استیک حرکت">
             <div class="joystick-base">
@@ -221,6 +233,29 @@
         </article>
       </section>
 
+      <!-- Love Letter / Memory Book Modal -->
+      <section class="loveletter-overlay" id="loveletter-overlay" aria-modal="true" role="dialog" aria-labelledby="loveletter-title" hidden>
+        <div class="loveletter-backdrop" id="loveletter-backdrop"></div>
+        <article class="loveletter-card">
+          <button class="close-button" id="close-loveletter" type="button" aria-label="بستن">×</button>
+          <div class="loveletter-seal">💌</div>
+          <span class="kicker">OUR LOVE LETTER</span>
+          <h2 id="loveletter-title">نامه‌ای از اعماق قلب</h2>
+          <div class="loveletter-body" id="loveletter-body">
+            <p>عزیزترین من،</p>
+            <p>در این خانه‌ی کوچک، هر گوشه و هر قابی شاهدی است بر روزهایی که با خنده، عشق و کنار هم بودن رقم خوردند. تمام این ۱۲ قاب و تک‌تک لحظه‌های ریز و درشتی که با هم گذراندیم، باارزش‌ترین دارایی من در این جهانند.</p>
+            <p>سالگردمان و ولنتاین مبارک؛ تا همیشه دوستت دارم و کنارت خواهم بود. ❤️</p>
+          </div>
+          <div class="loveletter-signature">
+            <span>برای همیشه،</span>
+            <strong id="loveletter-from-sign">من</strong>
+          </div>
+          <button class="start-button loveletter-close-btn" id="loveletter-close-btn" type="button">
+            <span>بستن نامه و ادامه‌ی گردش</span> <span>♡</span>
+          </button>
+        </article>
+      </section>
+
       <!-- Guide / Help modal -->
       <section class="help-overlay" id="help-overlay" hidden>
         <div class="help-backdrop" id="help-backdrop"></div>
@@ -231,6 +266,8 @@
           <div class="guide-row"><span class="guide-key">W A S D</span><span>حرکت روان و پیوسته در خانه و حیاط</span></div>
           <div class="guide-row"><span class="guide-key">ماوس / لمس</span><span>چرخش دوربین ۳۶۰ درجه و زوم با اسکرول یا دو انگشت</span></div>
           <div class="guide-row"><span class="guide-key">دکمه / E</span><span>تعامل با قاب‌ها، در و تندیس‌ها</span></div>
+          <div class="guide-row"><span class="guide-key">🎵 موسیقی</span><span>پخش موسیقی ملایم پیانو در پس‌زمینه</span></div>
+          <div class="guide-row"><span class="guide-key">🎬 تور سینمایی</span><span>گردش خودکار دوربین میان قاب‌های خانه</span></div>
           <div class="guide-row"><span class="guide-key">تندیس قلب</span><span>کلیک کن تا بگی دوستت دارم!</span></div>
           <p class="guide-note">روی گوشی با جوی‌استیک حرکت کن و صفحه را با لمس بکش تا دوربین بچرخد. با دو انگشت می‌توانید روی صحنه زوم کنید. دوربین دارای شتاب و چرخش سینمایی روان و بدون لگ است.</p>
           <button class="start-button help-close-action" id="help-close-action" type="button"><span>متوجه شدم</span><span>✓</span></button>
