@@ -1,4 +1,6 @@
 import * as THREE from 'three';
+import * as TWEEN from '@tweenjs/tween.js';
+import confetti from 'canvas-confetti';
 import { museumDefaults, memories } from './memories.js';
 import './style.css';
 
@@ -46,23 +48,39 @@ function playRomanticChime(frequency = 587.33) {
     const gain = audioCtx.createGain();
     osc.type = 'sine';
     osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
-    osc.frequency.exponentialRampToValueAtTime(frequency * 1.5, audioCtx.currentTime + 0.4);
+    osc.frequency.exponentialRampToValueAtTime(frequency * 1.5, audioCtx.currentTime + 0.35);
     gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
-    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.75);
     osc.connect(gain);
     gain.connect(audioCtx.destination);
     osc.start();
-    osc.stop(audioCtx.currentTime + 0.85);
+    osc.stop(audioCtx.currentTime + 0.8);
   } catch (e) {
-    // Audio context not allowed or not supported; ignore silently
+    // Ignore audio errors
   }
 }
 
 function playCelebrationChord() {
-  const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+  const notes = [523.25, 659.25, 783.99, 1046.5];
   notes.forEach((freq, idx) => {
-    setTimeout(() => playRomanticChime(freq), idx * 120);
+    setTimeout(() => playRomanticChime(freq), idx * 110);
   });
+}
+
+function triggerConfetti(x = 0.5, y = 0.6) {
+  try {
+    confetti({
+      particleCount: 65,
+      spread: 75,
+      origin: { x, y },
+      colors: ['#ff4d6d', '#ffd875', '#ff758f', '#ffffff', '#e29578'],
+      ticks: 200,
+      gravity: 0.9,
+      scalar: 1.1,
+    });
+  } catch (e) {
+    // Ignore confetti errors
+  }
 }
 
 // Persian numerals helper
@@ -114,9 +132,25 @@ function addLoveCount(event) {
   const clientX = event?.clientX ?? window.innerWidth / 2;
   const clientY = event?.clientY ?? window.innerHeight / 2;
   triggerHeartFX(clientX, clientY, 3);
+  triggerConfetti(clientX / window.innerWidth, clientY / window.innerHeight);
   showToast(`❤️ یک «دوستت دارم» دیگر ثبت شد! (مجموعاً ${toPersianDigits(state.loveCount)} بار)`);
 }
 
+// Math and damping helpers
+const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
+const lerp = (a, b, t) => a + (b - a) * t;
+const isMobileViewport = () => window.innerWidth < 700 || Boolean(window.matchMedia?.('(pointer: coarse)').matches && window.innerWidth < 1100);
+const colorMaterial = (color, roughness = 0.7, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
+
+function shortestAngleDiff(from, to) {
+  const diff = (to - from) % (Math.PI * 2);
+  return ((diff + Math.PI * 3) % (Math.PI * 2)) - Math.PI;
+}
+function lerpAngle(from, to, t) {
+  return from + shortestAngleDiff(from, to) * t;
+}
+
+// Camera & Physics variables
 let renderer, scene, camera, clock;
 let player, companion;
 let leftDoorPivot = null;
@@ -125,20 +159,44 @@ let started = false;
 let currentMemory = null;
 let nearestMemory = null;
 let nearestInteractable = null;
+
+// Smooth Camera Controller State
 let cameraYaw = 0;
+let targetYaw = 0;
+let yawVelocity = 0;
+
+let cameraPitch = 0.22;
+let targetPitch = 0.22;
+let pitchVelocity = 0;
+
 let cameraDistance = 7.8;
+let targetDistance = 7.8;
 let cameraHeight = 3.65;
+
+const cameraLookTarget = new THREE.Vector3(0, 1.2, 14);
+const desiredCameraLook = new THREE.Vector3(0, 1.2, 14);
+
+// Player physics state
+const playerPosition = new THREE.Vector3(0, 0, 14);
+const playerVelocity = new THREE.Vector3(0, 0, 0);
+let playerTargetRot = 0;
+
 let doorProgress = 0;
 let doorTarget = 0;
 let entryQueued = false;
 let insideHouse = false;
-let dragging = false;
-let dragStart = null;
+
+// Drag & touch pointers
+let isDragging = false;
 let dragPointerId = null;
+let lastDragX = 0;
+let lastDragY = 0;
 let pointerMoved = false;
 let suppressClickUntil = 0;
 let joystickPointerId = null;
 let joystickCenter = null;
+let prevPinchDist = null;
+
 let toastTimer = null;
 let movementTarget = null;
 let dedicationSign = null;
@@ -155,29 +213,30 @@ const frameTargets = [];
 const frameRecords = [];
 const interactiveTargets = [];
 const pendingPhotoLoads = [];
-const playerPosition = new THREE.Vector3(0, 0, 14);
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
-
-const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
-const lerp = (a, b, t) => a + (b - a) * t;
-const isMobileViewport = () => window.innerWidth < 700 || Boolean(window.matchMedia?.('(pointer: coarse)').matches && window.innerWidth < 1100);
-const colorMaterial = (color, roughness = 0.7, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness });
 
 function createRenderer() {
   const mobile = isMobileViewport();
   try {
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: !mobile, alpha: false, powerPreference: 'high-performance', stencil: false });
+    renderer = new THREE.WebGLRenderer({
+      canvas,
+      antialias: !mobile,
+      alpha: false,
+      powerPreference: 'high-performance',
+      stencil: false,
+      precision: mobile ? 'mediump' : 'highp',
+    });
   } catch (error) {
     console.error('WebGL could not be initialized:', error);
     showToast('این مرورگر امکان اجرای گرافیک سه‌بعدی را ندارد.');
     return false;
   }
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1.18 : 1.65));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, mobile ? 1.25 : 1.75));
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.22;
+  renderer.toneMappingExposure = 1.24;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   return true;
@@ -329,22 +388,22 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
   const accentMat = colorMaterial(fs.accentColor, 0.22, 0.78);
   const darkBack = colorMaterial(0x0c0e12, 0.4);
 
-  // 1. Backing & Shadow plate
+  // Backing & Shadow
   addBox(group, width + 0.16, height + 0.16, 0.12, darkBack, 0, 0, -0.02, { castShadow: true, receiveShadow: false });
 
-  // 2. Custom Main Frame Moulding
+  // Main Frame Moulding
   addBox(group, width, height, 0.10, frameMat, 0, 0, 0.04);
 
-  // 3. Inner Mat / Mount
+  // Inner Mat
   const matMargin = 0.22;
   addBox(group, width - matMargin, height - matMargin, 0.06, matMat, 0, 0, 0.08, { castShadow: false });
 
-  // 4. Custom Architectural Elements by Frame Type
+  // Custom Architectural Features
   const halfW = width / 2;
   const halfH = height / 2;
 
   switch (fs.type) {
-    case 'rose-gold-romance': // Frame 1: Rosette corner buds & rose gold inner fillet
+    case 'rose-gold-romance':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
           const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.04, 8), accentMat);
@@ -356,11 +415,10 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
           group.add(center);
         }
       }
-      // Inner thin rose gold frame border
       addBox(group, width - 0.32, height - 0.32, 0.025, accentMat, 0, 0, 0.11, { castShadow: false });
       break;
 
-    case 'baroque-gold': // Frame 2: Stepped Baroque moulding + Crown Crest on top
+    case 'baroque-gold':
       {
         const crown = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.28, 5), accentMat);
         crown.position.set(0, halfH + 0.14, 0.06);
@@ -381,14 +439,14 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
       }
       break;
 
-    case 'honey-walnut': // Frame 3: Modern dual brass inlay running inside timber
+    case 'honey-walnut':
       addBox(group, width - 0.08, 0.025, 0.025, accentMat, 0, halfH - 0.06, 0.10, { castShadow: false });
       addBox(group, width - 0.08, 0.025, 0.025, accentMat, 0, -halfH + 0.06, 0.10, { castShadow: false });
       addBox(group, 0.025, height - 0.08, 0.025, accentMat, halfW - 0.06, 0, 0.10, { castShadow: false });
       addBox(group, 0.025, height - 0.08, 0.025, accentMat, -halfW + 0.06, 0, 0.10, { castShadow: false });
       break;
 
-    case 'crimson-velvet': // Frame 4: Sculpted golden hearts on 4 corners + ruby border
+    case 'crimson-velvet':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
           const heartGroup = new THREE.Group();
@@ -402,7 +460,7 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
       }
       break;
 
-    case 'rustic-timber': // Frame 5: Scandinavian wood pegs & soft linen relief
+    case 'rustic-timber':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
           const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.05, 8), colorMaterial(0x422d1e, 0.8));
@@ -413,7 +471,7 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
       }
       break;
 
-    case 'pearl-silver': // Frame 6: Silver beading along top and bottom + diamond silver pins
+    case 'pearl-silver':
       for (let i = -4; i <= 4; i++) {
         const beadTop = new THREE.Mesh(new THREE.SphereGeometry(0.024, 7, 7), accentMat);
         beadTop.position.set(i * (width / 10), halfH - 0.04, 0.11); group.add(beadTop);
@@ -422,7 +480,7 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
       }
       break;
 
-    case 'star-celebration': // Frame 7: Brilliant star studs & festive crest
+    case 'star-celebration':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
           const starStud = new THREE.Mesh(new THREE.OctahedronGeometry(0.055), accentMat);
@@ -430,7 +488,6 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
           group.add(starStud);
         }
       }
-      // Top celebratory diamond
       {
         const topStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.09), accentMat);
         topStar.position.set(0, halfH + 0.10, 0.08);
@@ -438,7 +495,7 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
       }
       break;
 
-    case 'rose-quartz': // Frame 8: Pastel rose arches & soft rounded studs
+    case 'rose-quartz':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
           const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.048, 10, 8), accentMat);
@@ -448,7 +505,7 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
       }
       break;
 
-    case 'gallery-monochrome': // Frame 9: Ultra-minimalist matte black with floating chrome standoffs
+    case 'gallery-monochrome':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
           const standoff = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.05, 12), accentMat);
@@ -459,7 +516,7 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
       }
       break;
 
-    case 'lavender-twilight': // Frame 10: Antique bronze filigree corner plates
+    case 'lavender-twilight':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
           const plate = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.035, 0.02), accentMat);
@@ -470,7 +527,7 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
       }
       break;
 
-    case 'emerald-copper': // Frame 11: Warm copper clasps on corners
+    case 'emerald-copper':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
           const clasp = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.04), accentMat);
@@ -480,7 +537,7 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
       }
       break;
 
-    case 'midnight-starlight': // Frame 12: Luminous starlight corner gems & golden glowing rim
+    case 'midnight-starlight':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
           const gem = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), accentMat);
@@ -491,7 +548,7 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
       break;
   }
 
-  // 5. Artwork Plane
+  // Artwork Plane
   const artWidth = width - 0.44;
   const artHeight = height - 0.52;
   const artTexture = makeAbstractArtwork(memory, index);
@@ -535,7 +592,7 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
   }
   frameTargets.push(art);
 
-  // 6. Custom Dedicated Sconce / Spotlight above each frame
+  // Dedicated Sconce & Spotlight
   const sconceGroup = new THREE.Group();
   sconceGroup.position.set(0, halfH + 0.28, 0.16);
   const sconceArm = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.18, 6), colorMaterial(fs.accentColor, 0.3, 0.7));
@@ -546,12 +603,11 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
   bulbGlow.position.set(0, 0.06, 0.11); sconceGroup.add(bulbGlow);
   group.add(sconceGroup);
 
-  // Soft localized light on the artwork
   const frameSpot = new THREE.PointLight(0xffe6b0, isMobileViewport() ? 1.4 : 1.8, 4.2, 2);
   frameSpot.position.set(0, halfH + 0.22, 0.42);
   group.add(frameSpot);
 
-  // 7. Plaque Below Frame
+  // Plaque Below Frame
   const plaqueWidth = Math.max(width - 0.05, 1.8);
   addBox(group, plaqueWidth + 0.06, 0.52, 0.08, colorMaterial(fs.frameColor, 0.5, 0.2), 0, -halfH - 0.38, 0.015, { castShadow: false });
   const plaqueTex = makePlaqueTexture(memory, index);
@@ -794,7 +850,6 @@ function createPlanter(x, y, z) {
   const leafMat = colorMaterial(0x384c3c, 0.85);
   const bush = new THREE.Mesh(new THREE.SphereGeometry(0.68, 10, 8), leafMat);
   bush.position.set(x, y + 0.92, z); bush.castShadow = true; scene.add(bush);
-  // Add pink rose flower studs
   const flowerMat = colorMaterial(0xff758f, 0.3, 0.4);
   for (let i = 0; i < 5; i++) {
     const ang = i * 1.25;
@@ -817,20 +872,17 @@ function createPathLight(x, z) {
   light.position.set(x, 1.3, z); scene.add(light);
 }
 
-// Interactive 3D Crystal Heart Love Monument in Courtyard
 function createLoveMonument(x, z) {
   const group = new THREE.Group();
   group.position.set(x, 0, z);
   scene.add(group);
 
-  // Pedestal
   const marbleMat = colorMaterial(0x241d28, 0.3, 0.2);
   const goldTrim = colorMaterial(0xf3c858, 0.2, 0.8);
   addBox(group, 1.2, 0.22, 1.2, goldTrim, 0, 0.11, 0);
   addBox(group, 0.95, 0.75, 0.95, marbleMat, 0, 0.58, 0);
   addBox(group, 1.1, 0.12, 1.1, goldTrim, 0, 1.02, 0);
 
-  // Floating crystal heart mesh
   const heartGroup = new THREE.Group();
   heartGroup.position.set(0, 1.62, 0);
   const heartMat = new THREE.MeshPhysicalMaterial({
@@ -849,12 +901,10 @@ function createLoveMonument(x, z) {
   group.add(heartGroup);
   crystalHeartMesh = heartGroup;
 
-  // Heart Light
   const heartLight = new THREE.PointLight(0xff3366, 3.5, 7.5, 2);
   heartLight.position.set(0, 1.65, 0);
   group.add(heartLight);
 
-  // Floating 3D Love Monument Sign
   const labelTex = createLoveMonumentTexture();
   const labelSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthTest: false }));
   labelSprite.scale.set(2.2, 0.55, 1);
@@ -863,7 +913,6 @@ function createLoveMonument(x, z) {
   group.add(labelSprite);
   loveMonumentLabel = labelSprite;
 
-  // Interactive Target
   const clickTarget = new THREE.Mesh(new THREE.SphereGeometry(0.75, 8, 8), new THREE.MeshBasicMaterial({ visible: false }));
   clickTarget.position.set(0, 1.5, 0);
   clickTarget.userData = { type: 'love-monument' };
@@ -873,24 +922,20 @@ function createLoveMonument(x, z) {
   loveMonument = { x, z, group };
 }
 
-// Cozy Romantic Fireplace & Anniversary Arch on Living Room Feature Wall
 function createFireplaceAndAnniversaryMantle() {
   const mantelX = 0, mantelZ = -21.85;
   const stoneMat = colorMaterial(0x282c33, 0.7, 0.1);
   const goldMat = colorMaterial(0xf3c858, 0.2, 0.8);
   const darkHearth = colorMaterial(0x15161a, 0.9);
 
-  // Fireplace surround & Hearth
   addBox(scene, 4.4, 0.22, 1.2, stoneMat, mantelX, 0.11, mantelZ + 0.45);
   addBox(scene, 0.65, 2.4, 0.8, stoneMat, mantelX - 1.6, 1.2, mantelZ + 0.35);
   addBox(scene, 0.65, 2.4, 0.8, stoneMat, mantelX + 1.6, 1.2, mantelZ + 0.35);
   addBox(scene, 4.2, 0.45, 0.95, stoneMat, mantelX, 2.42, mantelZ + 0.35);
   addBox(scene, 4.4, 0.14, 1.1, goldMat, mantelX, 2.72, mantelZ + 0.35);
 
-  // Inner fire box
   addBox(scene, 2.55, 2.0, 0.6, darkHearth, mantelX, 1.0, mantelZ + 0.15, { castShadow: false });
 
-  // Fire logs & glowing embers
   const logMat = colorMaterial(0x382317, 0.9);
   for (let i = 0; i < 3; i++) {
     const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 1.2, 6), logMat);
@@ -905,26 +950,22 @@ function createFireplaceAndAnniversaryMantle() {
     scene.add(ember);
   }
 
-  // Animated Flickering Fireplace Light
   fireplaceLight = new THREE.PointLight(0xff6e2b, 5.5, 12.0, 2);
   fireplaceLight.position.set(mantelX, 0.85, mantelZ + 0.55);
   scene.add(fireplaceLight);
 
-  // Anniversary Plaque above the mantle
   const plaqueTex = createAnniversaryMantleTexture();
   const plaqueMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.85), new THREE.MeshBasicMaterial({ map: plaqueTex }));
   plaqueMesh.position.set(mantelX, 3.82, mantelZ + 0.16);
   scene.add(plaqueMesh);
   anniversaryMantleSign = plaqueMesh;
 
-  // Clickable Anniversary Mantle Target
   const annivTarget = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.2, 0.4), new THREE.MeshBasicMaterial({ visible: false }));
   annivTarget.position.set(mantelX, 3.82, mantelZ + 0.16);
   annivTarget.userData = { type: 'anniversary-mantle' };
   scene.add(annivTarget);
   interactiveTargets.push(annivTarget);
 
-  // Sconces on both sides of Anniversary Mantle
   for (const sx of [-2.4, 2.4]) {
     const sconce = new THREE.PointLight(0xffd17d, 2.5, 6.0, 2);
     sconce.position.set(sx, 3.82, mantelZ + 0.4);
@@ -932,12 +973,10 @@ function createFireplaceAndAnniversaryMantle() {
   }
 }
 
-// Fairy String Lights along the Porch and Ceiling
 function createFairyLights() {
   const bulbMat = new THREE.MeshStandardMaterial({ color: 0xffe299, emissive: 0xffb84d, emissiveIntensity: 1.8 });
   const bulbGeom = new THREE.SphereGeometry(0.045, 6, 6);
 
-  // Porch draped string
   for (let i = 0; i <= 14; i++) {
     const t = i / 14;
     const x = lerp(-3.8, 3.8, t);
@@ -950,7 +989,6 @@ function createFairyLights() {
     fairyBulbs.push({ mesh: bulb, baseIntensity: 1.8, phase: Math.random() * 6.28 });
   }
 
-  // Inside ceiling festoon lights
   for (let row = 0; row < 3; row++) {
     const z = -6.0 - row * 6.0;
     for (let i = 0; i <= 10; i++) {
@@ -966,7 +1004,6 @@ function createFairyLights() {
   }
 }
 
-// Floating Romantic Particle System
 function createFloatingParticles() {
   const particleCount = 55;
   const positions = new Float32Array(particleCount * 3);
@@ -1026,25 +1063,22 @@ function createLivingRoomFurniture() {
   sofaGroup.position.set(0, 0, -11.0);
   scene.add(sofaGroup);
 
-  const sofaFabric = colorMaterial(0x42384a, 0.85); // Romantic velvet wine
-  const pillowMat = colorMaterial(0xd88a8a, 0.75); // Rose blush pillows
+  const sofaFabric = colorMaterial(0x42384a, 0.85);
+  const pillowMat = colorMaterial(0xd88a8a, 0.75);
   const coffeeWood = colorMaterial(0x382c23, 0.5, 0.1);
-  const rugMat = colorMaterial(0x822b3c, 0.95); // Deep Persian burgundy rug
+  const rugMat = colorMaterial(0x822b3c, 0.95);
 
-  // Large cozy area rug
   const rug = new THREE.Mesh(new THREE.PlaneGeometry(8.2, 8.2), rugMat);
   rug.rotation.x = -Math.PI / 2;
   rug.position.set(0, 0.012, 0);
   rug.receiveShadow = true;
   sofaGroup.add(rug);
 
-  // Main Sofa
   addBox(sofaGroup, 3.8, 0.42, 1.25, sofaFabric, 0, 0.21, 1.8);
   addBox(sofaGroup, 3.8, 0.75, 0.35, sofaFabric, 0, 0.72, 2.25);
   addBox(sofaGroup, 0.35, 0.62, 1.25, sofaFabric, -1.95, 0.45, 1.8);
   addBox(sofaGroup, 0.35, 0.62, 1.25, sofaFabric, 1.95, 0.45, 1.8);
 
-  // Pillows
   for (const side of [-1.3, 1.3]) {
     const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.45, 0.22), pillowMat);
     pillow.position.set(side, 0.62, 2.05);
@@ -1052,7 +1086,6 @@ function createLivingRoomFurniture() {
     sofaGroup.add(pillow);
   }
 
-  // Coffee table & Candle Centerpiece
   addBox(sofaGroup, 2.2, 0.08, 1.2, coffeeWood, 0, 0.42, 0);
   for (const sx of [-0.95, 0.95]) {
     for (const sz of [-0.48, 0.48]) {
@@ -1060,7 +1093,6 @@ function createLivingRoomFurniture() {
     }
   }
 
-  // Glass vase with flowers on table
   const vase = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.32, 10), colorMaterial(0xffffff, 0.1, 0.1));
   vase.position.set(0, 0.62, 0); sofaGroup.add(vase);
   const rose = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), colorMaterial(0xff3366, 0.4, 0.2));
@@ -1072,7 +1104,6 @@ function buildHome() {
   const lawn = addGround(64, 44, new THREE.MeshStandardMaterial({ map: grassTexture, roughness: 0.92 }), 0, -0.05, 12);
   lawn.receiveShadow = true;
 
-  // Front courtyard pathway
   const pathMat = colorMaterial(0xdfd9ce, 0.84);
   const pathEdge = colorMaterial(0x8a7f72, 0.9);
   addBox(scene, 6.4, 0.03, 22.8, pathMat, 0, -0.035, 10.7, { receiveShadow: true, castShadow: false });
@@ -1083,7 +1114,6 @@ function buildHome() {
   const woodFloor = new THREE.Mesh(new THREE.PlaneGeometry(21.5, 22.2), new THREE.MeshStandardMaterial({ map: woodTexture, roughness: 0.65, metalness: 0.025 }));
   woodFloor.rotation.x = -Math.PI / 2; woodFloor.position.set(0, -0.025, -11.0); woodFloor.receiveShadow = true; scene.add(woodFloor);
 
-  // Home Walls
   const outerStone = colorMaterial(0xc7bda9, 0.86);
   const innerPlaster = colorMaterial(0xe3ddcf, 0.88);
   const sidePlaster = colorMaterial(0xd8d1c3, 0.9);
@@ -1104,7 +1134,6 @@ function buildHome() {
   addBox(scene, 8.3, 7.05, 0.045, innerPlaster, 6.85, 3.58, -0.39, { castShadow: false });
   addBox(scene, 5.2, 2.65, 0.045, innerPlaster, 0, 5.9, -0.39, { castShadow: false });
 
-  // Floating Roof
   addBox(scene, 23.8, 0.5, 24.6, roofMat, 0, 7.62, -10.75);
   addBox(scene, 24.1, 0.18, 0.28, walnut, 0, 7.28, 0.22);
   addBox(scene, 21.25, 0.18, 21.8, ceiling, 0, 7.25, -11.0, { castShadow: false });
@@ -1112,7 +1141,6 @@ function buildHome() {
   createFacadeWindow(-6.8, 3.55, 3.5, 2.65);
   createFacadeWindow(6.8, 3.55, 3.5, 2.65);
 
-  // Entrance Slats & Porch Canopy
   for (const side of [-1, 1]) {
     for (let i = 0; i < 9; i++) {
       const x = side * (2.82 + i * 0.105);
@@ -1132,11 +1160,9 @@ function buildHome() {
     addBox(scene, 7.8 - i * 0.65, 0.13, 0.62, stepStone, 0, 0.09 + i * 0.02, 0.72 + i * 0.58, { castShadow: false });
   }
 
-  // Hinged Doors
   leftDoorPivot = createDoorPivot(1);
   rightDoorPivot = createDoorPivot(-1);
 
-  // Exterior Entrance Lanterns
   const wallGlow = new THREE.MeshStandardMaterial({ color: 0xffd39a, emissive: 0xffb34f, emissiveIntensity: 1.0, roughness: 0.3 });
   for (const x of [-3.2, 3.2]) {
     addBox(scene, 0.32, 0.52, 0.25, walnut, x, 3.6, 0.56);
@@ -1144,31 +1170,23 @@ function buildHome() {
     const light = new THREE.PointLight(0xffc277, 4.5, 9, 2); light.position.set(x, 3.55, 0.82); scene.add(light);
   }
 
-  // Front Porch Dedication Sign
   const dedicationTex = createDedicationTexture();
   const signMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.68), new THREE.MeshBasicMaterial({ map: dedicationTex }));
   signMesh.position.set(0, 4.25, 0.88);
   scene.add(signMesh);
   dedicationSign = signMesh;
 
-  // Planters and Trees
   createPlanter(-4.65, 0, 1.6);
   createPlanter(4.65, 0, 1.6);
   createTree(-13.7, 4.5, 1.35); createTree(13.7, 4.5, 1.35);
   createTree(-16.5, 11.5, 1.0); createTree(16.5, 11.5, 1.0);
   for (const z of [5.2, 10.2, 15.2, 19.5]) { createPathLight(-4.3, z); createPathLight(4.3, z); }
 
-  // Romantic Courtyard Crystal Heart Love Monument
   createLoveMonument(0, 7.5);
-
-  // Fireplace & Anniversary Plaque inside
   createFireplaceAndAnniversaryMantle();
-
-  // Fairy string lights & Floating romantic particles
   createFairyLights();
   createFloatingParticles();
 
-  // Layered Romantic Lighting
   scene.add(new THREE.HemisphereLight(0xe8d0dc, 0x242d2a, 1.15));
   const moon = new THREE.DirectionalLight(0xb4c5e8, 1.3); moon.position.set(-14, 20, 10); moon.castShadow = true;
   moon.shadow.mapSize.set(isMobileViewport() ? 512 : 1024, isMobileViewport() ? 512 : 1024);
@@ -1178,7 +1196,6 @@ function buildHome() {
   const interiorBack = new THREE.PointLight(0xffdaa6, 7.5, 26, 2); interiorBack.position.set(0, 5.7, -18.5); scene.add(interiorBack);
   const porchLight = new THREE.PointLight(0xffc97e, 5.5, 14, 2); porchLight.position.set(0, 4.6, 1.5); scene.add(porchLight);
 
-  // Stars & Moon
   const starPositions = [];
   let seed = 19;
   const random = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
@@ -1208,42 +1225,71 @@ function createWorld() {
   companion = createAvatar({ name: state.fromName, shirt: 0xe9e3d8, vestColor: 0x292c34, pants: 0x344052, skin: 0xd9aa88, hair: 0x322a27, curls: true });
   companion.position.set(-1.15, 0, 15.0); companion.rotation.y = 0; scene.add(companion);
 
-  updateCamera(1);
+  cameraLookTarget.copy(player.position).add(new THREE.Vector3(0, 1.2, 0));
+  updateCamera(1, 0.016);
+
   clock = new THREE.Clock();
   clock.stop();
   renderer.setAnimationLoop(null);
 }
 
-function updateCamera(smooth = 0.14) {
+// Ultra-smooth Damped Camera Calculation
+function updateCamera(smoothFactor = 1, dt = 0.016) {
   if (!camera || !player) return;
-  const forward = new THREE.Vector3(Math.sin(cameraYaw), 0, -Math.cos(cameraYaw));
-  const target = player.position.clone().addScaledVector(forward, insideHouse ? 2.8 : 4.1);
-  target.y = 1.12;
-  const desired = new THREE.Vector3(
-    player.position.x - Math.sin(cameraYaw) * cameraDistance,
-    player.position.y + cameraHeight,
-    player.position.z + Math.cos(cameraYaw) * cameraDistance,
+
+  // Damping on camera angles & distance
+  const rotDamp = 1 - Math.exp(-dt * 15.0);
+  cameraYaw = lerp(cameraYaw, targetYaw, rotDamp);
+  cameraPitch = lerp(cameraPitch, targetPitch, rotDamp);
+  cameraDistance = lerp(cameraDistance, targetDistance, 1 - Math.exp(-dt * 12.0));
+
+  // Compute lead offset based on walking direction
+  const leadOffset = new THREE.Vector3(playerVelocity.x * 0.22, 0, playerVelocity.z * 0.22);
+  const lookDesiredY = 1.15;
+  desiredCameraLook.set(
+    player.position.x + leadOffset.x,
+    player.position.y + lookDesiredY,
+    player.position.z + leadOffset.z
   );
-  camera.position.lerp(desired, smooth);
-  camera.lookAt(target);
+
+  // Smoothly damp the lookAt target point to eliminate jitter
+  cameraLookTarget.lerp(desiredCameraLook, 1 - Math.exp(-dt * 14.0));
+
+  // Compute camera position with pitch & yaw spherical coordinates
+  const cosPitch = Math.cos(cameraPitch);
+  const sinPitch = Math.sin(cameraPitch);
+  const sinYaw = Math.sin(cameraYaw);
+  const cosYaw = Math.cos(cameraYaw);
+
+  const desiredPos = new THREE.Vector3(
+    cameraLookTarget.x - sinYaw * cosPitch * cameraDistance,
+    cameraLookTarget.y + sinPitch * cameraDistance + (insideHouse ? 0.3 : 0.6),
+    cameraLookTarget.z + cosYaw * cosPitch * cameraDistance
+  );
+
+  // Soft clamp camera position to avoid dipping through ground
+  if (desiredPos.y < 0.8) desiredPos.y = 0.8;
+
+  camera.position.lerp(desiredPos, 1 - Math.exp(-dt * 16.0));
+  camera.lookAt(cameraLookTarget);
 }
 
-function animateAvatar(avatar, time, walking, offset = 0) {
+function animateAvatar(avatar, time, walking, offset = 0, speed = 1) {
   if (!avatar) return;
   const u = avatar.userData;
-  const phase = time * 9 + u.phase + offset;
-  const amp = walking ? 0.5 : 0.025;
+  const phase = time * (walking ? 9.5 * speed : 2.0) + u.phase + offset;
+  const amp = walking ? Math.min(0.55, 0.42 * speed) : 0.02;
   u.leftLeg.rotation.x = Math.sin(phase) * amp;
   u.rightLeg.rotation.x = -Math.sin(phase) * amp;
   u.leftArm.rotation.x = -Math.sin(phase) * amp * 0.62;
   u.rightArm.rotation.x = Math.sin(phase) * amp * 0.62;
-  u.rig.position.y = walking ? Math.abs(Math.sin(phase * 0.5)) * 0.045 : Math.sin(time * 1.3 + u.phase) * 0.018;
+  u.rig.position.y = walking ? Math.abs(Math.sin(phase * 0.5)) * (0.04 * speed) : Math.sin(time * 1.3 + u.phase) * 0.015;
   u.head.rotation.z = walking ? Math.sin(phase * 0.35) * 0.018 : Math.sin(time * 1.0 + u.phase) * 0.012;
 }
 
 function updateDoor(dt) {
   if (!leftDoorPivot || !rightDoorPivot) return;
-  doorProgress = lerp(doorProgress, doorTarget, 1 - Math.exp(-dt * 2.25));
+  doorProgress = lerp(doorProgress, doorTarget, 1 - Math.exp(-dt * 2.8));
   leftDoorPivot.rotation.y = doorProgress * 1.22;
   rightDoorPivot.rotation.y = -doorProgress * 1.22;
 }
@@ -1263,17 +1309,27 @@ function setHouseZone(inside) {
   if (insideHouse === inside) return;
   insideHouse = inside;
   if (inside) {
-    cameraDistance = 5.8; cameraHeight = 3.25; doorTarget = 1;
+    targetDistance = 5.6; targetPitch = 0.20; doorTarget = 1;
     showToast(`به خانه‌ی خاطرات ${state.toName} خوش آمدی`);
   } else {
-    cameraDistance = 7.8; cameraHeight = 3.65;
+    targetDistance = 7.8; targetPitch = 0.24;
     showToast('به حیاط خانه برگشتی');
   }
   updateSceneLocation();
 }
 
+// Main Physics & Update Loop
 function updateGame(dt, elapsed) {
   updateDoor(dt);
+  TWEEN.update();
+
+  // Inertia damping on camera rotation
+  if (!isDragging) {
+    targetYaw += yawVelocity * dt;
+    targetPitch = clamp(targetPitch + pitchVelocity * dt, 0.02, 0.62);
+    yawVelocity = lerp(yawVelocity, 0, 1 - Math.exp(-dt * 8.0));
+    pitchVelocity = lerp(pitchVelocity, 0, 1 - Math.exp(-dt * 8.0));
+  }
 
   // Animate Fireplace Light Flickering
   if (fireplaceLight) {
@@ -1298,14 +1354,14 @@ function updateGame(dt, elapsed) {
   updateFloatingParticles(dt, elapsed);
 
   if (!started || !player) {
-    updateCamera(0.12);
+    updateCamera(1, dt);
     return;
   }
 
   if (currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden) {
     animateAvatar(player, elapsed, false);
     animateAvatar(companion, elapsed, false, 1.4);
-    updateCamera(0.12);
+    updateCamera(1, dt);
     return;
   }
 
@@ -1315,7 +1371,8 @@ function updateGame(dt, elapsed) {
 
   const forwardInput = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
   const sideInput = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
-  let moved = false;
+
+  const desiredVelocity = new THREE.Vector3();
 
   if (movementTarget) {
     const delta = movementTarget.clone().sub(player.position); delta.y = 0;
@@ -1324,8 +1381,10 @@ function updateGame(dt, elapsed) {
       movementTarget = null;
       if (entryQueued) { entryQueued = false; showToast('قدم بزن و قاب‌های اختصاصی را ببین'); }
     } else {
-      delta.normalize(); player.position.addScaledVector(delta, Math.min(3.6 * dt, distance));
-      player.rotation.y = Math.atan2(-delta.x, -delta.z); moved = true;
+      delta.normalize();
+      const speed = Math.min(3.6, distance * 2.5);
+      desiredVelocity.copy(delta).multiplyScalar(speed);
+      playerTargetRot = Math.atan2(-delta.x, -delta.z);
     }
   } else if (forwardInput || sideInput) {
     const forward = new THREE.Vector3(Math.sin(cameraYaw), 0, -Math.cos(cameraYaw));
@@ -1333,11 +1392,25 @@ function updateGame(dt, elapsed) {
     const direction = forward.multiplyScalar(forwardInput).add(right.multiplyScalar(sideInput));
     if (direction.lengthSq() > 0) {
       direction.normalize();
-      const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 5.0 : 3.45;
-      player.position.addScaledVector(direction, speed * dt);
-      player.rotation.y = Math.atan2(-direction.x, -direction.z);
-      moved = true;
+      const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 5.2 : 3.5;
+      desiredVelocity.copy(direction).multiplyScalar(speed);
+      playerTargetRot = Math.atan2(-direction.x, -direction.z);
     }
+  }
+
+  // Smooth acceleration & deceleration damping
+  const accelDamp = 1 - Math.exp(-dt * 15.0);
+  playerVelocity.x = lerp(playerVelocity.x, desiredVelocity.x, accelDamp);
+  playerVelocity.z = lerp(playerVelocity.z, desiredVelocity.z, accelDamp);
+
+  player.position.x += playerVelocity.x * dt;
+  player.position.z += playerVelocity.z * dt;
+
+  const currentSpeed = playerVelocity.length();
+  const isMoving = currentSpeed > 0.08;
+
+  if (isMoving) {
+    player.rotation.y = lerpAngle(player.rotation.y, playerTargetRot, 1 - Math.exp(-dt * 16.0));
   }
 
   const doorPassable = doorProgress > 0.72 && Math.abs(player.position.x) < 2.62;
@@ -1352,7 +1425,7 @@ function updateGame(dt, elapsed) {
   if (insideHouse && doorPassable && player.position.z > 0.85) setHouseZone(false);
   playerPosition.copy(player.position);
 
-  // Companion follows
+  // Companion follows with smooth spring
   const side = new THREE.Vector3(Math.cos(cameraYaw), 0, Math.sin(cameraYaw)).multiplyScalar(-1.05);
   const behind = new THREE.Vector3(Math.sin(cameraYaw), 0, Math.cos(cameraYaw)).multiplyScalar(0.42);
   const followTarget = player.position.clone().add(side).add(behind);
@@ -1361,19 +1434,24 @@ function updateGame(dt, elapsed) {
   } else {
     followTarget.x = clamp(followTarget.x, -15.5, 15.5); followTarget.z = clamp(followTarget.z, 1.2, 21.5);
   }
-  companion.position.lerp(followTarget, 1 - Math.exp(-dt * 2.4));
-  const toPlayer = player.position.clone().sub(companion.position); toPlayer.y = 0;
-  if (toPlayer.lengthSq() > 0.01) companion.rotation.y = Math.atan2(-toPlayer.x, -toPlayer.z);
 
-  animateAvatar(player, elapsed, moved);
-  animateAvatar(companion, elapsed, moved && companion.position.distanceTo(player.position) > 1.0, 1.4);
-  updateCamera(1 - Math.exp(-dt * 5.0));
+  companion.position.lerp(followTarget, 1 - Math.exp(-dt * 2.8));
+  const toPlayer = player.position.clone().sub(companion.position); toPlayer.y = 0;
+  if (toPlayer.lengthSq() > 0.01) {
+    const compTargetRot = Math.atan2(-toPlayer.x, -toPlayer.z);
+    companion.rotation.y = lerpAngle(companion.rotation.y, compTargetRot, 1 - Math.exp(-dt * 12.0));
+  }
+
+  animateAvatar(player, elapsed, isMoving, 0, currentSpeed / 3.5);
+  animateAvatar(companion, elapsed, isMoving && companion.position.distanceTo(player.position) > 0.8, 1.4, 1.0);
+
+  updateCamera(1, dt);
   updateInteractions();
 }
 
 function render() {
   if (!renderer || !scene || !camera) return;
-  const dt = Math.min(clock ? clock.getDelta() : 0.016, 0.05);
+  const dt = Math.min(clock ? clock.getDelta() : 0.016, 0.033);
   const elapsed = clock ? clock.elapsedTime : 0;
   updateGame(dt, elapsed);
   renderer.render(scene, camera);
@@ -1481,7 +1559,6 @@ function openMemory(memory, index) {
   $('#memory-author').textContent = state.fromName;
 
   const cardEl = $('#memory-card-element');
-  // Reset all frame-style classes
   memories.forEach((m) => {
     if (m.frameStyle?.borderClass) cardEl.classList.remove(m.frameStyle.borderClass);
   });
@@ -1534,6 +1611,7 @@ function openAnniversaryModal() {
   updateLoveUI();
   anniversaryOverlay.hidden = false;
   playCelebrationChord();
+  triggerConfetti(0.5, 0.4);
   triggerHeartFX(window.innerWidth / 2, window.innerHeight / 2, 8);
   syncAnimationLoop();
   $('#close-anniversary').focus({ preventScroll: true });
@@ -1605,6 +1683,15 @@ function showToast(message) {
   toastTimer = setTimeout(() => el.classList.remove('show'), 2400);
 }
 
+function resetCameraView() {
+  targetYaw = insideHouse ? 0 : 0;
+  targetPitch = insideHouse ? 0.18 : 0.22;
+  targetDistance = insideHouse ? 5.6 : 7.8;
+  yawVelocity = 0;
+  pitchVelocity = 0;
+  showToast('زاویه‌ی دوربین تنظیم شد');
+}
+
 function startGame() {
   state.fromName = $('#from-name').value.trim() || 'من';
   state.toName = $('#to-name').value.trim() || 'عزیزم';
@@ -1645,8 +1732,13 @@ function startGame() {
   if (leftDoorPivot) leftDoorPivot.rotation.y = 0;
   if (rightDoorPivot) rightDoorPivot.rotation.y = 0;
   player.position.copy(playerPosition); player.rotation.y = 0;
+  playerVelocity.set(0, 0, 0);
+  playerTargetRot = 0;
+
   companion.position.set(-1.15, 0, playerPosition.z + 1.0); companion.rotation.y = 0;
-  cameraYaw = 0; cameraDistance = 7.8; cameraHeight = 3.65;
+  cameraYaw = 0; targetYaw = 0; yawVelocity = 0;
+  cameraPitch = 0.22; targetPitch = 0.22; pitchVelocity = 0;
+  cameraDistance = 7.8; targetDistance = 7.8;
   updateSceneLocation();
 
   player.userData.label.material.map.dispose();
@@ -1674,7 +1766,6 @@ function raycastInteractive(event) {
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
 
-  // Check interactive elements (Heart monument, Anniversary Mantle)
   const intHits = raycaster.intersectObjects(interactiveTargets, true);
   if (intHits.length) {
     const hitObj = intHits[0].object;
@@ -1688,7 +1779,6 @@ function raycastInteractive(event) {
     }
   }
 
-  // Check frames
   if (insideHouse) {
     const hits = raycaster.intersectObjects(frameTargets, false);
     if (hits.length) {
@@ -1703,7 +1793,7 @@ function handleResize() {
   camera.aspect = window.innerWidth / window.innerHeight;
   camera.fov = window.innerWidth < 700 ? 55 : 49;
   camera.updateProjectionMatrix();
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1.18 : 1.65));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1.25 : 1.75));
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
@@ -1732,6 +1822,8 @@ function setupEvents() {
       if (player) player.userData.shirtMaterial.color.set(state.avatarColor);
     });
   });
+
+  $('#camera-reset-button')?.addEventListener('click', resetCameraView);
 
   $('#anniversary-btn')?.addEventListener('click', () => {
     openAnniversaryModal();
@@ -1794,6 +1886,12 @@ function setupEvents() {
     }
   });
 
+  // Smooth Wheel Zoom with Clamp
+  window.addEventListener('wheel', (e) => {
+    if (currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden) return;
+    targetDistance = clamp(targetDistance + e.deltaY * 0.005, 3.2, 12.0);
+  }, { passive: true });
+
   window.addEventListener('keydown', (e) => {
     if (e.code === 'KeyE') {
       interactNearest();
@@ -1812,26 +1910,37 @@ function setupEvents() {
     keys.delete(e.code);
   });
 
-  // Canvas Drag & Click
+  // Smooth Canvas Drag & Inertia
   canvas.addEventListener('pointerdown', (e) => {
     if (e.target.closest('#touch-pad')) return;
-    dragging = true;
+    isDragging = true;
     dragPointerId = e.pointerId;
-    dragStart = { x: e.clientX, y: e.clientY };
+    lastDragX = e.clientX;
+    lastDragY = e.clientY;
     pointerMoved = false;
+    yawVelocity = 0;
+    pitchVelocity = 0;
   });
 
   window.addEventListener('pointermove', (e) => {
-    if (!dragging || e.pointerId !== dragPointerId) return;
-    const dx = e.clientX - dragStart.x;
-    if (Math.abs(dx) > 4) pointerMoved = true;
-    cameraYaw -= dx * 0.0055;
-    dragStart = { x: e.clientX, y: e.clientY };
+    if (!isDragging || e.pointerId !== dragPointerId) return;
+    const dx = e.clientX - lastDragX;
+    const dy = e.clientY - lastDragY;
+    if (Math.hypot(dx, dy) > 4) pointerMoved = true;
+
+    targetYaw -= dx * 0.0048;
+    targetPitch = clamp(targetPitch + dy * 0.0035, 0.02, 0.62);
+
+    yawVelocity = -dx * 0.0048 / 0.016;
+    pitchVelocity = dy * 0.0035 / 0.016;
+
+    lastDragX = e.clientX;
+    lastDragY = e.clientY;
   });
 
   const finishDrag = (e) => {
-    if (dragging && e.pointerId === dragPointerId) {
-      dragging = false;
+    if (isDragging && e.pointerId === dragPointerId) {
+      isDragging = false;
       if (!pointerMoved && Date.now() > suppressClickUntil) {
         raycastInteractive(e);
       }
@@ -1839,6 +1948,32 @@ function setupEvents() {
   };
   window.addEventListener('pointerup', finishDrag);
   window.addEventListener('pointercancel', finishDrag);
+
+  // Touch Pinch-to-zoom & Multi-touch
+  canvas.addEventListener('touchstart', (e) => {
+    if (e.touches.length === 2) {
+      prevPinchDist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchmove', (e) => {
+    if (e.touches.length === 2 && prevPinchDist != null) {
+      const dist = Math.hypot(
+        e.touches[0].clientX - e.touches[1].clientX,
+        e.touches[0].clientY - e.touches[1].clientY
+      );
+      const delta = prevPinchDist - dist;
+      targetDistance = clamp(targetDistance + delta * 0.02, 3.2, 12.0);
+      prevPinchDist = dist;
+    }
+  }, { passive: true });
+
+  canvas.addEventListener('touchend', (e) => {
+    if (e.touches.length < 2) prevPinchDist = null;
+  });
 
   // Touchpad joystick
   touchPad?.addEventListener('pointerdown', (e) => {
