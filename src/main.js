@@ -696,10 +696,8 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.85, height = 3
   const artWidth = width - 0.48;
   const artHeight = height - 0.58;
   const artTexture = makeAbstractArtwork(memory, index);
-  const art = new THREE.Mesh(
-    new THREE.PlaneGeometry(artWidth, artHeight),
-    new THREE.MeshBasicMaterial({ map: artTexture, side: THREE.DoubleSide })
-  );
+  const artMat = new THREE.MeshBasicMaterial({ map: artTexture, side: THREE.DoubleSide });
+  const art = new THREE.Mesh(new THREE.PlaneGeometry(artWidth, artHeight), artMat);
   art.position.set(0, 0, 0.125);
   art.userData.memory = memory;
   art.userData.index = index;
@@ -707,32 +705,22 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.85, height = 3
   group.add(art);
 
   if (memory.imageSrc) {
-    const loadPhoto = () => new THREE.TextureLoader().load(memory.imageSrc, (loadedTexture) => {
-      let texture = loadedTexture;
-      const source = loadedTexture.image;
-      const maxPhotoSide = isMobileViewport() ? 1024 : Infinity;
-      const scale = Math.min(1, maxPhotoSide / Math.max(source.width, source.height));
-      if (scale < 1) {
-        const resized = document.createElement('canvas');
-        resized.width = Math.max(1, Math.round(source.width * scale));
-        resized.height = Math.max(1, Math.round(source.height * scale));
-        resized.getContext('2d').drawImage(source, 0, 0, resized.width, resized.height);
-        texture = new THREE.CanvasTexture(resized);
-        loadedTexture.dispose();
+    const loader = new THREE.TextureLoader();
+    loader.load(
+      memory.imageSrc,
+      (loadedTexture) => {
+        loadedTexture.colorSpace = THREE.SRGBColorSpace;
+        loadedTexture.minFilter = THREE.LinearMipmapLinearFilter;
+        loadedTexture.magFilter = THREE.LinearFilter;
+        loadedTexture.generateMipmaps = true;
+        art.material.map = loadedTexture;
+        art.material.needsUpdate = true;
+      },
+      undefined,
+      (err) => {
+        console.warn(`Could not load memory image: ${memory.imageSrc}`, err);
       }
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = Math.min(isMobileViewport() ? 2 : 4, renderer.capabilities.getMaxAnisotropy());
-      const photoAspect = texture.image.width / texture.image.height;
-      const frameAspect = artWidth / artHeight;
-      const fitWidth = photoAspect > frameAspect ? artWidth : artHeight * photoAspect;
-      const fitHeight = photoAspect > frameAspect ? artWidth / photoAspect : artHeight;
-      art.geometry.dispose();
-      art.geometry = new THREE.PlaneGeometry(fitWidth, fitHeight);
-      art.material.map?.dispose();
-      art.material.map = texture;
-      art.material.needsUpdate = true;
-    }, undefined, (error) => console.warn(`Could not load memory image: ${memory.imageSrc}`, error));
-    if (started) loadPhoto(); else pendingPhotoLoads.push(loadPhoto);
+    );
   }
   frameTargets.push(art);
 
@@ -1394,22 +1382,19 @@ function createGalleryWalkway() {
     }
   }
 
-  // 7 Grand Floral Arches spanning across the long corridor
-  const archPositionsZ = [-3.5, -13.0, -22.5, -32.0, -41.5, -51.0, -60.5];
+  // 7 Grand Floral Arches & Classical Columns between frame bays
+  const archPositionsZ = [-3.0, -13.0, -23.0, -33.0, -43.0, -53.0, -63.0];
   archPositionsZ.forEach((archZ) => {
     createFloralArch(0, archZ);
+    createClassicColumn(-9.8, archZ);
+    createClassicColumn(9.8, archZ);
   });
 
-  // Architectural Columns along left and right walls
-  for (let z = -2.5; z >= -64.0; z -= 9.5) {
-    createClassicColumn(-9.6, z);
-    createClassicColumn(9.6, z);
-  }
-
-  // Grand Crystal Chandeliers suspended from ceiling
-  for (let z = -8.0; z >= -62.0; z -= 11.0) {
-    createCrystalChandelier(0, 6.8, z);
-  }
+  // Grand Crystal Chandeliers suspended above each frame pair
+  const chanPositionsZ = [-8.0, -18.0, -28.0, -38.0, -48.0, -58.0];
+  chanPositionsZ.forEach((chanZ) => {
+    createCrystalChandelier(0, 6.8, chanZ);
+  });
 }
 
 function createClassicColumn(x, z) {
@@ -1491,48 +1476,29 @@ function createFloralArch(x, z) {
   }
 }
 
-// Memory Frames & Decorative Boiserie Wall Paneling placed along the long corridor
+// 12 Grand Memory Frames placed along the long corridor (6 on Left, 6 on Right with spacious non-overlapping layout)
 function addMemoryFrames() {
   const frameSpots = [
-    // 6 Frames along West (left) Wall (x = -9.2)
-    { x: -9.2, z: -7.5, rot: Math.PI / 2 },
-    { x: -9.2, z: -17.0, rot: Math.PI / 2 },
-    { x: -9.2, z: -26.5, rot: Math.PI / 2 },
-    { x: -9.2, z: -36.0, rot: Math.PI / 2 },
-    { x: -9.2, z: -45.5, rot: Math.PI / 2 },
-    { x: -9.2, z: -55.0, rot: Math.PI / 2 },
+    // 6 Frames along West (left) Wall (x = -10.22)
+    { x: -10.22, z: -8.0, rot: Math.PI / 2 },
+    { x: -10.22, z: -18.0, rot: Math.PI / 2 },
+    { x: -10.22, z: -28.0, rot: Math.PI / 2 },
+    { x: -10.22, z: -38.0, rot: Math.PI / 2 },
+    { x: -10.22, z: -48.0, rot: Math.PI / 2 },
+    { x: -10.22, z: -58.0, rot: Math.PI / 2 },
 
-    // 6 Frames along East (right) Wall (x = +9.2)
-    { x: 9.2, z: -7.5, rot: -Math.PI / 2 },
-    { x: 9.2, z: -17.0, rot: -Math.PI / 2 },
-    { x: 9.2, z: -26.5, rot: -Math.PI / 2 },
-    { x: 9.2, z: -36.0, rot: -Math.PI / 2 },
-    { x: 9.2, z: -45.5, rot: -Math.PI / 2 },
-    { x: 9.2, z: -55.0, rot: -Math.PI / 2 },
+    // 6 Frames along East (right) Wall (x = +10.22)
+    { x: 10.22, z: -8.0, rot: -Math.PI / 2 },
+    { x: 10.22, z: -18.0, rot: -Math.PI / 2 },
+    { x: 10.22, z: -28.0, rot: -Math.PI / 2 },
+    { x: 10.22, z: -38.0, rot: -Math.PI / 2 },
+    { x: 10.22, z: -48.0, rot: -Math.PI / 2 },
+    { x: 10.22, z: -58.0, rot: -Math.PI / 2 },
   ];
-
-  const goldMat = colorMaterial(0xffd875, 0.2, 0.85);
-  const panelBackMat = colorMaterial(0x3a2233, 0.65, 0.1);
 
   memories.forEach((memory, index) => {
     const spot = frameSpots[index] || frameSpots[frameSpots.length - 1];
-
-    // Decorative Wall Boiserie Panel behind each frame
-    const boiserie = new THREE.Group();
-    boiserie.position.set(spot.x + (spot.x < 0 ? -0.45 : 0.45), 4.35, spot.z);
-    boiserie.rotation.y = spot.rot;
-    scene.add(boiserie);
-
-    // Outer Gold Paneling Frame
-    addBox(boiserie, 3.8, 5.0, 0.04, goldMat, 0, 0, 0, { castShadow: false });
-    addBox(boiserie, 3.6, 4.8, 0.05, panelBackMat, 0, 0, 0.01, { castShadow: false });
-
-    // Golden Ribbon Bow above wall alcove
-    const wallBow = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.04, 6, 12), goldMat);
-    wallBow.position.set(0, 2.65, 0.06);
-    boiserie.add(wallBow);
-
-    createFrame(memory, index, spot.x, 4.35, spot.z, spot.rot, 2.85, 3.65);
+    createFrame(memory, index, spot.x, 3.75, spot.z, spot.rot, 2.9, 3.7);
   });
 }
 
@@ -1650,17 +1616,18 @@ function createStainedGlassWindows() {
   const winMat = new THREE.MeshBasicMaterial({ map: windowTex });
   const frameGold = colorMaterial(0xffd875, 0.25, 0.85);
 
-  const winZs = [-8.0, -19.5, -31.0, -42.5, -54.0];
+  // Upper Clerestory Arch Windows above arch bays
+  const winZs = [-13.0, -23.0, -33.0, -43.0, -53.0];
   winZs.forEach((z) => {
     for (const side of [-10.42, 10.42]) {
       const winGroup = new THREE.Group();
-      winGroup.position.set(side, 4.4, z);
+      winGroup.position.set(side, 5.4, z);
       winGroup.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
       scene.add(winGroup);
 
-      addBox(winGroup, 2.8, 3.8, 0.08, frameGold, 0, 0, 0, { castShadow: false });
-      const glass = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 3.5), winMat);
-      glass.position.set(0, 0, 0.05);
+      addBox(winGroup, 2.2, 2.4, 0.06, frameGold, 0, 0, 0, { castShadow: false });
+      const glass = new THREE.Mesh(new THREE.PlaneGeometry(2.0, 2.2), winMat);
+      glass.position.set(0, 0, 0.04);
       winGroup.add(glass);
     }
   });
