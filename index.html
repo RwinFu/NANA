@@ -119,6 +119,9 @@
             <div class="dedication-chip"><span class="chip-dot"></span><span id="hud-from">من</span><b>♡</b><span id="hud-to">پرنسس من</span></div>
           </div>
           <div class="hud-actions">
+            <button class="icon-button" id="photo-mode-btn" type="button" aria-label="مود عکاسی یادگاری" title="گرفتن عکس دونفره (Polaroid)">
+              📸
+            </button>
             <button class="icon-button" id="music-toggle-btn" type="button" aria-label="موسیقی پس‌زمینه" title="موسیقی پس‌زمینه پیانو">
               <span class="music-icon-note">🎵</span>
             </button>
@@ -143,6 +146,24 @@
           <span class="interaction-icon">↵</span><span id="interaction-copy">به در خانه نزدیک شو و E بزن</span>
         </div>
         
+        <div class="couple-emotes-bar" id="couple-emotes-bar" aria-label="ژست‌های دونفره">
+          <button class="emote-btn" id="emote-dance-btn" type="button" title="رقص دونفره">
+            <span class="emote-icon">💃</span><span class="emote-text">رقص دونفره</span>
+          </button>
+          <button class="emote-btn" id="emote-kiss-btn" type="button" title="بوسه قلبی">
+            <span class="emote-icon">💋</span><span class="emote-text">بوسه قلبی</span>
+          </button>
+          <button class="emote-btn" id="emote-hands-btn" type="button" title="دست در دست هم">
+            <span class="emote-icon">👫</span><span class="emote-text">گرفتن دست</span>
+          </button>
+          <button class="emote-btn" id="emote-sofa-btn" type="button" title="نشستن کنار شومینه">
+            <span class="emote-icon">🛋️</span><span class="emote-text">نشستن دونفره</span>
+          </button>
+          <button class="emote-btn" id="emote-fireworks-btn" type="button" title="آتش‌بازی و فانوس‌ها">
+            <span class="emote-icon">🎆</span><span class="emote-text">آتش‌بازی</span>
+          </button>
+        </div>
+
         <div class="bottom-hud">
           <div class="control-hint"><span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span><span>حرکت</span><i></i><span class="keycap key-e">E</span><span>تعامل</span><i></i><span class="keycap">اسکرول</span><span>زوم</span></div>
           <button class="interact-button" id="interact-button" type="button"><span class="interact-key">E</span><span>تا جلوی خانه حرکت کن</span><span class="interact-arrow">↗</span></button>
@@ -291,11 +312,51 @@
           <div class="guide-row"><span class="guide-key">W A S D</span><span>حرکت روان و پیوسته در راهرو و حیاط</span></div>
           <div class="guide-row"><span class="guide-key">ماوس / لمس</span><span>چرخش دوربین ۳۶۰ درجه و زوم با اسکرول یا دو انگشت</span></div>
           <div class="guide-row"><span class="guide-key">دکمه / E</span><span>تعامل با قاب‌های بزرگ، در، شومینه و تندیس‌ها</span></div>
+          <div class="guide-row"><span class="guide-key">📸 عکاسی</span><span>مود عکاسی دونفره و دانلود کارت‌پستال پولاروید</span></div>
+          <div class="guide-row"><span class="guide-key">💃 ژست‌ها</span><span>رقص دونفره، بوسه قلبی، دست در دست و آتش‌بازی</span></div>
           <div class="guide-row"><span class="guide-key">🎵 موسیقی</span><span>پخش موسیقی پیانوی عاشقانه در پس‌زمینه</span></div>
           <div class="guide-row"><span class="guide-key">🎬 تور سینمایی</span><span>گردش خودکار دوربین میان تمام قاب‌های راهرو</span></div>
-          <div class="guide-row"><span class="guide-key">تندیس قلب</span><span>کلیک کن تا بگی دوستت دارم!</span></div>
           <p class="guide-note">عکس‌ها در این راهرو با ابعاد بزرگ و نورپردازی اختصاصی تعبیه شده‌اند. برای مشاهده عکس‌ها در ابعاد بزرگتر روی آن‌ها کلیک کنید.</p>
           <button class="start-button help-close-action" id="help-close-action" type="button"><span>متوجه شدم</span><span>✓</span></button>
+        </article>
+      </section>
+
+      <!-- Camera Flash Effect -->
+      <div id="camera-flash-fx" class="camera-flash-fx" hidden></div>
+
+      <!-- Polaroid Photo Booth Modal (Super Aesthetic & Downloadable) -->
+      <section class="polaroid-overlay" id="polaroid-overlay" aria-modal="true" role="dialog" aria-labelledby="polaroid-title" hidden>
+        <div class="polaroid-backdrop" id="polaroid-backdrop"></div>
+        <article class="polaroid-card nanaz-polaroid-card" id="polaroid-card-container">
+          <button class="close-button" id="close-polaroid" type="button" aria-label="بستن">×</button>
+          <div class="polaroid-washi-tape">🌸 OUR 1ST ANNIVERSARY 🌸</div>
+          
+          <div class="polaroid-photo-frame" id="polaroid-frame-element">
+            <img id="polaroid-image-preview" alt="عکس یادگاری سه‌بعدی" />
+            <div class="polaroid-stickers">
+              <span class="p-sticker sticker-crown">👑</span>
+              <span class="p-sticker sticker-ring">💍</span>
+              <span class="p-sticker sticker-heart">💖</span>
+              <span class="p-sticker sticker-sparkle">✨</span>
+            </div>
+          </div>
+
+          <div class="polaroid-caption">
+            <h2 id="polaroid-title" class="polaroid-title">«اولین سالگرد یکی شدنمون مبارک»</h2>
+            <div class="polaroid-meta">
+              <span class="polaroid-couple-names" id="polaroid-couple">من & پرنسس من</span>
+              <span class="polaroid-date">۳۶۵ روز خاطره‌ی قشنگ · تا ابد در قلبم</span>
+            </div>
+          </div>
+
+          <div class="polaroid-actions-row">
+            <button class="start-button download-polaroid-btn" id="download-polaroid-btn" type="button">
+              <span>💾 دانلود عکس در گالری گوشی</span> <span>⬇</span>
+            </button>
+            <button class="icon-button polaroid-retake-btn" id="retake-photo-btn" type="button" title="گرفتن عکس مجدد">
+              🔄
+            </button>
+          </div>
         </article>
       </section>
     </main>
