@@ -220,20 +220,93 @@ button { cursor: pointer; }
 .interaction-card.is-hidden { display: none; }
 .interaction-icon { color: #ffd875; font-family: Arial,sans-serif; font-size: 16px; }
 
-.touch-controls { display:none; position:absolute; inset:0; z-index:3; pointer-events:none; }
-.touch-pad { position:absolute; left:18px; bottom:max(21px,env(safe-area-inset-bottom)); width:142px; display:flex; flex-direction:column; align-items:center; gap:7px; pointer-events:none; user-select:none; -webkit-user-select:none; }
-.joystick-base { position:relative; width:132px; height:132px; border:1px solid #ffffff3a; border-radius:50%; background:radial-gradient(circle at 50% 42%,#ffffff12 0 25%,#131822a8 68%,#111620d9 100%); box-shadow:inset 0 0 28px #0007,0 12px 32px #0004; backdrop-filter:blur(8px); touch-action:none; pointer-events:auto; }
-.joystick-base::before,.joystick-base::after { content:''; position:absolute; background:#ffffff17; pointer-events:none; }
-.joystick-base::before { left:50%; top:16%; bottom:16%; width:1px; transform:translateX(-50%); }
-.joystick-base::after { top:50%; left:16%; right:16%; height:1px; transform:translateY(-50%); }
-.joy-arrow { position:absolute; z-index:1; color:#e8d6af73; font-family:Arial,sans-serif; font-size:15px; line-height:1; pointer-events:none; }
-.joy-up { top:9px; left:50%; transform:translateX(-50%); }.joy-down { bottom:8px; left:50%; transform:translateX(-50%); }.joy-left { left:10px; top:50%; transform:translateY(-50%); }.joy-right { right:10px; top:50%; transform:translateY(-50%); }
-.joystick-knob { position:absolute; z-index:2; left:50%; top:50%; width:56px; height:56px; display:grid; place-items:center; margin:-28px 0 0 -28px; border:1px solid #ffd87588; border-radius:50%; background:radial-gradient(circle at 36% 30%,#505667,#232936 74%); box-shadow:0 6px 16px #0008,inset 0 1px 1px #ffffff30; will-change:transform; pointer-events:none; }
-.joystick-knob span { width:8px;height:8px;border-radius:50%;background:#ffd875;box-shadow:0 0 10px #ffd87588; }
-.joystick-caption { color:#f0e6d1c9; font-size:9px; letter-spacing:.08em; text-shadow:0 2px 8px #000; }
-.look-hint { position:absolute; left:50%; bottom:max(29px,env(safe-area-inset-bottom)); transform:translateX(-50%); padding:7px 10px; border:1px solid #ffffff21; border-radius:99px; background:#1317228a; color:#e7dec9c4; font-size:8px; white-space:nowrap; backdrop-filter:blur(7px); pointer-events:none; }
+/* Dynamic On-Screen Touch Indicator (Direct Mobile Screen Movement) */
+.dynamic-touch-indicator {
+  position: fixed;
+  pointer-events: none;
+  z-index: 45;
+  transform: translate(-50%, -50%);
+  will-change: transform;
+  transition: opacity 0.2s ease;
+}
+.dynamic-touch-indicator[hidden] { display: none; }
+.touch-ring-outer {
+  width: 86px;
+  height: 86px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 117, 143, 0.85);
+  background: radial-gradient(circle, rgba(255, 117, 143, 0.15) 0%, rgba(20, 16, 26, 0.4) 100%);
+  box-shadow: 0 0 24px rgba(255, 77, 109, 0.55), inset 0 0 14px rgba(255, 117, 143, 0.3);
+  backdrop-filter: blur(4px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.touch-knob-inner {
+  position: absolute;
+  left: 50%;
+  top: 50%;
+  width: 44px;
+  height: 44px;
+  margin: -22px 0 0 -22px;
+  border-radius: 50%;
+  background: linear-gradient(135deg, #ff758f, #e02c52);
+  border: 2px solid #ffd875;
+  box-shadow: 0 4px 14px rgba(255, 42, 92, 0.7);
+  display: grid;
+  place-items: center;
+  will-change: transform;
+}
+.touch-heart {
+  font-size: 16px;
+  user-select: none;
+}
 
-.toast { position: absolute; top: 110px; left: 50%; transform: translate(-50%,-8px); padding: 10px 18px; border: 1px solid #ffd87588; border-radius: 8px; background: #171b27f2; color: #f0e7d7; font-size: 11px; opacity: 0; box-shadow: 0 10px 30px rgba(0,0,0,0.6); transition: opacity .25s, transform .25s; pointer-events: none; z-index: 20; }
+/* Mobile Tap-To-Walk Ground Marker */
+.mobile-tap-marker {
+  position: fixed;
+  pointer-events: none;
+  z-index: 42;
+  transform: translate(-50%, -50%);
+  display: grid;
+  place-items: center;
+  animation: tap-marker-pop 0.9s cubic-bezier(.2,.8,.2,1) forwards;
+}
+.mobile-tap-marker[hidden] { display: none; }
+.tap-heart-icon {
+  font-size: 26px;
+  filter: drop-shadow(0 0 12px rgba(255, 117, 143, 0.9));
+}
+@keyframes tap-marker-pop {
+  0% { transform: translate(-50%, -50%) scale(0.2); opacity: 0; }
+  25% { transform: translate(-50%, -50%) scale(1.3); opacity: 1; }
+  70% { transform: translate(-50%, -50%) scale(1.0); opacity: 0.9; }
+  100% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+}
+
+/* On-Screen Mobile Touch Hint Pill */
+.touch-hint-pill {
+  position: absolute;
+  left: 50%;
+  top: 104px;
+  transform: translateX(-50%);
+  padding: 6px 14px;
+  border-radius: 20px;
+  background: rgba(22, 18, 28, 0.85);
+  border: 1px solid rgba(255, 216, 117, 0.4);
+  color: #ffd875;
+  font-size: 9.5px;
+  font-weight: 600;
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  z-index: 8;
+  transition: opacity 0.4s ease;
+  white-space: nowrap;
+}
+.touch-hint-pill.is-hidden { opacity: 0; visibility: hidden; }
+
+.toast { position: absolute; top: 136px; left: 50%; transform: translate(-50%,-8px); padding: 10px 18px; border: 1px solid #ffd87588; border-radius: 8px; background: #171b27f2; color: #f0e7d7; font-size: 11px; opacity: 0; box-shadow: 0 10px 30px rgba(0,0,0,0.6); transition: opacity .25s, transform .25s; pointer-events: none; z-index: 20; }
 .toast.show { opacity: 1; transform: translate(-50%,0); }
 
 /* Overlays */
@@ -389,14 +462,12 @@ button { cursor: pointer; }
   .tour-progress { top:78px; right:12px; font-size:8px; }
   .progress-track { width:60px; }
   .scene-location { display:none; }
-  .bottom-hud { left:12px; right:12px; bottom:max(14px,env(safe-area-inset-bottom)); height:48px; display:block; pointer-events:none; }
+  .bottom-hud { left:12px; right:12px; bottom:max(14px,env(safe-area-inset-bottom)); height:48px; display:flex; justify-content: flex-end; align-items: center; pointer-events:none; }
   .control-hint { display:none; }
-  .interact-button { position:absolute; right:0; bottom:0; min-height:44px; max-width:62vw; padding:0 11px; border-radius:12px; font-size:9.5px; box-shadow:0 10px 28px #0006; }
+  .interact-button { pointer-events:auto; min-height:44px; max-width:80vw; padding:0 14px; border-radius:12px; font-size:10px; box-shadow:0 10px 28px #0006; }
   .interact-key { display:none; }
-  .touch-controls { display:block; }
-  .touch-pad { left:12px; bottom:max(15px,env(safe-area-inset-bottom)); transform:scale(.90); transform-origin:bottom left; }
-  .look-hint { top:152px; bottom:auto; }
-  .interaction-card { bottom:calc(150px + env(safe-area-inset-bottom)); font-size:9px; }
+  .interaction-card { bottom:calc(74px + env(safe-area-inset-bottom)); font-size:9.5px; }
+  .touch-hint-pill { top: 92px; font-size: 8px; padding: 4px 10px; }
   .memory-overlay, .help-overlay, .anniversary-overlay, .loveletter-overlay { padding:12px; }
   .memory-card { grid-template-columns:1fr; width:min(480px,100%); max-height:calc(100dvh - 24px); overflow-y:auto; }
   .memory-image-wrap { padding:22px 20px 14px; min-height:280px; }

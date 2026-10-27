@@ -148,15 +148,15 @@
           <button class="interact-button" id="interact-button" type="button"><span class="interact-key">E</span><span>تا جلوی خانه حرکت کن</span><span class="interact-arrow">↗</span></button>
         </div>
         
-        <div class="touch-controls" id="touch-controls">
-          <div class="touch-pad" id="touch-pad" role="application" aria-label="جوی‌استیک حرکت">
-            <div class="joystick-base">
-              <span class="joy-arrow joy-up">⌃</span><span class="joy-arrow joy-left">‹</span><span class="joy-arrow joy-down">⌄</span><span class="joy-arrow joy-right">›</span>
-              <div class="joystick-knob" id="joystick-knob"><span></span></div>
-            </div>
-            <span class="joystick-caption">حرکت روون</span>
-          </div>
-          <div class="look-hint">صحنه را بکش برای چرخش · دو انگشت برای زوم</div>
+        <div class="dynamic-touch-indicator" id="dynamic-touch-indicator" hidden>
+          <div class="touch-ring-outer"></div>
+          <div class="touch-knob-inner"><span class="touch-heart">💖</span></div>
+        </div>
+        <div class="mobile-tap-marker" id="mobile-tap-marker" hidden>
+          <span class="tap-heart-icon">🌸</span>
+        </div>
+        <div class="touch-hint-pill" id="touch-hint-pill">
+          <span>انگشتت را هر جای صفحه بکش تا حرکت کنی · یا روی زمین ضربه بزن</span>
         </div>
         <div class="toast" id="toast" role="status"></div>
       </section>

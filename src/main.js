@@ -9,14 +9,18 @@ const canvas = $('#world');
 const intro = $('#intro-screen');
 const hud = $('#hud');
 const setupForm = $('#setup-form');
-const touchPad = $('#touch-pad');
 const memoryOverlay = $('#memory-overlay');
 const helpOverlay = $('#help-overlay');
 const anniversaryOverlay = $('#anniversary-overlay');
 const loveletterOverlay = $('#loveletter-overlay');
 const floatingHeartsLayer = $('#floating-hearts');
 
-const storageKey = 'our-museum-gift-v4';
+const dynamicTouchIndicator = $('#dynamic-touch-indicator');
+const touchKnobInner = $('#dynamic-touch-indicator .touch-knob-inner');
+const mobileTapMarker = $('#mobile-tap-marker');
+const touchHintPill = $('#touch-hint-pill');
+
+const storageKey = 'our-museum-gift-v5';
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}') || {}; } catch { saved = {}; }
 const state = {
@@ -265,16 +269,22 @@ let isTouring = false;
 let tourStep = 0;
 let tourTimer = null;
 
-// Drag & touch pointers
-let isDragging = false;
-let dragPointerId = null;
+// Dynamic On-Screen Touch / Drag Movement State
+let touchMoveActive = false;
+let touchMovePointerId = null;
+let touchOriginX = 0;
+let touchOriginY = 0;
+let touchStartTime = 0;
+let touchVector = new THREE.Vector2(0, 0);
+let pointerMoved = false;
+
+// Drag pointer for camera rotation
+let isDraggingCamera = false;
+let cameraDragPointerId = null;
 let lastDragX = 0;
 let lastDragY = 0;
-let pointerMoved = false;
-let suppressClickUntil = 0;
-let joystickPointerId = null;
-let joystickCenter = null;
 let prevPinchDist = null;
+let tapMarkerTimer = null;
 
 let toastTimer = null;
 let movementTarget = null;
@@ -292,6 +302,7 @@ const keys = new Set();
 const frameTargets = [];
 const frameRecords = [];
 const interactiveTargets = [];
+const floorTargets = [];
 const pendingPhotoLoads = [];
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -400,7 +411,7 @@ function createLoveMonumentTexture() {
     ctx.fillText(`${toPersianDigits(state.loveCount)} بار گفتم دوستت دارم`, w / 2 + 10, h / 2 - 2);
 
     ctx.fillStyle = '#ff9ebb'; ctx.font = '11px Tahoma, Arial, sans-serif';
-    ctx.fillText('برای ثبتِ دوستت دارم کلیک کن (یا E بزن)', w / 2 + 10, h / 2 + 20);
+    ctx.fillText('برای ثبتِ دوستت دارم کلیک کن (یا ضربه بزن)', w / 2 + 10, h / 2 + 20);
   }, 440, 110);
 }
 
@@ -909,7 +920,6 @@ function createCompanionAvatar(options = {}) {
 }
 
 // VERY LONG Grand Gallery Corridor Walkway Elements
-// Corridor length: 68m (from z = 0 down to z = -68.0)
 function createGalleryWalkway() {
   const runnerMat = colorMaterial(0x821c2d, 0.95);
   const runnerGoldEdge = colorMaterial(0xffd875, 0.3, 0.8);
@@ -1056,7 +1066,7 @@ function createFloralArch(x, z) {
   }
 }
 
-// Memory Frames placed spaciously along the VERY LONG corridor
+// Memory Frames placed along the long corridor
 function addMemoryFrames() {
   const frameSpots = [
     // 6 Frames along West (left) Wall (x = -9.2)
@@ -1464,12 +1474,14 @@ function buildHome() {
   const grassTexture = makeGrassTexture();
   const lawn = addGround(64, 44, new THREE.MeshStandardMaterial({ map: grassTexture, roughness: 0.92 }), 0, -0.05, 12);
   lawn.receiveShadow = true;
+  floorTargets.push(lawn);
 
   const pathMat = colorMaterial(0xdfd9ce, 0.84);
   const pathEdge = colorMaterial(0x8a7f72, 0.9);
-  addBox(scene, 6.4, 0.03, 22.8, pathMat, 0, -0.035, 10.7, { receiveShadow: true, castShadow: false });
+  const stonePath = addBox(scene, 6.4, 0.03, 22.8, pathMat, 0, -0.035, 10.7, { receiveShadow: true, castShadow: false });
   addBox(scene, 0.07, 0.035, 22.7, pathEdge, -3.22, -0.025, 10.7, { castShadow: false });
   addBox(scene, 0.07, 0.035, 22.7, pathEdge, 3.22, -0.025, 10.7, { castShadow: false });
+  floorTargets.push(stonePath);
 
   const woodTexture = makeWoodTexture();
   const woodFloor = new THREE.Mesh(
@@ -1477,6 +1489,7 @@ function buildHome() {
     new THREE.MeshStandardMaterial({ map: woodTexture, roughness: 0.65, metalness: 0.025 })
   );
   woodFloor.rotation.x = -Math.PI / 2; woodFloor.position.set(0, -0.025, corridorCenterZ); woodFloor.receiveShadow = true; scene.add(woodFloor);
+  floorTargets.push(woodFloor);
 
   // Gallery Walkway elements (aisle carpet, floral arches, candles, petals, columns)
   createGalleryWalkway();
@@ -1780,7 +1793,7 @@ function updateGame(dt, elapsed) {
   updateDoor(dt);
   TWEEN.update();
 
-  if (!isDragging) {
+  if (!isDraggingCamera) {
     targetYaw += yawVelocity * dt;
     targetPitch = clamp(targetPitch + pitchVelocity * dt, 0.02, 0.58);
     yawVelocity = lerp(yawVelocity, 0, 1 - Math.exp(-dt * 8.0));
@@ -1831,13 +1844,24 @@ function updateGame(dt, elapsed) {
   const forwardInput = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
   const sideInput = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
 
-  if (forwardInput || sideInput) {
+  if (forwardInput || sideInput || touchMoveActive) {
     if (isTouring) stopCinematicTour();
   }
 
   const desiredVelocity = new THREE.Vector3();
 
-  if (movementTarget) {
+  // Dynamic Touch Movement (Dragging anywhere on screen)
+  if (touchMoveActive && touchVector.lengthSq() > 0.02) {
+    const forward = new THREE.Vector3(Math.sin(cameraYaw), 0, -Math.cos(cameraYaw));
+    const right = new THREE.Vector3(Math.cos(cameraYaw), 0, Math.sin(cameraYaw));
+    const moveDir = forward.multiplyScalar(-touchVector.y).add(right.multiplyScalar(touchVector.x));
+    if (moveDir.lengthSq() > 0.01) {
+      moveDir.normalize();
+      const speed = (keys.has('ShiftLeft') ? 5.4 : 3.8) * Math.min(1.0, touchVector.length());
+      desiredVelocity.copy(moveDir).multiplyScalar(speed);
+      playerTargetRot = Math.atan2(-moveDir.x, -moveDir.z);
+    }
+  } else if (movementTarget) {
     const delta = movementTarget.clone().sub(player.position); delta.y = 0;
     const distance = delta.length();
     if (distance < 0.24) {
@@ -2218,7 +2242,10 @@ function startGame() {
   updateLoveUI();
 
   insideHouse = false; entryQueued = false; movementTarget = null; doorProgress = 0; doorTarget = 0;
-  keys.clear(); resetJoystick();
+  keys.clear();
+  touchMoveActive = false;
+  if (dynamicTouchIndicator) dynamicTouchIndicator.hidden = true;
+
   if (leftDoorPivot) leftDoorPivot.rotation.y = 0;
   if (rightDoorPivot) rightDoorPivot.rotation.y = 0;
   player.position.copy(playerPosition); player.rotation.y = 0;
@@ -2246,21 +2273,23 @@ function startGame() {
   hud.classList.remove('is-hidden');
   canvas.focus({ preventScroll: true });
   setTimeout(() => { intro.hidden = true; }, 850);
-  showToast('از حیاط به سمت راهروی خاطرات برو یا به تندیس قلب سر بزن 🌸');
+  showToast('انگشتت را روی صفحه بکش تا آزادانه حرکت کنی 🌸');
 }
 
-function raycastInteractive(event) {
+// Raycasting for Direct Taps (Frames, Altar, Love Monument or Ground)
+function handleScreenTap(clientX, clientY) {
   if (!started || !camera || currentMemory || !renderer) return;
   const rect = canvas.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
 
+  // 1. Check Interactive Objects
   const intHits = raycaster.intersectObjects(interactiveTargets, true);
   if (intHits.length) {
     const hitObj = intHits[0].object;
     if (hitObj.userData?.type === 'love-monument') {
-      addLoveCount(event);
+      addLoveCount({ clientX, clientY });
       return;
     }
     if (hitObj.userData?.type === 'anniversary-mantle') {
@@ -2273,29 +2302,54 @@ function raycastInteractive(event) {
     }
   }
 
+  // 2. Check Memory Frames
   if (insideHouse) {
-    const hits = raycaster.intersectObjects(frameTargets, false);
-    if (hits.length) {
-      const target = hits[0].object;
+    const frameHits = raycaster.intersectObjects(frameTargets, false);
+    if (frameHits.length) {
+      const target = frameHits[0].object;
       openMemory(target.userData.memory, target.userData.index);
+      return;
     }
+  }
+
+  // 3. Direct Tap-To-Walk on Ground / Walkway
+  const floorHits = raycaster.intersectObjects(floorTargets, false);
+  if (floorHits.length) {
+    const hit = floorHits[0];
+    const targetPt = hit.point;
+
+    // Constrain target within playable area
+    if (insideHouse) {
+      targetPt.x = clamp(targetPt.x, -8.5, 8.5);
+      targetPt.z = clamp(targetPt.z, -66.5, 0.5);
+    } else {
+      targetPt.x = clamp(targetPt.x, -16.0, 16.0);
+      targetPt.z = clamp(targetPt.z, 0.5, 21.0);
+    }
+
+    movementTarget = new THREE.Vector3(targetPt.x, 0, targetPt.z);
+
+    // Show Tap Marker at Screen Coord
+    if (mobileTapMarker) {
+      mobileTapMarker.style.left = `${clientX}px`;
+      mobileTapMarker.style.top = `${clientY}px`;
+      mobileTapMarker.hidden = false;
+      clearTimeout(tapMarkerTimer);
+      tapMarkerTimer = setTimeout(() => { mobileTapMarker.hidden = true; }, 900);
+    }
+
+    playRomanticChime(587.33);
+    triggerHeartFX(clientX, clientY, 2);
   }
 }
 
 function handleResize() {
   if (!camera || !renderer) return;
   camera.aspect = window.innerWidth / window.innerHeight;
-  camera.fov = window.innerWidth < 700 ? 54 : 48;
+  camera.fov = window.innerWidth < 700 ? 56 : 48;
   camera.updateProjectionMatrix();
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1.25 : 1.75));
   renderer.setSize(window.innerWidth, window.innerHeight);
-}
-
-function resetJoystick() {
-  const knob = $('#joystick-knob');
-  if (knob) knob.style.transform = 'translate3d(0, 0, 0)';
-  joystickPointerId = null;
-  keys.delete('KeyW'); keys.delete('KeyS'); keys.delete('KeyA'); keys.delete('KeyD');
 }
 
 function setupEvents() {
@@ -2410,44 +2464,124 @@ function setupEvents() {
     keys.delete(e.code);
   });
 
+  // --- Dynamic On-Screen Direct Touch & Drag Handling ---
   canvas.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('#touch-pad')) return;
-    isDragging = true;
-    dragPointerId = e.pointerId;
-    lastDragX = e.clientX;
-    lastDragY = e.clientY;
+    if (!started || currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden || !loveletterOverlay.hidden) return;
+
+    touchStartTime = Date.now();
     pointerMoved = false;
-    yawVelocity = 0;
-    pitchVelocity = 0;
+
+    // Touch device or mobile viewport: Primary touch is movement, secondary touch is camera
+    if (e.pointerType === 'touch' || isMobileViewport()) {
+      if (touchMovePointerId === null) {
+        touchMovePointerId = e.pointerId;
+        touchOriginX = e.clientX;
+        touchOriginY = e.clientY;
+        touchMoveActive = false;
+        touchVector.set(0, 0);
+
+        if (dynamicTouchIndicator) {
+          dynamicTouchIndicator.style.left = `${touchOriginX}px`;
+          dynamicTouchIndicator.style.top = `${touchOriginY}px`;
+          dynamicTouchIndicator.hidden = false;
+        }
+        if (touchKnobInner) {
+          touchKnobInner.style.transform = 'translate3d(0, 0, 0)';
+        }
+        touchHintPill?.classList.add('is-hidden');
+      } else if (cameraDragPointerId === null) {
+        cameraDragPointerId = e.pointerId;
+        isDraggingCamera = true;
+        lastDragX = e.clientX;
+        lastDragY = e.clientY;
+        yawVelocity = 0;
+        pitchVelocity = 0;
+      }
+    } else {
+      // Desktop Mouse Drag = Camera Rotation
+      isDraggingCamera = true;
+      cameraDragPointerId = e.pointerId;
+      lastDragX = e.clientX;
+      lastDragY = e.clientY;
+      yawVelocity = 0;
+      pitchVelocity = 0;
+    }
   });
 
   window.addEventListener('pointermove', (e) => {
-    if (!isDragging || e.pointerId !== dragPointerId) return;
-    const dx = e.clientX - lastDragX;
-    const dy = e.clientY - lastDragY;
-    if (Math.hypot(dx, dy) > 4) pointerMoved = true;
+    // 1. Handle Active Touch Movement on screen
+    if (e.pointerId === touchMovePointerId) {
+      const dx = e.clientX - touchOriginX;
+      const dy = e.clientY - touchOriginY;
+      const dist = Math.hypot(dx, dy);
 
-    targetYaw -= dx * 0.0048;
-    targetPitch = clamp(targetPitch + dy * 0.0035, 0.02, 0.58);
+      if (dist > 8) {
+        pointerMoved = true;
+        touchMoveActive = true;
+        movementTarget = null; // direct drag takes priority
 
-    yawVelocity = -dx * 0.0048 / 0.016;
-    pitchVelocity = dy * 0.0035 / 0.016;
+        const maxR = 38;
+        const angle = Math.atan2(dy, dx);
+        const knobX = Math.cos(angle) * Math.min(dist, maxR);
+        const knobY = Math.sin(angle) * Math.min(dist, maxR);
 
-    lastDragX = e.clientX;
-    lastDragY = e.clientY;
+        if (touchKnobInner) {
+          touchKnobInner.style.transform = `translate3d(${knobX}px, ${knobY}px, 0)`;
+        }
+
+        const normalizedPower = clamp((dist - 6) / 34, 0.2, 1.0);
+        touchVector.set(Math.cos(angle) * normalizedPower, Math.sin(angle) * normalizedPower);
+      }
+    }
+
+    // 2. Handle Camera Drag Rotation
+    if (isDraggingCamera && e.pointerId === cameraDragPointerId) {
+      const dx = e.clientX - lastDragX;
+      const dy = e.clientY - lastDragY;
+      if (Math.hypot(dx, dy) > 4) pointerMoved = true;
+
+      targetYaw -= dx * 0.0048;
+      targetPitch = clamp(targetPitch + dy * 0.0035, 0.02, 0.58);
+
+      yawVelocity = -dx * 0.0048 / 0.016;
+      pitchVelocity = dy * 0.0035 / 0.016;
+
+      lastDragX = e.clientX;
+      lastDragY = e.clientY;
+    }
   });
 
-  const finishDrag = (e) => {
-    if (isDragging && e.pointerId === dragPointerId) {
-      isDragging = false;
-      if (!pointerMoved && Date.now() > suppressClickUntil) {
-        raycastInteractive(e);
+  const finishTouch = (e) => {
+    // Finish on-screen movement touch
+    if (e.pointerId === touchMovePointerId) {
+      const tapDuration = Date.now() - touchStartTime;
+      const wasTap = !pointerMoved && tapDuration < 350;
+
+      touchMovePointerId = null;
+      touchMoveActive = false;
+      touchVector.set(0, 0);
+      if (dynamicTouchIndicator) dynamicTouchIndicator.hidden = true;
+      if (touchKnobInner) touchKnobInner.style.transform = 'translate3d(0, 0, 0)';
+
+      if (wasTap) {
+        handleScreenTap(e.clientX, e.clientY);
+      }
+    }
+
+    // Finish camera drag
+    if (isDraggingCamera && e.pointerId === cameraDragPointerId) {
+      isDraggingCamera = false;
+      cameraDragPointerId = null;
+      if (!pointerMoved && Date.now() - touchStartTime < 350) {
+        handleScreenTap(e.clientX, e.clientY);
       }
     }
   };
-  window.addEventListener('pointerup', finishDrag);
-  window.addEventListener('pointercancel', finishDrag);
 
+  window.addEventListener('pointerup', finishTouch);
+  window.addEventListener('pointercancel', finishTouch);
+
+  // Pinch-to-zoom for mobile touch
   canvas.addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) {
       prevPinchDist = Math.hypot(
@@ -2472,38 +2606,6 @@ function setupEvents() {
   canvas.addEventListener('touchend', (e) => {
     if (e.touches.length < 2) prevPinchDist = null;
   });
-
-  touchPad?.addEventListener('pointerdown', (e) => {
-    joystickPointerId = e.pointerId;
-    const rect = $('#touch-pad .joystick-base').getBoundingClientRect();
-    joystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-  });
-
-  window.addEventListener('pointermove', (e) => {
-    if (e.pointerId !== joystickPointerId || !joystickCenter) return;
-    const dx = e.clientX - joystickCenter.x;
-    const dy = e.clientY - joystickCenter.y;
-    const maxDist = 38;
-    const dist = Math.hypot(dx, dy);
-    const clampedDist = Math.min(dist, maxDist);
-    const angle = Math.atan2(dy, dx);
-    const knobX = Math.cos(angle) * clampedDist;
-    const knobY = Math.sin(angle) * clampedDist;
-    const knob = $('#joystick-knob');
-    if (knob) knob.style.transform = `translate3d(${knobX}px, ${knobY}px, 0)`;
-
-    const threshold = 12;
-    if (dy < -threshold) keys.add('KeyW'); else keys.delete('KeyW');
-    if (dy > threshold) keys.add('KeyS'); else keys.delete('KeyS');
-    if (dx < -threshold) keys.add('KeyA'); else keys.delete('KeyA');
-    if (dx > threshold) keys.add('KeyD'); else keys.delete('KeyD');
-  });
-
-  const finishJoystick = (e) => {
-    if (e.pointerId === joystickPointerId) resetJoystick();
-  };
-  window.addEventListener('pointerup', finishJoystick);
-  window.addEventListener('pointercancel', finishJoystick);
 }
 
 // Initial Setup
