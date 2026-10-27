@@ -301,6 +301,8 @@ let playerFollowLight = null;
 let floatingParticleSystem = null;
 const fairyBulbs = [];
 const candleFlames = [];
+const giantLetterHearts = [];
+const activePointers = new Map();
 
 const keys = new Set();
 const frameTargets = [];
@@ -1431,58 +1433,302 @@ function updateFloatingParticles(dt, time) {
   floatingParticleSystem.geom.attributes.position.needsUpdate = true;
 }
 
-function createLivingRoomFurniture() {
-  const sofaGroup = new THREE.Group();
-  sofaGroup.position.set(0, 0, -62.5); // Placed at the romantic finale of the long corridor
-  scene.add(sofaGroup);
+function createGiantLetterTexture() {
+  return makeCanvasTexture((ctx, w, h) => {
+    // Parchment paper gradient
+    const grad = ctx.createLinearGradient(0, 0, w, h);
+    grad.addColorStop(0, '#fffdf7');
+    grad.addColorStop(0.5, '#fff6eb');
+    grad.addColorStop(1, '#faebd7');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
 
-  const sofaFabric = colorMaterial(0x42384a, 0.85);
-  const pillowMat = colorMaterial(0xd88a8a, 0.75);
-  const coffeeWood = colorMaterial(0x382c23, 0.5, 0.1);
-  const rugMat = colorMaterial(0x822b3c, 0.95);
+    // Ornate double border
+    ctx.strokeStyle = '#d4af37';
+    ctx.lineWidth = 6;
+    ctx.strokeRect(14, 14, w - 28, h - 28);
 
-  const rug = new THREE.Mesh(new THREE.PlaneGeometry(8.2, 8.2), rugMat);
+    ctx.strokeStyle = '#ff758f';
+    ctx.lineWidth = 2;
+    ctx.strokeRect(22, 22, w - 44, h - 44);
+
+    // Header & calligraphy
+    ctx.textAlign = 'center';
+    ctx.direction = 'rtl';
+
+    ctx.fillStyle = '#b82b4a';
+    ctx.font = 'bold 22px Tahoma, Arial, sans-serif';
+    ctx.fillText('🌸 نامه‌ی عاشقی اولین سالگردمون 🌸', w / 2, 58);
+
+    ctx.fillStyle = '#5c4033';
+    ctx.font = 'bold 16px Tahoma, Arial, sans-serif';
+    ctx.fillText('برای پرنسسِ قشنگم · ۳۶۵ روز عاشقی بی‌نهایت', w / 2, 95);
+
+    ctx.fillStyle = '#443328';
+    ctx.font = '13.5px Tahoma, Arial, sans-serif';
+    ctx.fillText('یک سال از زیباترین لحظه‌های زندگیمون گذشت...', w / 2, 135);
+
+    ctx.fillStyle = '#ff4d6d';
+    ctx.font = 'bold 15px Tahoma, Arial, sans-serif';
+    ctx.fillText('💌 برای باز کردن و خواندن نامه‌ی ۱ سالگی لمس کنید 💌', w / 2, 180);
+
+    // Decorative corner hearts
+    ctx.fillStyle = '#ff4d6d';
+    ctx.font = '20px Arial';
+    ctx.fillText('♡', 36, 46);
+    ctx.fillText('♡', w - 36, 46);
+    ctx.fillText('♡', 36, h - 30);
+    ctx.fillText('♡', w - 36, h - 30);
+  }, 512, 256);
+}
+
+function createGiantEnvelopeTexture() {
+  return makeCanvasTexture((ctx, w, h) => {
+    // Romantic satin rose-cream gradient
+    const grad = ctx.createLinearGradient(0, 0, w, h);
+    grad.addColorStop(0, '#fff4f6');
+    grad.addColorStop(0.5, '#ffe5eb');
+    grad.addColorStop(1, '#fad1dc');
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Gold border lining
+    ctx.strokeStyle = '#ffd875';
+    ctx.lineWidth = 8;
+    ctx.strokeRect(8, 8, w - 16, h - 16);
+
+    // Envelope diagonal flap fold lines
+    ctx.strokeStyle = 'rgba(216, 120, 140, 0.45)';
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(8, 8);
+    ctx.lineTo(w / 2, h * 0.65);
+    ctx.lineTo(w - 8, 8);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.moveTo(8, h - 8);
+    ctx.lineTo(w / 2, h * 0.42);
+    ctx.lineTo(w - 8, h - 8);
+    ctx.stroke();
+
+    // Golden embossed emblem in center
+    ctx.fillStyle = '#ffd875';
+    ctx.font = 'bold 22px Tahoma, Arial, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.direction = 'rtl';
+    ctx.fillText('✨ ۱ سال عاشقی با تو ✨', w / 2, h - 32);
+  }, 512, 384);
+}
+
+function createGiantLetterLabel() {
+  return makeCanvasTexture((ctx, w, h) => {
+    ctx.fillStyle = 'rgba(34, 18, 30, 0.94)';
+    ctx.roundRect ? ctx.roundRect(8, 8, w - 16, h - 16, 18) : ctx.fillRect(8, 8, w - 16, h - 16);
+    ctx.fill();
+    ctx.strokeStyle = '#ffd875';
+    ctx.lineWidth = 3;
+    ctx.stroke();
+
+    ctx.textAlign = 'center';
+    ctx.direction = 'rtl';
+
+    ctx.fillStyle = '#ffd875';
+    ctx.font = 'bold 24px Tahoma, Arial, sans-serif';
+    ctx.fillText('💌 پاکت نامه‌ی عاشقی ۱ سالگی', w / 2, 42);
+
+    ctx.fillStyle = '#ffb3c1';
+    ctx.font = 'bold 16px Tahoma, Arial, sans-serif';
+    ctx.fillText('✨ برای باز کردن و خواندن نامه لمس کنید ✨', w / 2, 74);
+  }, 512, 96);
+}
+
+function createGiantLoveLetterAltar(x, z) {
+  const altarGroup = new THREE.Group();
+  altarGroup.position.set(x, 0, z);
+  scene.add(altarGroup);
+
+  const marbleMat = colorMaterial(0xf5ede1, 0.45, 0.1);
+  const goldMat = colorMaterial(0xffd875, 0.2, 0.85);
+  const roseGoldMat = colorMaterial(0xe88a9c, 0.25, 0.7);
+  const rubyMat = new THREE.MeshBasicMaterial({ color: 0xc9184a });
+  const darkBack = colorMaterial(0x201520, 0.5);
+
+  // Grand Romantic Velvet Rug with Gold Border
+  const rugMat = colorMaterial(0x821c2d, 0.95);
+  const rug = new THREE.Mesh(new THREE.PlaneGeometry(9.2, 9.2), rugMat);
   rug.rotation.x = -Math.PI / 2;
   rug.position.set(0, 0.012, 0);
   rug.receiveShadow = true;
-  sofaGroup.add(rug);
+  altarGroup.add(rug);
 
-  addBox(sofaGroup, 3.8, 0.42, 1.25, sofaFabric, 0, 0.21, 1.8);
-  addBox(sofaGroup, 3.8, 0.75, 0.35, sofaFabric, 0, 0.72, 2.25);
-  addBox(sofaGroup, 0.35, 0.62, 1.25, sofaFabric, -1.95, 0.45, 1.8);
-  addBox(sofaGroup, 0.35, 0.62, 1.25, sofaFabric, 1.95, 0.45, 1.8);
-
-  for (const side of [-1.3, 1.3]) {
-    const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.45, 0.22), pillowMat);
-    pillow.position.set(side, 0.62, 2.05);
-    pillow.rotation.y = side < 0 ? 0.2 : -0.2;
-    sofaGroup.add(pillow);
+  // Scattered Rose Petals on the Altar Rug
+  const petalRed = colorMaterial(0xff2a5c, 0.4, 0.2);
+  const petalPink = colorMaterial(0xff758f, 0.4, 0.2);
+  for (let i = 0; i < 40; i++) {
+    const angle = (i / 40) * Math.PI * 2;
+    const rad = 2.2 + Math.random() * 1.8;
+    const petal = new THREE.Mesh(new THREE.CircleGeometry(0.09, 6), i % 2 ? petalRed : petalPink);
+    petal.rotation.x = -Math.PI / 2;
+    petal.rotation.z = Math.random() * Math.PI * 2;
+    petal.position.set(Math.cos(angle) * rad, 0.022, Math.sin(angle) * rad);
+    altarGroup.add(petal);
   }
 
-  addBox(sofaGroup, 2.2, 0.08, 1.2, coffeeWood, 0, 0.42, 0);
-  for (const sx of [-0.95, 0.95]) {
-    for (const sz of [-0.48, 0.48]) {
-      addBox(sofaGroup, 0.07, 0.42, 0.07, coffeeWood, sx, 0.21, sz, { castShadow: false });
+  // Multi-tier Royal Pedestal
+  addBox(altarGroup, 3.8, 0.22, 2.4, goldMat, 0, 0.11, 0);
+  addBox(altarGroup, 3.5, 0.28, 2.1, marbleMat, 0, 0.36, 0);
+  addBox(altarGroup, 3.2, 0.14, 1.8, goldMat, 0, 0.57, 0);
+
+  // Glowing Scented Candles on Pedestal Corners
+  const candleWax = colorMaterial(0xfffaf0, 0.3);
+  const candleFlameMat = new THREE.MeshBasicMaterial({ color: 0xffaa33 });
+  const candleHaloMat = new THREE.MeshBasicMaterial({ color: 0xffcc44, transparent: true, opacity: 0.45 });
+
+  for (const sx of [-1.5, 1.5]) {
+    for (const sz of [-0.8, 0.8]) {
+      const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.16, 8), candleWax);
+      candle.position.set(sx, 0.72, sz);
+      altarGroup.add(candle);
+
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.09, 6), candleFlameMat);
+      flame.position.set(sx, 0.84, sz);
+      altarGroup.add(flame);
+
+      const halo = new THREE.Mesh(new THREE.SphereGeometry(0.10, 6, 6), candleHaloMat);
+      halo.position.set(sx, 0.85, sz);
+      altarGroup.add(halo);
+
+      candleFlames.push({ flame, halo, phase: Math.random() * 6.28 });
     }
   }
 
-  const vase = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.32, 10), colorMaterial(0xffffff, 0.1, 0.1));
-  vase.position.set(0, 0.62, 0); sofaGroup.add(vase);
-  const rose = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), colorMaterial(0xff3366, 0.4, 0.2));
-  rose.position.set(0, 0.82, 0); sofaGroup.add(rose);
+  // --- Giant Angled Envelope & Stand ---
+  const standGroup = new THREE.Group();
+  standGroup.position.set(0, 0.65, 0);
+  standGroup.rotation.x = -0.15; // Angled backward for optimal view
+  altarGroup.add(standGroup);
 
-  // Love Letter Book on table
-  const bookMat = colorMaterial(0x8f2d48, 0.4, 0.3);
-  const book = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.06, 0.28), bookMat);
-  book.position.set(0.42, 0.49, 0.15);
-  book.rotation.y = 0.25;
-  sofaGroup.add(book);
+  // Back support easel
+  addBox(standGroup, 0.15, 2.6, 0.15, goldMat, 0, 1.3, -0.22);
 
-  const bookTarget = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.5), new THREE.MeshBasicMaterial({ visible: false }));
-  bookTarget.position.set(0.42, 0.52, -62.35);
-  bookTarget.userData = { type: 'love-letter' };
-  scene.add(bookTarget);
-  interactiveTargets.push(bookTarget);
+  // Soft Ambient Glow Halo behind the giant letter
+  const haloMat = new THREE.MeshBasicMaterial({ color: 0xffccd5, transparent: true, opacity: 0.38 });
+  const haloMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 2.6), haloMat);
+  haloMesh.position.set(0, 1.45, -0.06);
+  standGroup.add(haloMesh);
+
+  // Envelope Body
+  const envTex = createGiantEnvelopeTexture();
+  const envMat = new THREE.MeshStandardMaterial({ map: envTex, roughness: 0.35, metalness: 0.2 });
+  addBox(standGroup, 2.85, 1.75, 0.12, darkBack, 0, 1.45, 0.0, { castShadow: true });
+  addBox(standGroup, 2.92, 1.82, 0.06, goldMat, 0, 1.45, 0.02, { castShadow: false });
+  addBox(standGroup, 2.80, 1.70, 0.08, envMat, 0, 1.45, 0.06, { castShadow: false });
+
+  // Parchment Letter Emerging Upward
+  const letterTex = createGiantLetterTexture();
+  const letterMat = new THREE.MeshStandardMaterial({ map: letterTex, roughness: 0.5, metalness: 0.05 });
+  addBox(standGroup, 2.55, 1.55, 0.04, letterMat, 0, 1.95, 0.10, { castShadow: true });
+
+  // 3D Crimson Wax Seal with Golden Heart
+  const waxSeal = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.06, 18), rubyMat);
+  waxSeal.rotation.x = Math.PI / 2;
+  waxSeal.position.set(0, 1.45, 0.14);
+  standGroup.add(waxSeal);
+
+  // Golden heart relief on wax seal
+  const h1 = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), goldMat); h1.position.set(-0.035, 1.47, 0.18); standGroup.add(h1);
+  const h2 = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), goldMat); h2.position.set(0.035, 1.47, 0.18); standGroup.add(h2);
+  const hc = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.12, 8), goldMat); hc.rotation.z = Math.PI; hc.position.set(0, 1.41, 0.18); standGroup.add(hc);
+
+  // Ribbon Bow Crest on top of the letter
+  const bowGroup = new THREE.Group();
+  bowGroup.position.set(0, 2.76, 0.12);
+  const bowCenter = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), rubyMat);
+  bowGroup.add(bowCenter);
+  for (const sx of [-1, 1]) {
+    const loop = new THREE.Mesh(new THREE.TorusGeometry(0.16, 0.045, 6, 14), roseGoldMat);
+    loop.position.set(sx * 0.14, 0.02, 0);
+    loop.rotation.y = sx * 0.3;
+    bowGroup.add(loop);
+    const streamer = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.35, 0.02), roseGoldMat);
+    streamer.position.set(sx * 0.10, -0.20, 0.01);
+    streamer.rotation.z = sx * -0.28;
+    bowGroup.add(streamer);
+  }
+  standGroup.add(bowGroup);
+
+  // Floating Pulsating Mini 3D Hearts around the Giant Letter
+  const heartColors = [0xff2a5c, 0xff758f, 0xffa8ba, 0xffd875];
+  for (let i = 0; i < 4; i++) {
+    const fHeart = new THREE.Group();
+    const mat = new THREE.MeshBasicMaterial({ color: heartColors[i] });
+    const p1 = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), mat); p1.position.set(-0.05, 0.05, 0); fHeart.add(p1);
+    const p2 = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 8), mat); p2.position.set(0.05, 0.05, 0); fHeart.add(p2);
+    const pc = new THREE.Mesh(new THREE.ConeGeometry(0.11, 0.16, 8), mat); pc.rotation.z = Math.PI; pc.position.set(0, -0.04, 0); fHeart.add(pc);
+
+    const angle = (i / 4) * Math.PI * 2;
+    const hx = Math.cos(angle) * 1.65;
+    const hy = 2.2 + (i % 2) * 0.6;
+    const hz = Math.sin(angle) * 0.5 + 0.3;
+    fHeart.position.set(hx, hy, hz);
+    altarGroup.add(fHeart);
+    giantLetterHearts.push({ mesh: fHeart, baseY: hy, phase: i * 1.5 });
+  }
+
+  // Floating Glowing Persian Billboard Sprite Title
+  const labelTex = createGiantLetterLabel();
+  const labelSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthTest: false }));
+  labelSprite.scale.set(3.4, 0.68, 1);
+  labelSprite.position.set(0, 3.45, 0);
+  labelSprite.renderOrder = 5;
+  altarGroup.add(labelSprite);
+
+  // Generous Invisible Interactive Collider
+  const letterTarget = new THREE.Mesh(
+    new THREE.BoxGeometry(3.6, 3.4, 2.2),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  letterTarget.position.set(0, 1.8, 0);
+  letterTarget.userData = { type: 'love-letter' };
+  altarGroup.add(letterTarget);
+  interactiveTargets.push(letterTarget);
+
+  // Royal Lounge Loveseats on the Left & Right Sides of the Corridor End
+  const sofaFabric = colorMaterial(0x42384a, 0.85);
+  const pillowMat = colorMaterial(0xd88a8a, 0.75);
+  const coffeeWood = colorMaterial(0x382c23, 0.5, 0.1);
+
+  for (const side of [-5.2, 5.2]) {
+    const lounge = new THREE.Group();
+    lounge.position.set(side, 0, 0);
+    lounge.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+    altarGroup.add(lounge);
+
+    addBox(lounge, 3.2, 0.38, 1.1, sofaFabric, 0, 0.19, 0);
+    addBox(lounge, 3.2, 0.70, 0.30, sofaFabric, 0, 0.65, -0.45);
+    addBox(lounge, 0.30, 0.55, 1.1, sofaFabric, -1.65, 0.38, 0);
+    addBox(lounge, 0.30, 0.55, 1.1, sofaFabric, 1.65, 0.38, 0);
+
+    for (const ps of [-1.1, 1.1]) {
+      const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.48, 0.38, 0.18), pillowMat);
+      pillow.position.set(ps, 0.52, -0.28);
+      pillow.rotation.y = ps < 0 ? 0.2 : -0.2;
+      lounge.add(pillow);
+    }
+
+    addBox(lounge, 1.4, 0.06, 0.8, coffeeWood, 0, 0.36, 1.1);
+    for (const cx of [-0.6, 0.6]) {
+      for (const cz of [0.8, 1.4]) {
+        addBox(lounge, 0.05, 0.36, 0.05, coffeeWood, cx, 0.18, cz, { castShadow: false });
+      }
+    }
+
+    const vase = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.08, 0.26, 8), colorMaterial(0xffffff, 0.1, 0.1));
+    vase.position.set(0, 0.52, 1.1); lounge.add(vase);
+    const rose = new THREE.Mesh(new THREE.SphereGeometry(0.10, 8, 8), colorMaterial(0xff3366, 0.4, 0.2));
+    rose.position.set(0, 0.68, 1.1); lounge.add(rose);
+  }
 }
 
 // VERY LONG Grand Architecture with Nanaz Walls & Mouldings
@@ -1590,6 +1836,16 @@ function buildHome() {
   leftDoorPivot = createDoorPivot(1);
   rightDoorPivot = createDoorPivot(-1);
 
+  // Large Interactive Door Hitbox for Mobile Tap & Desktop Click
+  const doorClickTarget = new THREE.Mesh(
+    new THREE.BoxGeometry(5.6, 4.6, 1.5),
+    new THREE.MeshBasicMaterial({ visible: false })
+  );
+  doorClickTarget.position.set(0, 2.2, 0.42);
+  doorClickTarget.userData = { type: 'door' };
+  scene.add(doorClickTarget);
+  interactiveTargets.push(doorClickTarget);
+
   const wallGlow = new THREE.MeshBasicMaterial({ color: 0xffdfaa });
   for (const x of [-3.2, 3.2]) {
     addBox(scene, 0.32, 0.52, 0.25, walnut, x, 3.6, 0.56);
@@ -1647,7 +1903,7 @@ function buildHome() {
   const moonMesh = new THREE.Mesh(new THREE.SphereGeometry(1.05, 20, 16), new THREE.MeshBasicMaterial({ color: 0xfff3cf }));
   moonMesh.position.set(-18, 15.5, 1.5); scene.add(moonMesh);
 
-  createLivingRoomFurniture();
+  createGiantLoveLetterAltar(0, -62.5);
 }
 
 function createWorld() {
@@ -1869,6 +2125,13 @@ function updateGame(dt, elapsed) {
     });
   }
 
+  if (giantLetterHearts.length > 0) {
+    giantLetterHearts.forEach((item) => {
+      item.mesh.position.y = item.baseY + Math.sin(elapsed * 2.4 + item.phase) * 0.12;
+      item.mesh.rotation.y = elapsed * 1.6 + item.phase;
+    });
+  }
+
   updateFloatingParticles(dt, elapsed);
 
   if (!started || !player) {
@@ -2024,23 +2287,23 @@ function updateInteractions() {
   }
 
   if (insideHouse) {
+    const dLetter = Math.hypot(player.position.x - 0, player.position.z - (-62.5));
+    if (dLetter < 4.5) {
+      nearestInteractable = { type: 'love-letter' };
+      card.classList.remove('is-hidden');
+      copy.textContent = 'نزدیک پاکت نامه‌ی ۱ سالگی هستی؛ برای خواندن نامه لمس کن یا دکمه را بزن 💌';
+      buttonLabel.textContent = '💌 بازکردن و خواندن نامه‌ی ۱ سالگی';
+      button.disabled = false;
+      updateProgress();
+      return;
+    }
+
     const dMantel = Math.hypot(player.position.x - 0, player.position.z - (-67.5));
     if (dMantel < 3.8) {
       nearestInteractable = { type: 'anniversary-mantle' };
       card.classList.remove('is-hidden');
       copy.textContent = 'کتیبه‌ی ۱ سالگی عشقمون؛ برای دیدن جشن دکمه را بزن';
       buttonLabel.textContent = '💍 جشنِ اولین سالگرد';
-      button.disabled = false;
-      updateProgress();
-      return;
-    }
-
-    const dBook = Math.hypot(player.position.x - 0.42, player.position.z - (-62.35));
-    if (dBook < 2.4) {
-      nearestInteractable = { type: 'love-letter' };
-      card.classList.remove('is-hidden');
-      copy.textContent = 'کتابچه‌ی نامه‌ی ۱ سالگی؛ برای خواندن دکمه را بزن';
-      buttonLabel.textContent = '💌 خواندن نامه‌ی ۱ سالگی';
       button.disabled = false;
       updateProgress();
       return;
@@ -2166,9 +2429,12 @@ function closeAnniversaryModal() {
 }
 
 function openLoveLetterModal() {
-  $('#loveletter-from-sign').textContent = `${state.fromName} برای ${state.toName}`;
+  $('#loveletter-title').textContent = `برای ${state.toName || 'پرنسس من'}`;
+  $('#loveletter-from-sign').textContent = `${state.fromName || 'همراه تو'} برای ${state.toName || 'پرنسس من'}`;
   loveletterOverlay.hidden = false;
-  playRomanticChime(523.25);
+  playCelebrationChord();
+  triggerConfetti(0.5, 0.4);
+  triggerHeartFX(window.innerWidth / 2, window.innerHeight / 2, 10);
   syncAnimationLoop();
   $('#close-loveletter').focus({ preventScroll: true });
 }
@@ -2183,7 +2449,9 @@ function closeLoveLetterModal() {
 function beginEntry() {
   entryQueued = true;
   doorTarget = 1;
-  showToast('در راهرو باز می‌شود...');
+  movementTarget = new THREE.Vector3(0, 0, -5.0);
+  playRomanticChime(659.25);
+  showToast('در باز شد؛ در حال ورود به راهروی رویایی 🌸');
 }
 
 function interactNearest() {
@@ -2322,7 +2590,7 @@ function startGame() {
   showToast('انگشتت را روی صفحه بکش تا آزادانه حرکت کنی 🌸');
 }
 
-// Raycasting for Direct Taps (Frames, Altar, Love Monument or Ground)
+// Raycasting for Direct Taps (Door, Frames, Giant Letter, Fireplace, Love Monument, or Ground)
 function handleScreenTap(clientX, clientY) {
   if (!started || !camera || currentMemory || !renderer) return;
   const rect = canvas.getBoundingClientRect();
@@ -2330,20 +2598,36 @@ function handleScreenTap(clientX, clientY) {
   pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
 
-  // 1. Check Interactive Objects
+  // 1. Check Interactive Objects (Door, Giant Love Letter, Fireplace, Monument)
   const intHits = raycaster.intersectObjects(interactiveTargets, true);
   if (intHits.length) {
     const hitObj = intHits[0].object;
-    if (hitObj.userData?.type === 'love-monument') {
-      addLoveCount({ clientX, clientY });
+    const type = hitObj.userData?.type;
+
+    if (type === 'love-letter') {
+      openLoveLetterModal();
+      showToast('💌 در حال باز کردن نامه‌ی عاشقی ۱ سالگی...');
+      triggerHeartFX(clientX, clientY, 8);
       return;
     }
-    if (hitObj.userData?.type === 'anniversary-mantle') {
+
+    if (type === 'door') {
+      if (!insideHouse) {
+        beginEntry();
+      } else {
+        movementTarget = new THREE.Vector3(0, 0, 4.0);
+        showToast('در حال خروج به سمت حیاط...');
+      }
+      return;
+    }
+
+    if (type === 'anniversary-mantle') {
       openAnniversaryModal();
       return;
     }
-    if (hitObj.userData?.type === 'love-letter') {
-      openLoveLetterModal();
+
+    if (type === 'love-monument') {
+      addLoveCount({ clientX, clientY });
       return;
     }
   }
@@ -2514,17 +2798,37 @@ function setupEvents() {
   canvas.addEventListener('pointerdown', (e) => {
     if (!started || currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden || !loveletterOverlay.hidden) return;
 
-    touchStartTime = Date.now();
-    pointerMoved = false;
+    activePointers.set(e.pointerId, {
+      startX: e.clientX,
+      startY: e.clientY,
+      startTime: Date.now(),
+      lastX: e.clientX,
+      lastY: e.clientY,
+      totalMoved: 0,
+      mode: 'undecided',
+    });
 
-    // Touch device or mobile viewport: Primary touch is movement, secondary touch is camera
+    // Touch device or mobile viewport: Smart Zone Detection
     if (e.pointerType === 'touch' || isMobileViewport()) {
-      if (touchMovePointerId === null) {
+      // Upper 65% of screen or right 50% = Camera Swipe Rotation
+      const isUpperOrRightZone = (e.clientY < window.innerHeight * 0.65) || (e.clientX > window.innerWidth * 0.50);
+
+      if (isUpperOrRightZone && cameraDragPointerId === null) {
+        cameraDragPointerId = e.pointerId;
+        isDraggingCamera = true;
+        lastDragX = e.clientX;
+        lastDragY = e.clientY;
+        yawVelocity = 0;
+        pitchVelocity = 0;
+        activePointers.get(e.pointerId).mode = 'camera';
+      } else if (touchMovePointerId === null) {
+        // Lower-left quadrant = Movement Joystick
         touchMovePointerId = e.pointerId;
         touchOriginX = e.clientX;
         touchOriginY = e.clientY;
         touchMoveActive = false;
         touchVector.set(0, 0);
+        activePointers.get(e.pointerId).mode = 'move';
 
         if (dynamicTouchIndicator) {
           dynamicTouchIndicator.style.left = `${touchOriginX}px`;
@@ -2542,6 +2846,7 @@ function setupEvents() {
         lastDragY = e.clientY;
         yawVelocity = 0;
         pitchVelocity = 0;
+        activePointers.get(e.pointerId).mode = 'camera';
       }
     } else {
       // Desktop Mouse Drag = Camera Rotation
@@ -2551,10 +2856,19 @@ function setupEvents() {
       lastDragY = e.clientY;
       yawVelocity = 0;
       pitchVelocity = 0;
+      activePointers.get(e.pointerId).mode = 'camera';
     }
   });
 
   window.addEventListener('pointermove', (e) => {
+    const ptr = activePointers.get(e.pointerId);
+    if (!ptr) return;
+
+    const moveStep = Math.hypot(e.clientX - ptr.lastX, e.clientY - ptr.lastY);
+    ptr.totalMoved += moveStep;
+    ptr.lastX = e.clientX;
+    ptr.lastY = e.clientY;
+
     // 1. Handle Active Touch Movement on screen
     if (e.pointerId === touchMovePointerId) {
       const dx = e.clientX - touchOriginX;
@@ -2562,7 +2876,6 @@ function setupEvents() {
       const dist = Math.hypot(dx, dy);
 
       if (dist > 8) {
-        pointerMoved = true;
         touchMoveActive = true;
         movementTarget = null; // direct drag takes priority
 
@@ -2580,17 +2893,16 @@ function setupEvents() {
       }
     }
 
-    // 2. Handle Camera Drag Rotation
+    // 2. Handle Camera Drag Rotation (Silky Smooth & Highly Responsive)
     if (isDraggingCamera && e.pointerId === cameraDragPointerId) {
       const dx = e.clientX - lastDragX;
       const dy = e.clientY - lastDragY;
-      if (Math.hypot(dx, dy) > 4) pointerMoved = true;
 
-      targetYaw -= dx * 0.0048;
-      targetPitch = clamp(targetPitch + dy * 0.0035, 0.02, 0.58);
+      targetYaw -= dx * 0.0055;
+      targetPitch = clamp(targetPitch + dy * 0.0038, 0.02, 0.58);
 
-      yawVelocity = -dx * 0.0048 / 0.016;
-      pitchVelocity = dy * 0.0035 / 0.016;
+      yawVelocity = -dx * 0.0055 / 0.016;
+      pitchVelocity = dy * 0.0038 / 0.016;
 
       lastDragX = e.clientX;
       lastDragY = e.clientY;
@@ -2598,29 +2910,31 @@ function setupEvents() {
   });
 
   const finishTouch = (e) => {
+    const ptr = activePointers.get(e.pointerId);
+    const tapDuration = ptr ? (Date.now() - ptr.startTime) : 999;
+    const totalMoved = ptr ? ptr.totalMoved : 999;
+    const wasTap = tapDuration < 420 && totalMoved < 24;
+
+    activePointers.delete(e.pointerId);
+
     // Finish on-screen movement touch
     if (e.pointerId === touchMovePointerId) {
-      const tapDuration = Date.now() - touchStartTime;
-      const wasTap = !pointerMoved && tapDuration < 350;
-
       touchMovePointerId = null;
       touchMoveActive = false;
       touchVector.set(0, 0);
       if (dynamicTouchIndicator) dynamicTouchIndicator.hidden = true;
       if (touchKnobInner) touchKnobInner.style.transform = 'translate3d(0, 0, 0)';
-
-      if (wasTap) {
-        handleScreenTap(e.clientX, e.clientY);
-      }
     }
 
     // Finish camera drag
-    if (isDraggingCamera && e.pointerId === cameraDragPointerId) {
+    if (e.pointerId === cameraDragPointerId) {
       isDraggingCamera = false;
       cameraDragPointerId = null;
-      if (!pointerMoved && Date.now() - touchStartTime < 350) {
-        handleScreenTap(e.clientX, e.clientY);
-      }
+    }
+
+    // Direct Object Tap
+    if (wasTap) {
+      handleScreenTap(e.clientX, e.clientY);
     }
   };
 
