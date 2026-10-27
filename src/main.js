@@ -10,23 +10,112 @@ const setupForm = $('#setup-form');
 const touchPad = $('#touch-pad');
 const memoryOverlay = $('#memory-overlay');
 const helpOverlay = $('#help-overlay');
+const anniversaryOverlay = $('#anniversary-overlay');
+const floatingHeartsLayer = $('#floating-hearts');
 
-const storageKey = 'our-museum-gift-v1';
+const storageKey = 'our-museum-gift-v2';
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}') || {}; } catch { saved = {}; }
 const state = {
   fromName: saved.fromName || museumDefaults.fromName,
   toName: saved.toName || museumDefaults.toName,
   dedication: saved.dedication || museumDefaults.dedication,
+  anniversaryMsg: saved.anniversaryMsg || museumDefaults.anniversaryText,
+  loveCount: Number(saved.loveCount) || museumDefaults.loveCount,
   avatarColor: saved.avatarColor || '#30313a',
 };
 
+// Form init
 $('#from-name').value = state.fromName;
 $('#to-name').value = state.toName;
 $('#dedication').value = state.dedication;
+if ($('#anniversary-msg')) $('#anniversary-msg').value = state.anniversaryMsg;
+if ($('#initial-love-count')) $('#initial-love-count').value = state.loveCount;
+
 document.querySelectorAll('.swatch').forEach((button) => {
   button.classList.toggle('is-selected', button.dataset.color === state.avatarColor);
 });
+
+// Sound synthesizer using Web Audio API
+let audioCtx = null;
+function playRomanticChime(frequency = 587.33) {
+  try {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === 'suspended') audioCtx.resume();
+    const osc = audioCtx.createOscillator();
+    const gain = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(frequency * 1.5, audioCtx.currentTime + 0.4);
+    gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.8);
+    osc.connect(gain);
+    gain.connect(audioCtx.destination);
+    osc.start();
+    osc.stop(audioCtx.currentTime + 0.85);
+  } catch (e) {
+    // Audio context not allowed or not supported; ignore silently
+  }
+}
+
+function playCelebrationChord() {
+  const notes = [523.25, 659.25, 783.99, 1046.5]; // C5, E5, G5, C6
+  notes.forEach((freq, idx) => {
+    setTimeout(() => playRomanticChime(freq), idx * 120);
+  });
+}
+
+// Persian numerals helper
+function toPersianDigits(n) {
+  const numStr = Number(n).toLocaleString('en-US');
+  return numStr.replace(/[0-9]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
+}
+
+function updateLoveUI() {
+  const formatted = toPersianDigits(state.loveCount);
+  const hudCount = $('#hud-love-count');
+  if (hudCount) hudCount.textContent = formatted;
+  const annivStat = $('#anniv-love-stat');
+  if (annivStat) annivStat.textContent = formatted;
+  const modalText = $('#modal-love-text');
+  if (modalText) modalText.textContent = `دوستت دارم (${formatted} بار)`;
+  if (loveMonumentLabel) {
+    loveMonumentLabel.material.map?.dispose();
+    loveMonumentLabel.material.map = createLoveMonumentTexture();
+    loveMonumentLabel.material.needsUpdate = true;
+  }
+  localStorage.setItem(storageKey, JSON.stringify(state));
+}
+
+function triggerHeartFX(x, y, count = 1) {
+  if (!floatingHeartsLayer) return;
+  const emojis = ['❤️', '💖', '💕', '✨', '💍', '🌸'];
+  for (let i = 0; i < count; i++) {
+    const el = document.createElement('span');
+    el.className = 'floating-heart-particle';
+    el.textContent = emojis[Math.floor(Math.random() * emojis.length)];
+    const posX = x ?? (window.innerWidth / 2 + (Math.random() - 0.5) * 160);
+    const posY = y ?? (window.innerHeight / 2 + (Math.random() - 0.5) * 100);
+    el.style.left = `${posX}px`;
+    el.style.top = `${posY}px`;
+    el.style.setProperty('--dx', `${(Math.random() - 0.5) * 80}px`);
+    el.style.setProperty('--rot', `${(Math.random() - 0.5) * 35}deg`);
+    el.style.setProperty('--rot2', `${(Math.random() - 0.5) * 45}deg`);
+    el.style.fontSize = `${16 + Math.random() * 16}px`;
+    floatingHeartsLayer.appendChild(el);
+    setTimeout(() => el.remove(), 1900);
+  }
+}
+
+function addLoveCount(event) {
+  state.loveCount += 1;
+  updateLoveUI();
+  playRomanticChime(659.25 + Math.random() * 200);
+  const clientX = event?.clientX ?? window.innerWidth / 2;
+  const clientY = event?.clientY ?? window.innerHeight / 2;
+  triggerHeartFX(clientX, clientY, 3);
+  showToast(`❤️ یک «دوستت دارم» دیگر ثبت شد! (مجموعاً ${toPersianDigits(state.loveCount)} بار)`);
+}
 
 let renderer, scene, camera, clock;
 let player, companion;
@@ -35,6 +124,7 @@ let rightDoorPivot = null;
 let started = false;
 let currentMemory = null;
 let nearestMemory = null;
+let nearestInteractable = null;
 let cameraYaw = 0;
 let cameraDistance = 7.8;
 let cameraHeight = 3.65;
@@ -52,14 +142,22 @@ let joystickCenter = null;
 let toastTimer = null;
 let movementTarget = null;
 let dedicationSign = null;
+let anniversaryMantleSign = null;
+let loveMonument = null;
+let loveMonumentLabel = null;
+let crystalHeartMesh = null;
+let fireplaceLight = null;
+let floatingParticleSystem = null;
+const fairyBulbs = [];
+
 const keys = new Set();
 const frameTargets = [];
 const frameRecords = [];
+const interactiveTargets = [];
 const pendingPhotoLoads = [];
 const playerPosition = new THREE.Vector3(0, 0, 14);
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
-const dummy = new THREE.Object3D();
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const lerp = (a, b, t) => a + (b - a) * t;
@@ -79,32 +177,10 @@ function createRenderer() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.18;
+  renderer.toneMappingExposure = 1.22;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   return true;
-}
-
-function createFloorTexture() {
-  const tile = document.createElement('canvas');
-  tile.width = 512; tile.height = 512;
-  const ctx = tile.getContext('2d');
-  ctx.fillStyle = '#b4ad9e'; ctx.fillRect(0, 0, 512, 512);
-  for (let y = 0; y < 512; y += 128) {
-    for (let x = 0; x < 512; x += 128) {
-      const offset = (Math.floor(y / 128) % 2) * 64;
-      const px = (x + offset) % 512;
-      const shade = ((x + y) / 128) % 4;
-      ctx.fillStyle = ['#c8c1b1', '#c1baaa', '#d0c9bb', '#beb7a8'][shade];
-      ctx.fillRect(px + 2, y + 2, 124, 124);
-      ctx.fillStyle = '#a49c8d'; ctx.fillRect(px, y, 128, 2); ctx.fillRect(px, y, 2, 128);
-    }
-  }
-  const texture = new THREE.CanvasTexture(tile);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(7, 9); texture.anisotropy = renderer ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
-  return texture;
 }
 
 function addBox(parent, width, height, depth, material, x, y, z, options = {}) {
@@ -130,12 +206,13 @@ function makeCanvasTexture(draw, width = 512, height = 256) {
 
 function createDedicationTexture() {
   return makeCanvasTexture((ctx, w, h) => {
-    ctx.fillStyle = '#202430'; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = '#a88d5d'; ctx.lineWidth = 2; ctx.strokeRect(7, 7, w - 14, h - 14);
-    ctx.fillStyle = '#d1bb8b'; ctx.font = '600 11px Georgia, serif'; ctx.textAlign = 'center'; ctx.direction = 'ltr';
-    ctx.fillText('OUR HOME · OUR STORY', w / 2, 23);
-    ctx.fillStyle = '#f2ead9'; ctx.font = '600 22px Tahoma, Arial, sans-serif'; ctx.direction = 'rtl';
-    ctx.fillText(`برایِ ${state.toName}`, w / 2, 51, w - 36);
+    ctx.fillStyle = '#1c202d'; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 2.5; ctx.strokeRect(8, 8, w - 16, h - 16);
+    ctx.strokeStyle = '#e8a5a544'; ctx.lineWidth = 1; ctx.strokeRect(14, 14, w - 28, h - 28);
+    ctx.fillStyle = '#f3cf7a'; ctx.font = '600 11px Georgia, serif'; ctx.textAlign = 'center'; ctx.direction = 'ltr';
+    ctx.fillText('OUR HOME · ANNIVERSARY & VALENTINE', w / 2, 23);
+    ctx.fillStyle = '#fff4e0'; ctx.font = '600 22px Tahoma, Arial, sans-serif'; ctx.direction = 'rtl';
+    ctx.fillText(`برایِ ${state.toName} عزیزم`, w / 2, 51, w - 36);
     ctx.fillStyle = '#d2c5ab'; ctx.font = '14px Tahoma, Arial, sans-serif';
     const words = state.dedication.split(/\s+/); const lines = [''];
     for (const word of words) {
@@ -146,9 +223,46 @@ function createDedicationTexture() {
     }
     ctx.fillText(lines[0] || 'تمامِ لحظه‌های ما', w / 2, 77, w - 42);
     if (lines[1]) ctx.fillText(lines[1], w / 2, 96, w - 42);
-    ctx.fillStyle = '#ba9e6c'; ctx.font = 'italic 11px Georgia, serif'; ctx.direction = 'ltr';
-    ctx.fillText(`with love, ${state.fromName}`, w / 2, 126, w - 32);
+    ctx.fillStyle = '#f2a6b2'; ctx.font = 'italic 12px Georgia, serif'; ctx.direction = 'ltr';
+    ctx.fillText(`with endless love, ${state.fromName} ♡`, w / 2, 126, w - 32);
   }, 512, 144);
+}
+
+function createAnniversaryMantleTexture() {
+  return makeCanvasTexture((ctx, w, h) => {
+    const grad = ctx.createLinearGradient(0, 0, w, 0);
+    grad.addColorStop(0, '#2b1c26'); grad.addColorStop(0.5, '#411e30'); grad.addColorStop(1, '#2b1c26');
+    ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#ffd875'; ctx.lineWidth = 3; ctx.strokeRect(6, 6, w - 12, h - 12);
+    ctx.strokeStyle = '#ff9ebb66'; ctx.lineWidth = 1; ctx.strokeRect(12, 12, w - 24, h - 24);
+
+    ctx.fillStyle = '#ffd875'; ctx.font = 'bold 24px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
+    ctx.fillText('✨ سالگرد عشقمون مبارک ✨', w / 2, 42);
+
+    ctx.fillStyle = '#fff0f4'; ctx.font = '600 15px Tahoma, Arial, sans-serif';
+    ctx.fillText(`${state.fromName}  ❤️  ${state.toName}`, w / 2, 72);
+
+    ctx.fillStyle = '#ffccd5'; ctx.font = 'italic 12px Georgia, serif'; ctx.direction = 'ltr';
+    ctx.fillText('Forever & Always · Click to Celebrate', w / 2, 100);
+  }, 512, 120);
+}
+
+function createLoveMonumentTexture() {
+  return makeCanvasTexture((ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(28, 16, 26, 0.88)';
+    ctx.beginPath(); ctx.roundRect(10, 10, w - 20, h - 20, 24); ctx.fill();
+    ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 2.5; ctx.stroke();
+
+    ctx.fillStyle = '#ff3366'; ctx.font = '22px Arial'; ctx.textAlign = 'center';
+    ctx.fillText('❤️', 40, h / 2 + 8);
+
+    ctx.fillStyle = '#ffeef2'; ctx.font = 'bold 18px Tahoma, Arial, sans-serif'; ctx.direction = 'rtl';
+    ctx.fillText(`${toPersianDigits(state.loveCount)} بار گفتم دوستت دارم`, w / 2 + 10, h / 2 - 2);
+
+    ctx.fillStyle = '#ff9ebb'; ctx.font = '11px Tahoma, Arial, sans-serif';
+    ctx.fillText('برای ثبتِ دوستت دارم کلیک کن (یا E بزن)', w / 2 + 10, h / 2 + 20);
+  }, 440, 110);
 }
 
 function makeAbstractArtwork(memory, index) {
@@ -170,7 +284,6 @@ function makeAbstractArtwork(memory, index) {
       ctx.fillStyle = j === 0 ? tone3 : j === 1 ? '#6d7b76' : '#485255';
       ctx.globalAlpha = 0.46 - j * 0.07; ctx.fill(); ctx.globalAlpha = 1;
     });
-    // A small no-photo marker: this is decorative placeholder art, not a photo.
     ctx.strokeStyle = '#fffaf0'; ctx.globalAlpha = 0.67; ctx.lineWidth = 2;
     ctx.beginPath(); ctx.roundRect(w * 0.39, h * 0.36, w * 0.22, h * 0.18, 7); ctx.stroke();
     ctx.beginPath(); ctx.arc(w * 0.5, h * 0.45, h * 0.045, 0, Math.PI * 2); ctx.stroke();
@@ -183,30 +296,215 @@ function makeAbstractArtwork(memory, index) {
 }
 
 function makePlaqueTexture(memory, index) {
+  const fs = memory.frameStyle || {};
+  const bg = fs.plaqueBg || '#1c2130';
+  const border = fs.plaqueBorder || '#a88d5d';
   return makeCanvasTexture((ctx, w, h) => {
-    ctx.fillStyle = '#1c2130'; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = '#a88d5d'; ctx.lineWidth = 2; ctx.strokeRect(9, 9, w - 18, h - 18);
-    ctx.fillStyle = '#c3a775'; ctx.font = '600 12px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
-    ctx.fillText(`یادگاریِ ${String(index + 1).padStart(2, '۰')}`, w / 2, 34);
-    ctx.fillStyle = '#f3ead8'; ctx.font = '600 25px Tahoma, Arial, sans-serif';
-    ctx.fillText(memory.title, w / 2, 72);
+    ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = border; ctx.lineWidth = 2; ctx.strokeRect(9, 9, w - 18, h - 18);
+    ctx.fillStyle = border; ctx.font = '600 11px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
+    ctx.fillText(`خاطره‌ی ${String(index + 1).padStart(2, '۰')} · ${fs.styleName ? fs.styleName.split(' ')[0] : 'یادگاری'}`, w / 2, 32);
+    ctx.fillStyle = '#f8f1e2'; ctx.font = 'bold 23px Tahoma, Arial, sans-serif';
+    ctx.fillText(memory.title, w / 2, 70);
   }, 512, 112);
 }
 
-function createFrame(memory, index, x, y, z, rotationY, width = 2.65, height = 2.45) {
+// 12 Custom Distinct Frame Architectural Builder
+function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2.95) {
   const group = new THREE.Group();
-  group.position.set(x, y, z); group.rotation.y = rotationY; scene.add(group);
-  const frameMat = colorMaterial(index % 2 ? 0x9d855d : 0xb69b6b, 0.27, 0.55);
-  const ivoryMat = colorMaterial(0xf2ede2, 0.42, 0.03);
-  const bar = 0.13;
-  // Shadow panel behind the artwork.
-  addBox(group, width + 0.14, height + 0.14, 0.14, colorMaterial(0x0b0e14, 0.38), 0, 0, -0.03, { castShadow: true, receiveShadow: false });
-  addBox(group, width, height, 0.11, frameMat, 0, 0, 0.04);
-  addBox(group, width - bar * 1.5, height - bar * 1.5, 0.07, ivoryMat, 0, 0, 0.11, { castShadow: false });
-  const artWidth = width - 0.42, artHeight = height - 0.48;
+  group.position.set(x, y, z);
+  group.rotation.y = rotationY;
+  scene.add(group);
+
+  const fs = memory.frameStyle || {
+    frameColor: 0xb69b6b,
+    matColor: 0xf2ede2,
+    accentColor: 0xd4af37,
+    roughness: 0.35,
+    metalness: 0.5,
+  };
+
+  const frameMat = colorMaterial(fs.frameColor, fs.roughness ?? 0.3, fs.metalness ?? 0.4);
+  const matMat = colorMaterial(fs.matColor, 0.85, 0.02);
+  const accentMat = colorMaterial(fs.accentColor, 0.22, 0.78);
+  const darkBack = colorMaterial(0x0c0e12, 0.4);
+
+  // 1. Backing & Shadow plate
+  addBox(group, width + 0.16, height + 0.16, 0.12, darkBack, 0, 0, -0.02, { castShadow: true, receiveShadow: false });
+
+  // 2. Custom Main Frame Moulding
+  addBox(group, width, height, 0.10, frameMat, 0, 0, 0.04);
+
+  // 3. Inner Mat / Mount
+  const matMargin = 0.22;
+  addBox(group, width - matMargin, height - matMargin, 0.06, matMat, 0, 0, 0.08, { castShadow: false });
+
+  // 4. Custom Architectural Elements by Frame Type
+  const halfW = width / 2;
+  const halfH = height / 2;
+
+  switch (fs.type) {
+    case 'rose-gold-romance': // Frame 1: Rosette corner buds & rose gold inner fillet
+      for (const sx of [-1, 1]) {
+        for (const sy of [-1, 1]) {
+          const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.04, 8), accentMat);
+          rose.rotation.x = Math.PI / 2;
+          rose.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.14);
+          group.add(rose);
+          const center = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), colorMaterial(0xfff0f2, 0.2, 0.8));
+          center.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.165);
+          group.add(center);
+        }
+      }
+      // Inner thin rose gold frame border
+      addBox(group, width - 0.32, height - 0.32, 0.025, accentMat, 0, 0, 0.11, { castShadow: false });
+      break;
+
+    case 'baroque-gold': // Frame 2: Stepped Baroque moulding + Crown Crest on top
+      {
+        const crown = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.28, 5), accentMat);
+        crown.position.set(0, halfH + 0.14, 0.06);
+        group.add(crown);
+        for (const sx of [-0.22, 0.22]) {
+          const miniPinnacle = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), accentMat);
+          miniPinnacle.position.set(sx, halfH + 0.08, 0.06);
+          group.add(miniPinnacle);
+        }
+        for (const sx of [-1, 1]) {
+          for (const sy of [-1, 1]) {
+            const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.04), accentMat);
+            bracket.rotation.z = Math.PI / 4;
+            bracket.position.set(sx * (halfW - 0.10), sy * (halfH - 0.10), 0.12);
+            group.add(bracket);
+          }
+        }
+      }
+      break;
+
+    case 'honey-walnut': // Frame 3: Modern dual brass inlay running inside timber
+      addBox(group, width - 0.08, 0.025, 0.025, accentMat, 0, halfH - 0.06, 0.10, { castShadow: false });
+      addBox(group, width - 0.08, 0.025, 0.025, accentMat, 0, -halfH + 0.06, 0.10, { castShadow: false });
+      addBox(group, 0.025, height - 0.08, 0.025, accentMat, halfW - 0.06, 0, 0.10, { castShadow: false });
+      addBox(group, 0.025, height - 0.08, 0.025, accentMat, -halfW + 0.06, 0, 0.10, { castShadow: false });
+      break;
+
+    case 'crimson-velvet': // Frame 4: Sculpted golden hearts on 4 corners + ruby border
+      for (const sx of [-1, 1]) {
+        for (const sy of [-1, 1]) {
+          const heartGroup = new THREE.Group();
+          heartGroup.position.set(sx * (halfW - 0.11), sy * (halfH - 0.11), 0.13);
+          heartGroup.scale.set(0.06, 0.06, 0.06);
+          const c1 = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 8), accentMat); c1.position.set(-0.35, 0.35, 0); heartGroup.add(c1);
+          const c2 = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 8), accentMat); c2.position.set(0.35, 0.35, 0); heartGroup.add(c2);
+          const cone = new THREE.Mesh(new THREE.ConeGeometry(0.78, 1.2, 8), accentMat); cone.rotation.z = Math.PI; cone.position.set(0, -0.2, 0); heartGroup.add(cone);
+          group.add(heartGroup);
+        }
+      }
+      break;
+
+    case 'rustic-timber': // Frame 5: Scandinavian wood pegs & soft linen relief
+      for (const sx of [-1, 1]) {
+        for (const sy of [-1, 1]) {
+          const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.05, 8), colorMaterial(0x422d1e, 0.8));
+          peg.rotation.x = Math.PI / 2;
+          peg.position.set(sx * (halfW - 0.08), sy * (halfH - 0.08), 0.11);
+          group.add(peg);
+        }
+      }
+      break;
+
+    case 'pearl-silver': // Frame 6: Silver beading along top and bottom + diamond silver pins
+      for (let i = -4; i <= 4; i++) {
+        const beadTop = new THREE.Mesh(new THREE.SphereGeometry(0.024, 7, 7), accentMat);
+        beadTop.position.set(i * (width / 10), halfH - 0.04, 0.11); group.add(beadTop);
+        const beadBottom = new THREE.Mesh(new THREE.SphereGeometry(0.024, 7, 7), accentMat);
+        beadBottom.position.set(i * (width / 10), -halfH + 0.04, 0.11); group.add(beadBottom);
+      }
+      break;
+
+    case 'star-celebration': // Frame 7: Brilliant star studs & festive crest
+      for (const sx of [-1, 1]) {
+        for (const sy of [-1, 1]) {
+          const starStud = new THREE.Mesh(new THREE.OctahedronGeometry(0.055), accentMat);
+          starStud.position.set(sx * (halfW - 0.10), sy * (halfH - 0.10), 0.13);
+          group.add(starStud);
+        }
+      }
+      // Top celebratory diamond
+      {
+        const topStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.09), accentMat);
+        topStar.position.set(0, halfH + 0.10, 0.08);
+        group.add(topStar);
+      }
+      break;
+
+    case 'rose-quartz': // Frame 8: Pastel rose arches & soft rounded studs
+      for (const sx of [-1, 1]) {
+        for (const sy of [-1, 1]) {
+          const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.048, 10, 8), accentMat);
+          pearl.position.set(sx * (halfW - 0.10), sy * (halfH - 0.10), 0.12);
+          group.add(pearl);
+        }
+      }
+      break;
+
+    case 'gallery-monochrome': // Frame 9: Ultra-minimalist matte black with floating chrome standoffs
+      for (const sx of [-1, 1]) {
+        for (const sy of [-1, 1]) {
+          const standoff = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.05, 12), accentMat);
+          standoff.rotation.x = Math.PI / 2;
+          standoff.position.set(sx * (halfW - 0.14), sy * (halfH - 0.14), 0.12);
+          group.add(standoff);
+        }
+      }
+      break;
+
+    case 'lavender-twilight': // Frame 10: Antique bronze filigree corner plates
+      for (const sx of [-1, 1]) {
+        for (const sy of [-1, 1]) {
+          const plate = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.035, 0.02), accentMat);
+          plate.position.set(sx * (halfW - 0.12), sy * (halfH - 0.05), 0.11); group.add(plate);
+          const plateV = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.18, 0.02), accentMat);
+          plateV.position.set(sx * (halfW - 0.05), sy * (halfH - 0.12), 0.11); group.add(plateV);
+        }
+      }
+      break;
+
+    case 'emerald-copper': // Frame 11: Warm copper clasps on corners
+      for (const sx of [-1, 1]) {
+        for (const sy of [-1, 1]) {
+          const clasp = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.04), accentMat);
+          clasp.position.set(sx * (halfW - 0.08), sy * (halfH - 0.08), 0.11);
+          group.add(clasp);
+        }
+      }
+      break;
+
+    case 'midnight-starlight': // Frame 12: Luminous starlight corner gems & golden glowing rim
+      for (const sx of [-1, 1]) {
+        for (const sy of [-1, 1]) {
+          const gem = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), accentMat);
+          gem.position.set(sx * (halfW - 0.10), sy * (halfH - 0.10), 0.125);
+          group.add(gem);
+        }
+      }
+      break;
+  }
+
+  // 5. Artwork Plane
+  const artWidth = width - 0.44;
+  const artHeight = height - 0.52;
   const artTexture = makeAbstractArtwork(memory, index);
-  const art = new THREE.Mesh(new THREE.PlaneGeometry(artWidth, artHeight), new THREE.MeshBasicMaterial({ map: artTexture, side: THREE.DoubleSide }));
-  art.position.set(0, 0, 0.155); art.userData.memory = memory; art.userData.index = index; group.add(art);
+  const art = new THREE.Mesh(
+    new THREE.PlaneGeometry(artWidth, artHeight),
+    new THREE.MeshBasicMaterial({ map: artTexture, side: THREE.DoubleSide })
+  );
+  art.position.set(0, 0, 0.125);
+  art.userData.memory = memory;
+  art.userData.index = index;
+  art.userData.isFrame = true;
+  group.add(art);
+
   if (memory.imageSrc) {
     const loadPhoto = () => new THREE.TextureLoader().load(memory.imageSrc, (loadedTexture) => {
       let texture = loadedTexture;
@@ -227,23 +525,40 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.65, height = 2
       const frameAspect = artWidth / artHeight;
       const fitWidth = photoAspect > frameAspect ? artWidth : artHeight * photoAspect;
       const fitHeight = photoAspect > frameAspect ? artWidth / photoAspect : artHeight;
-      art.geometry.dispose(); art.geometry = new THREE.PlaneGeometry(fitWidth, fitHeight);
-      art.material.map?.dispose(); art.material.map = texture; art.material.needsUpdate = true;
+      art.geometry.dispose();
+      art.geometry = new THREE.PlaneGeometry(fitWidth, fitHeight);
+      art.material.map?.dispose();
+      art.material.map = texture;
+      art.material.needsUpdate = true;
     }, undefined, (error) => console.warn(`Could not load memory image: ${memory.imageSrc}`, error));
     if (started) loadPhoto(); else pendingPhotoLoads.push(loadPhoto);
   }
   frameTargets.push(art);
-  // Tiny brass corners and bottom plaque.
-  const cornerMat = colorMaterial(0xd0b67c, 0.24, 0.72);
-  for (const sx of [-1, 1]) for (const sy of [-1, 1]) {
-    const pin = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), cornerMat);
-    pin.position.set(sx * (width / 2 - 0.12), sy * (height / 2 - 0.12), 0.19); group.add(pin);
-  }
-  const plaqueWidth = Math.max(width - 0.05, 1.7);
-  addBox(group, plaqueWidth + 0.08, 0.55, 0.11, colorMaterial(0xb4a58c, 0.5, 0.16), 0, -height / 2 - 0.42, 0.015, { castShadow: false });
+
+  // 6. Custom Dedicated Sconce / Spotlight above each frame
+  const sconceGroup = new THREE.Group();
+  sconceGroup.position.set(0, halfH + 0.28, 0.16);
+  const sconceArm = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.18, 6), colorMaterial(fs.accentColor, 0.3, 0.7));
+  sconceArm.rotation.x = Math.PI / 3; sconceGroup.add(sconceArm);
+  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.10, 8), colorMaterial(fs.frameColor, 0.4, 0.3));
+  shade.rotation.x = Math.PI / 2; shade.position.set(0, 0.06, 0.08); sconceGroup.add(shade);
+  const bulbGlow = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffeaae }));
+  bulbGlow.position.set(0, 0.06, 0.11); sconceGroup.add(bulbGlow);
+  group.add(sconceGroup);
+
+  // Soft localized light on the artwork
+  const frameSpot = new THREE.PointLight(0xffe6b0, isMobileViewport() ? 1.4 : 1.8, 4.2, 2);
+  frameSpot.position.set(0, halfH + 0.22, 0.42);
+  group.add(frameSpot);
+
+  // 7. Plaque Below Frame
+  const plaqueWidth = Math.max(width - 0.05, 1.8);
+  addBox(group, plaqueWidth + 0.06, 0.52, 0.08, colorMaterial(fs.frameColor, 0.5, 0.2), 0, -halfH - 0.38, 0.015, { castShadow: false });
   const plaqueTex = makePlaqueTexture(memory, index);
-  const plaque = new THREE.Mesh(new THREE.PlaneGeometry(plaqueWidth, 0.45), new THREE.MeshBasicMaterial({ map: plaqueTex }));
-  plaque.position.set(0, -height / 2 - 0.42, 0.078); group.add(plaque);
+  const plaque = new THREE.Mesh(new THREE.PlaneGeometry(plaqueWidth, 0.44), new THREE.MeshBasicMaterial({ map: plaqueTex }));
+  plaque.position.set(0, -halfH - 0.38, 0.065);
+  group.add(plaque);
+
   frameRecords.push({ memory, index, x, z, rotationY, group, art });
   return group;
 }
@@ -251,15 +566,15 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.65, height = 2
 function createSpriteLabel(text, accent = '#c9ad7b') {
   const texture = makeCanvasTexture((ctx, w, h) => {
     ctx.clearRect(0, 0, w, h);
-    const radius = 24;
-    ctx.fillStyle = 'rgba(19,22,31,.82)'; ctx.beginPath(); ctx.roundRect(12, 18, w - 24, h - 36, radius); ctx.fill();
-    ctx.strokeStyle = 'rgba(229,215,183,.35)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = 'rgba(19,22,31,.84)'; ctx.beginPath(); ctx.roundRect(12, 18, w - 24, h - 36, 24); ctx.fill();
+    ctx.strokeStyle = 'rgba(243,200,88,.45)'; ctx.lineWidth = 2; ctx.stroke();
     ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(48, h / 2, 7, 0, Math.PI * 2); ctx.fill();
     ctx.fillStyle = '#f7f0e1'; ctx.font = '600 30px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
     ctx.fillText(text, w / 2 + 12, h / 2 + 10, w - 110);
   }, 512, 112);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
-  sprite.scale.set(1.45, 0.34, 1); sprite.renderOrder = 4;
+  sprite.scale.set(1.45, 0.34, 1);
+  sprite.renderOrder = 4;
   return sprite;
 }
 
@@ -274,13 +589,13 @@ function createAvatar(options = {}) {
   const eye = new THREE.MeshStandardMaterial({ color: 0x392e2a, roughness: 0.7 });
   const white = new THREE.MeshStandardMaterial({ color: 0xf7eee0, roughness: 0.55 });
 
-  // Hips and softly rounded torso.
   const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.235, 0.27, 0.34, 9), pants);
   hips.position.y = 0.78; hips.castShadow = true; rig.add(hips);
   const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.29, 0.56, 4, 9), shirt);
   torso.position.y = 1.27; torso.castShadow = true; rig.add(torso);
   const collar = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.018, 6, 16), colorMaterial(0xd9c6a7, 0.45));
   collar.position.set(0, 1.70, -0.015); collar.rotation.x = Math.PI / 2; rig.add(collar);
+
   if (options.vestColor) {
     const vestMat = colorMaterial(options.vestColor, 0.72);
     for (const side of [-1, 1]) {
@@ -317,6 +632,7 @@ function createAvatar(options = {}) {
   face.scale.set(0.91, 1.06, 0.92); face.castShadow = true; head.add(face);
   const cap = new THREE.Mesh(new THREE.SphereGeometry(0.257, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.56), hair);
   cap.position.y = 0.05; cap.castShadow = true; head.add(cap);
+
   if (options.longHair) {
     const backHair = new THREE.Mesh(new THREE.SphereGeometry(0.245, 12, 10), hair);
     backHair.scale.set(1.08, 1.28, 0.65); backHair.position.set(0, -0.05, 0.055); backHair.castShadow = true; head.add(backHair);
@@ -329,14 +645,15 @@ function createAvatar(options = {}) {
       [-0.17, 0.10, -0.11], [-0.09, 0.17, -0.16], [0, 0.18, -0.17], [0.09, 0.17, -0.16], [0.17, 0.10, -0.11],
       [-0.20, 0.04, -0.08], [-0.12, 0.08, -0.19], [-0.04, 0.10, -0.21], [0.04, 0.10, -0.21], [0.12, 0.08, -0.19], [0.20, 0.04, -0.08],
     ];
-    for (const [x, y, z] of curlPoints) {
+    for (const [cx, cy, cz] of curlPoints) {
       const curl = new THREE.Mesh(new THREE.SphereGeometry(0.073, 8, 7), hair);
-      curl.position.set(x, y, z); curl.castShadow = true; head.add(curl);
+      curl.position.set(cx, cy, cz); curl.castShadow = true; head.add(curl);
     }
   } else {
     const fringe = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 8, 0, Math.PI, 0, Math.PI * 0.34), hair);
     fringe.position.set(0, 0.1, -0.16); fringe.rotation.x = 0.24; head.add(fringe);
   }
+
   for (const side of [-1, 1]) {
     const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.027, 8, 7), white);
     eyeWhite.position.set(side * 0.082, 0.012, -0.218); head.add(eyeWhite);
@@ -355,7 +672,6 @@ function createAvatar(options = {}) {
 }
 
 function addMemoryFrames() {
-  // Portrait-sized frames line the home's warm living room.
   const sideZ = [-17.2, -12.0, -6.8, -1.9];
   const layout = [
     { x: -6.45, z: -21.91, rot: 0 }, { x: -2.15, z: -21.91, rot: 0 },
@@ -389,23 +705,25 @@ function makeWoodTexture() {
   }
   ctx.globalAlpha = 1;
   const texture = new THREE.CanvasTexture(image); texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(3.4, 5.8); texture.anisotropy = renderer ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
+  texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(3.4, 5.8);
+  texture.anisotropy = renderer ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return texture;
 }
 
 function makeGrassTexture() {
   const image = document.createElement('canvas'); image.width = 256; image.height = 256;
-  const ctx = image.getContext('2d'); ctx.fillStyle = '#2a3d32'; ctx.fillRect(0, 0, 256, 256);
+  const ctx = image.getContext('2d'); ctx.fillStyle = '#22362b'; ctx.fillRect(0, 0, 256, 256);
   let seed = 47;
   const random = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
-  const greens = ['#26392e', '#304333', '#344734', '#3d4c37', '#2b3e31'];
+  const greens = ['#203227', '#2c3e2f', '#324533', '#394635', '#24372a'];
   for (let i = 0; i < 950; i++) {
     ctx.fillStyle = greens[Math.floor(random() * greens.length)]; ctx.globalAlpha = 0.28 + random() * 0.5;
     ctx.fillRect(random() * 256, random() * 256, 1 + random() * 2, 1 + random() * 4);
   }
   ctx.globalAlpha = 1;
   const texture = new THREE.CanvasTexture(image); texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(17, 18); texture.anisotropy = renderer ? Math.min(2, renderer.capabilities.getMaxAnisotropy()) : 1;
+  texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(17, 18);
+  texture.anisotropy = renderer ? Math.min(2, renderer.capabilities.getMaxAnisotropy()) : 1;
   return texture;
 }
 
@@ -416,7 +734,7 @@ function addGround(width, depth, material, x, y, z) {
 }
 
 function createFacadeWindow(x, y, width = 3.4, height = 2.6) {
-  const glassMat = new THREE.MeshStandardMaterial({ color: 0xc9935d, emissive: 0xffb966, emissiveIntensity: 0.42, roughness: 0.24, metalness: 0.05 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0xc9935d, emissive: 0xffb966, emissiveIntensity: 0.5, roughness: 0.24, metalness: 0.05 });
   const glass = new THREE.Mesh(new THREE.PlaneGeometry(width, height), glassMat);
   glass.position.set(x, y, 0.397); scene.add(glass);
   const trim = colorMaterial(0x382d29, 0.47, 0.15);
@@ -427,7 +745,6 @@ function createFacadeWindow(x, y, width = 3.4, height = 2.6) {
   addBox(scene, bar, height + bar * 2, 0.18, trim, x + width / 2 + bar / 2, y, z);
   addBox(scene, 0.075, height, 0.11, colorMaterial(0xa8875d, 0.33, 0.28), x, y, z + 0.045, { castShadow: false });
   addBox(scene, width, 0.075, 0.11, colorMaterial(0xa8875d, 0.33, 0.28), x, y, z + 0.045, { castShadow: false });
-  // A warm inner curtain hint behind the glass.
   for (const side of [-1, 1]) addBox(scene, 0.22, height - 0.1, 0.025, colorMaterial(0xe2c9a2, 0.9), x + side * (width / 2 - 0.17), y, 0.36, { castShadow: false });
 }
 
@@ -439,7 +756,6 @@ function createDoorPivot(side) {
   const panelMat = colorMaterial(0x594133, 0.5, 0.05);
   const brass = colorMaterial(0xc6a56d, 0.24, 0.72);
   addBox(pivot, 2.58, 4.25, 0.18, doorMat, leafX, 2.13, 0);
-  // Deep inset panels and slim brass inlay give the doors a crafted, high-end finish.
   for (const y of [1.08, 2.9]) {
     addBox(pivot, 1.86, 1.3, 0.055, panelMat, leafX, y, 0.106, { castShadow: false });
     addBox(pivot, 1.98, 0.045, 0.035, brass, leafX, y + 0.68, 0.14, { castShadow: false });
@@ -458,115 +774,329 @@ function createTree(x, z, scale = 1) {
   const group = new THREE.Group(); group.position.set(x, 0, z); scene.add(group);
   const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.17 * scale, 0.29 * scale, 2.8 * scale, 7), colorMaterial(0x514132, 0.95));
   trunk.position.y = 1.35 * scale; trunk.castShadow = true; group.add(trunk);
-  const leafMaterials = [colorMaterial(0x21372d, 0.98), colorMaterial(0x2b4234, 0.98), colorMaterial(0x334a39, 0.98)];
-  for (let i = 0; i < 3; i++) {
-    const leaves = new THREE.Mesh(new THREE.ConeGeometry((1.45 - i * 0.2) * scale, (2.3 - i * 0.12) * scale, 7), leafMaterials[i]);
-    leaves.position.set((i % 2 ? 0.11 : -0.08) * scale, (2.75 + i * 1.08) * scale, 0); leaves.castShadow = true; group.add(leaves);
-  }
-  return group;
-}
-
-function createPlanter(x, z, scale = 1, indoor = false) {
-  const group = new THREE.Group(); group.position.set(x, 0, z); scene.add(group);
-  const potMat = colorMaterial(indoor ? 0x4e4540 : 0x343b38, 0.42, 0.11);
-  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.42 * scale, 0.31 * scale, 0.64 * scale, 12), potMat);
-  pot.position.y = 0.32 * scale; pot.castShadow = true; group.add(pot);
-  const soil = new THREE.Mesh(new THREE.CylinderGeometry(0.34 * scale, 0.34 * scale, 0.055 * scale, 12), colorMaterial(0x292821, 0.98));
-  soil.position.y = 0.64 * scale; group.add(soil);
-  const leafMats = [colorMaterial(0x395344, 0.86), colorMaterial(0x536b4d, 0.9), colorMaterial(0x63734d, 0.9)];
-  const positions = [[0,1.0,0],[-0.28,1.15,0.06],[0.28,1.15,-0.03],[0.1,1.38,0.12],[-0.1,1.33,-0.12],[0,1.55,0]];
-  positions.forEach(([px, py, pz], i) => {
-    const leaf = new THREE.Mesh(new THREE.SphereGeometry((i === 5 ? 0.23 : 0.27) * scale, 8, 7), leafMats[i % leafMats.length]);
-    leaf.scale.set(0.72, 1.25, 0.7); leaf.position.set(px * scale, py * scale, pz * scale); leaf.castShadow = true; group.add(leaf);
+  const foliageMat = colorMaterial(0x2d4334, 0.88);
+  const foliageLayers = [
+    { y: 2.25 * scale, radius: 1.45 * scale, height: 1.7 * scale },
+    { y: 3.25 * scale, radius: 1.15 * scale, height: 1.55 * scale },
+    { y: 4.15 * scale, radius: 0.85 * scale, height: 1.35 * scale },
+  ];
+  foliageLayers.forEach((l) => {
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(l.radius, l.height, 8), foliageMat);
+    cone.position.y = l.y; cone.castShadow = true; group.add(cone);
   });
   return group;
 }
 
-function createPathLight(x, z) {
-  const bronze = colorMaterial(0x514538, 0.34, 0.58);
-  const post = new THREE.Mesh(new THREE.CylinderGeometry(0.055, 0.08, 0.8, 8), bronze);
-  post.position.set(x, 0.4, z); post.castShadow = true; scene.add(post);
-  const glowMat = new THREE.MeshStandardMaterial({ color: 0xffd59a, emissive: 0xffb85b, emissiveIntensity: 1.2, roughness: 0.35 });
-  const lamp = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 8), glowMat);
-  lamp.position.set(x, 0.88, z); scene.add(lamp);
+function createPlanter(x, y, z) {
+  const potMat = colorMaterial(0xd3c6b1, 0.85);
+  const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.44, 0.72, 10), potMat);
+  pot.position.set(x, y + 0.36, z); pot.castShadow = true; scene.add(pot);
+  const leafMat = colorMaterial(0x384c3c, 0.85);
+  const bush = new THREE.Mesh(new THREE.SphereGeometry(0.68, 10, 8), leafMat);
+  bush.position.set(x, y + 0.92, z); bush.castShadow = true; scene.add(bush);
+  // Add pink rose flower studs
+  const flowerMat = colorMaterial(0xff758f, 0.3, 0.4);
+  for (let i = 0; i < 5; i++) {
+    const ang = i * 1.25;
+    const flower = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), flowerMat);
+    flower.position.set(x + Math.cos(ang) * 0.52, y + 1.05 + (i % 2) * 0.15, z + Math.sin(ang) * 0.52);
+    scene.add(flower);
+  }
 }
 
-function createFloorLamp(x, z) {
-  const brass = colorMaterial(0x8c7655, 0.27, 0.6);
-  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.31, 0.34, 0.1, 12), brass); base.position.set(x, 0.06, z); scene.add(base);
-  const stem = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.045, 1.75, 8), brass); stem.position.set(x, 0.96, z); scene.add(stem);
-  const shade = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.21, 0.4, 12, 1, true), colorMaterial(0xd8c9ad, 0.65));
-  shade.position.set(x, 1.98, z); scene.add(shade);
-  const light = new THREE.PointLight(0xffd29b, 4.4, 8, 2); light.position.set(x, 1.78, z); scene.add(light);
+function createPathLight(x, z) {
+  const metal = colorMaterial(0x272c36, 0.5, 0.2);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.055, 1.45, 8), metal);
+  pole.position.set(x, 0.725, z); pole.castShadow = true; scene.add(pole);
+  const cap = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 0.05, 8), metal);
+  cap.position.set(x, 1.45, z); scene.add(cap);
+  const lanternMat = new THREE.MeshStandardMaterial({ color: 0xffd28b, emissive: 0xffab3d, emissiveIntensity: 1.2, roughness: 0.2 });
+  const lantern = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.12, 0.22, 8), lanternMat);
+  lantern.position.set(x, 1.32, z); scene.add(lantern);
+  const light = new THREE.PointLight(0xffbd66, 2.8, 6.2, 2);
+  light.position.set(x, 1.3, z); scene.add(light);
+}
+
+// Interactive 3D Crystal Heart Love Monument in Courtyard
+function createLoveMonument(x, z) {
+  const group = new THREE.Group();
+  group.position.set(x, 0, z);
+  scene.add(group);
+
+  // Pedestal
+  const marbleMat = colorMaterial(0x241d28, 0.3, 0.2);
+  const goldTrim = colorMaterial(0xf3c858, 0.2, 0.8);
+  addBox(group, 1.2, 0.22, 1.2, goldTrim, 0, 0.11, 0);
+  addBox(group, 0.95, 0.75, 0.95, marbleMat, 0, 0.58, 0);
+  addBox(group, 1.1, 0.12, 1.1, goldTrim, 0, 1.02, 0);
+
+  // Floating crystal heart mesh
+  const heartGroup = new THREE.Group();
+  heartGroup.position.set(0, 1.62, 0);
+  const heartMat = new THREE.MeshPhysicalMaterial({
+    color: 0xff2a5c,
+    emissive: 0x990022,
+    emissiveIntensity: 0.6,
+    roughness: 0.1,
+    metalness: 0.1,
+    transmission: 0.5,
+    ior: 1.5,
+  });
+
+  const c1 = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), heartMat); c1.position.set(-0.16, 0.16, 0); heartGroup.add(c1);
+  const c2 = new THREE.Mesh(new THREE.SphereGeometry(0.28, 12, 12), heartMat); c2.position.set(0.16, 0.16, 0); heartGroup.add(c2);
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(0.38, 0.58, 12), heartMat); cone.rotation.z = Math.PI; cone.position.set(0, -0.12, 0); heartGroup.add(cone);
+  group.add(heartGroup);
+  crystalHeartMesh = heartGroup;
+
+  // Heart Light
+  const heartLight = new THREE.PointLight(0xff3366, 3.5, 7.5, 2);
+  heartLight.position.set(0, 1.65, 0);
+  group.add(heartLight);
+
+  // Floating 3D Love Monument Sign
+  const labelTex = createLoveMonumentTexture();
+  const labelSprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: labelTex, transparent: true, depthTest: false }));
+  labelSprite.scale.set(2.2, 0.55, 1);
+  labelSprite.position.set(0, 2.45, 0);
+  labelSprite.renderOrder = 5;
+  group.add(labelSprite);
+  loveMonumentLabel = labelSprite;
+
+  // Interactive Target
+  const clickTarget = new THREE.Mesh(new THREE.SphereGeometry(0.75, 8, 8), new THREE.MeshBasicMaterial({ visible: false }));
+  clickTarget.position.set(0, 1.5, 0);
+  clickTarget.userData = { type: 'love-monument' };
+  group.add(clickTarget);
+  interactiveTargets.push(clickTarget);
+
+  loveMonument = { x, z, group };
+}
+
+// Cozy Romantic Fireplace & Anniversary Arch on Living Room Feature Wall
+function createFireplaceAndAnniversaryMantle() {
+  const mantelX = 0, mantelZ = -21.85;
+  const stoneMat = colorMaterial(0x282c33, 0.7, 0.1);
+  const goldMat = colorMaterial(0xf3c858, 0.2, 0.8);
+  const darkHearth = colorMaterial(0x15161a, 0.9);
+
+  // Fireplace surround & Hearth
+  addBox(scene, 4.4, 0.22, 1.2, stoneMat, mantelX, 0.11, mantelZ + 0.45);
+  addBox(scene, 0.65, 2.4, 0.8, stoneMat, mantelX - 1.6, 1.2, mantelZ + 0.35);
+  addBox(scene, 0.65, 2.4, 0.8, stoneMat, mantelX + 1.6, 1.2, mantelZ + 0.35);
+  addBox(scene, 4.2, 0.45, 0.95, stoneMat, mantelX, 2.42, mantelZ + 0.35);
+  addBox(scene, 4.4, 0.14, 1.1, goldMat, mantelX, 2.72, mantelZ + 0.35);
+
+  // Inner fire box
+  addBox(scene, 2.55, 2.0, 0.6, darkHearth, mantelX, 1.0, mantelZ + 0.15, { castShadow: false });
+
+  // Fire logs & glowing embers
+  const logMat = colorMaterial(0x382317, 0.9);
+  for (let i = 0; i < 3; i++) {
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 1.2, 6), logMat);
+    log.rotation.z = Math.PI / 2 + (i - 1) * 0.18;
+    log.position.set(mantelX + (i - 1) * 0.15, 0.28 + i * 0.08, mantelZ + 0.25);
+    scene.add(log);
+  }
+  const emberMat = new THREE.MeshStandardMaterial({ color: 0xff4d22, emissive: 0xff3300, emissiveIntensity: 2.2 });
+  for (let i = 0; i < 6; i++) {
+    const ember = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), emberMat);
+    ember.position.set(mantelX + (Math.random() - 0.5) * 1.1, 0.22, mantelZ + 0.22 + (Math.random() - 0.5) * 0.3);
+    scene.add(ember);
+  }
+
+  // Animated Flickering Fireplace Light
+  fireplaceLight = new THREE.PointLight(0xff6e2b, 5.5, 12.0, 2);
+  fireplaceLight.position.set(mantelX, 0.85, mantelZ + 0.55);
+  scene.add(fireplaceLight);
+
+  // Anniversary Plaque above the mantle
+  const plaqueTex = createAnniversaryMantleTexture();
+  const plaqueMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.85), new THREE.MeshBasicMaterial({ map: plaqueTex }));
+  plaqueMesh.position.set(mantelX, 3.82, mantelZ + 0.16);
+  scene.add(plaqueMesh);
+  anniversaryMantleSign = plaqueMesh;
+
+  // Clickable Anniversary Mantle Target
+  const annivTarget = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.2, 0.4), new THREE.MeshBasicMaterial({ visible: false }));
+  annivTarget.position.set(mantelX, 3.82, mantelZ + 0.16);
+  annivTarget.userData = { type: 'anniversary-mantle' };
+  scene.add(annivTarget);
+  interactiveTargets.push(annivTarget);
+
+  // Sconces on both sides of Anniversary Mantle
+  for (const sx of [-2.4, 2.4]) {
+    const sconce = new THREE.PointLight(0xffd17d, 2.5, 6.0, 2);
+    sconce.position.set(sx, 3.82, mantelZ + 0.4);
+    scene.add(sconce);
+  }
+}
+
+// Fairy String Lights along the Porch and Ceiling
+function createFairyLights() {
+  const bulbMat = new THREE.MeshStandardMaterial({ color: 0xffe299, emissive: 0xffb84d, emissiveIntensity: 1.8 });
+  const bulbGeom = new THREE.SphereGeometry(0.045, 6, 6);
+
+  // Porch draped string
+  for (let i = 0; i <= 14; i++) {
+    const t = i / 14;
+    const x = lerp(-3.8, 3.8, t);
+    const sag = Math.sin(t * Math.PI) * 0.32;
+    const y = 4.82 - sag;
+    const z = 2.65;
+    const bulb = new THREE.Mesh(bulbGeom, bulbMat);
+    bulb.position.set(x, y, z);
+    scene.add(bulb);
+    fairyBulbs.push({ mesh: bulb, baseIntensity: 1.8, phase: Math.random() * 6.28 });
+  }
+
+  // Inside ceiling festoon lights
+  for (let row = 0; row < 3; row++) {
+    const z = -6.0 - row * 6.0;
+    for (let i = 0; i <= 10; i++) {
+      const t = i / 10;
+      const x = lerp(-8.5, 8.5, t);
+      const sag = Math.sin(t * Math.PI) * 0.24;
+      const y = 6.95 - sag;
+      const bulb = new THREE.Mesh(bulbGeom, bulbMat);
+      bulb.position.set(x, y, z);
+      scene.add(bulb);
+      fairyBulbs.push({ mesh: bulb, baseIntensity: 1.6, phase: Math.random() * 6.28 });
+    }
+  }
+}
+
+// Floating Romantic Particle System
+function createFloatingParticles() {
+  const particleCount = 55;
+  const positions = new Float32Array(particleCount * 3);
+  const velocities = [];
+
+  for (let i = 0; i < particleCount; i++) {
+    positions[i * 3 + 0] = (Math.random() - 0.5) * 22;
+    positions[i * 3 + 1] = 0.5 + Math.random() * 6.0;
+    positions[i * 3 + 2] = -22 + Math.random() * 38;
+    velocities.push({
+      speedY: 0.15 + Math.random() * 0.25,
+      driftX: (Math.random() - 0.5) * 0.12,
+      phase: Math.random() * Math.PI * 2,
+    });
+  }
+
+  const geom = new THREE.BufferGeometry();
+  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  const pTexture = makeCanvasTexture((ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = '#ff758f'; ctx.beginPath(); ctx.arc(w / 2, h / 2, w * 0.35, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(w / 2, h / 2, w * 0.18, 0, Math.PI * 2); ctx.fill();
+  }, 64, 64);
+
+  const mat = new THREE.PointsMaterial({
+    map: pTexture,
+    size: 0.22,
+    transparent: true,
+    opacity: 0.75,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const particles = new THREE.Points(geom, mat);
+  scene.add(particles);
+  floatingParticleSystem = { particles, geom, velocities, count: particleCount };
+}
+
+function updateFloatingParticles(dt, time) {
+  if (!floatingParticleSystem) return;
+  const pos = floatingParticleSystem.geom.attributes.position.array;
+  for (let i = 0; i < floatingParticleSystem.count; i++) {
+    const v = floatingParticleSystem.velocities[i];
+    pos[i * 3 + 1] += v.speedY * dt;
+    pos[i * 3 + 0] += Math.sin(time + v.phase) * v.driftX * dt;
+    if (pos[i * 3 + 1] > 7.2) {
+      pos[i * 3 + 1] = 0.4;
+      pos[i * 3 + 0] = (Math.random() - 0.5) * 20;
+    }
+  }
+  floatingParticleSystem.geom.attributes.position.needsUpdate = true;
 }
 
 function createLivingRoomFurniture() {
-  const rugMat = colorMaterial(0x9d8873, 0.97);
-  const rug = new THREE.Mesh(new THREE.PlaneGeometry(6.3, 4.5), rugMat); rug.rotation.x = -Math.PI / 2; rug.position.set(-6.0, 0.012, -8.25); scene.add(rug);
-  const rugBorder = colorMaterial(0xc7ad88, 0.92);
-  for (const x of [-9.05, -2.95]) addBox(scene, 0.055, 0.018, 4.3, rugBorder, x, 0.024, -8.25, { castShadow: false });
-  for (const z of [-10.4, -6.1]) addBox(scene, 6.1, 0.018, 0.055, rugBorder, -6.0, 0.024, z, { castShadow: false });
+  const sofaGroup = new THREE.Group();
+  sofaGroup.position.set(0, 0, -11.0);
+  scene.add(sofaGroup);
 
-  const sofa = colorMaterial(0x343c4b, 0.94);
-  const sofaLight = colorMaterial(0x475365, 0.94);
-  addBox(scene, 3.75, 0.48, 1.35, sofa, -6.95, 0.48, -8.7);
-  addBox(scene, 3.75, 1.15, 0.34, sofa, -6.95, 1.05, -9.34);
-  addBox(scene, 0.42, 0.82, 1.48, sofa, -8.78, 0.78, -8.68);
-  addBox(scene, 0.42, 0.82, 1.48, sofa, -5.12, 0.78, -8.68);
-  for (const x of [-8.15, -6.95, -5.75]) {
-    addBox(scene, 1.12, 0.18, 1.08, sofaLight, x, 0.79, -8.62, { castShadow: false });
-    addBox(scene, 1.08, 0.74, 0.23, x < -7.4 ? colorMaterial(0xc2a990, 0.96) : sofaLight, x, 1.26, -9.08, { castShadow: false });
+  const sofaFabric = colorMaterial(0x42384a, 0.85); // Romantic velvet wine
+  const pillowMat = colorMaterial(0xd88a8a, 0.75); // Rose blush pillows
+  const coffeeWood = colorMaterial(0x382c23, 0.5, 0.1);
+  const rugMat = colorMaterial(0x822b3c, 0.95); // Deep Persian burgundy rug
+
+  // Large cozy area rug
+  const rug = new THREE.Mesh(new THREE.PlaneGeometry(8.2, 8.2), rugMat);
+  rug.rotation.x = -Math.PI / 2;
+  rug.position.set(0, 0.012, 0);
+  rug.receiveShadow = true;
+  sofaGroup.add(rug);
+
+  // Main Sofa
+  addBox(sofaGroup, 3.8, 0.42, 1.25, sofaFabric, 0, 0.21, 1.8);
+  addBox(sofaGroup, 3.8, 0.75, 0.35, sofaFabric, 0, 0.72, 2.25);
+  addBox(sofaGroup, 0.35, 0.62, 1.25, sofaFabric, -1.95, 0.45, 1.8);
+  addBox(sofaGroup, 0.35, 0.62, 1.25, sofaFabric, 1.95, 0.45, 1.8);
+
+  // Pillows
+  for (const side of [-1.3, 1.3]) {
+    const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.45, 0.22), pillowMat);
+    pillow.position.set(side, 0.62, 2.05);
+    pillow.rotation.y = side < 0 ? 0.2 : -0.2;
+    sofaGroup.add(pillow);
   }
-  // A low oak coffee table with a tiny book stack.
-  const oak = colorMaterial(0x76563d, 0.39, 0.08);
-  addBox(scene, 2.2, 0.14, 1.34, oak, -3.8, 0.63, -8.0);
-  for (const x of [-4.68, -2.92]) for (const z of [-8.48, -7.52]) addBox(scene, 0.09, 0.6, 0.09, oak, x, 0.31, z);
-  addBox(scene, 0.48, 0.06, 0.32, colorMaterial(0x6b5144, 0.85), -4.25, 0.74, -7.85, { castShadow: false });
-  addBox(scene, 0.36, 0.045, 0.27, colorMaterial(0xb0916b, 0.82), -4.20, 0.79, -7.80, { castShadow: false });
-  createFloorLamp(-9.35, -7.0);
-  createPlanter(-9.2, -12.2, 1.12, true);
-  createPlanter(8.7, -8.5, 1.18, true);
 
-  // Console and the personalized dedication plaque at the end of the house.
-  const consoleMat = colorMaterial(0x554337, 0.42, 0.08);
-  addBox(scene, 4.0, 0.24, 0.82, consoleMat, 0, 0.84, -20.2);
-  for (const x of [-1.75, 1.75]) addBox(scene, 0.14, 0.78, 0.64, consoleMat, x, 0.42, -20.2);
-  addBox(scene, 3.7, 0.08, 0.72, colorMaterial(0x9a7955, 0.34, 0.2), 0, 1.0, -20.2);
-  dedicationSign = new THREE.Mesh(new THREE.PlaneGeometry(3.55, 1.0), new THREE.MeshBasicMaterial({ map: createDedicationTexture() }));
-  dedicationSign.position.set(0, 1.77, -19.76); scene.add(dedicationSign);
+  // Coffee table & Candle Centerpiece
+  addBox(sofaGroup, 2.2, 0.08, 1.2, coffeeWood, 0, 0.42, 0);
+  for (const sx of [-0.95, 0.95]) {
+    for (const sz of [-0.48, 0.48]) {
+      addBox(sofaGroup, 0.07, 0.42, 0.07, coffeeWood, sx, 0.21, sz, { castShadow: false });
+    }
+  }
+
+  // Glass vase with flowers on table
+  const vase = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.1, 0.32, 10), colorMaterial(0xffffff, 0.1, 0.1));
+  vase.position.set(0, 0.62, 0); sofaGroup.add(vase);
+  const rose = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), colorMaterial(0xff3366, 0.4, 0.2));
+  rose.position.set(0, 0.82, 0); sofaGroup.add(rose);
 }
 
 function buildHome() {
-  scene.background = new THREE.Color(0x111925);
-  scene.fog = new THREE.Fog(0x111925, 38, 92);
+  const grassTexture = makeGrassTexture();
+  const lawn = addGround(64, 44, new THREE.MeshStandardMaterial({ map: grassTexture, roughness: 0.92 }), 0, -0.05, 12);
+  lawn.receiveShadow = true;
 
-  const grassMat = new THREE.MeshStandardMaterial({ map: makeGrassTexture(), roughness: 0.98, color: 0xdce3d5 });
-  addGround(64, 60, grassMat, 0, -0.14, -1.0);
-  const stoneTexture = createFloorTexture(); stoneTexture.repeat.set(2.2, 11.0);
-  const pathMat = new THREE.MeshStandardMaterial({ map: stoneTexture, roughness: 0.76, color: 0xd0cabb });
-  addGround(6.5, 23.0, pathMat, 0, -0.045, 10.7);
-  const pathEdge = colorMaterial(0x675e50, 0.84);
+  // Front courtyard pathway
+  const pathMat = colorMaterial(0xdfd9ce, 0.84);
+  const pathEdge = colorMaterial(0x8a7f72, 0.9);
+  addBox(scene, 6.4, 0.03, 22.8, pathMat, 0, -0.035, 10.7, { receiveShadow: true, castShadow: false });
   addBox(scene, 0.07, 0.035, 22.7, pathEdge, -3.22, -0.025, 10.7, { castShadow: false });
   addBox(scene, 0.07, 0.035, 22.7, pathEdge, 3.22, -0.025, 10.7, { castShadow: false });
-  for (let z = 1.0; z < 21.5; z += 2.15) addBox(scene, 6.35, 0.025, 0.035, colorMaterial(0x978d7c, 0.92), 0, -0.012, z, { castShadow: false });
 
   const woodTexture = makeWoodTexture();
   const woodFloor = new THREE.Mesh(new THREE.PlaneGeometry(21.5, 22.2), new THREE.MeshStandardMaterial({ map: woodTexture, roughness: 0.65, metalness: 0.025 }));
   woodFloor.rotation.x = -Math.PI / 2; woodFloor.position.set(0, -0.025, -11.0); woodFloor.receiveShadow = true; scene.add(woodFloor);
 
-  // The home interior: warm plaster, a deep olive feature wall, and a soft timber ceiling.
+  // Home Walls
   const outerStone = colorMaterial(0xc7bda9, 0.86);
   const innerPlaster = colorMaterial(0xe3ddcf, 0.88);
   const sidePlaster = colorMaterial(0xd8d1c3, 0.9);
-  const featureWall = colorMaterial(0x374039, 0.86);
+  const featureWall = colorMaterial(0x2d342f, 0.86);
   const roofMat = colorMaterial(0x222923, 0.74);
   const walnut = colorMaterial(0x44352c, 0.48, 0.08);
   const brass = colorMaterial(0x9d8157, 0.3, 0.55);
   const ceiling = colorMaterial(0xe1d9c9, 0.86);
+
   addBox(scene, 21.8, 7.45, 0.62, featureWall, 0, 3.72, -22.25);
   addBox(scene, 0.62, 7.45, 22.4, sidePlaster, -10.78, 3.72, -11.0);
   addBox(scene, 0.62, 7.45, 22.4, sidePlaster, 10.78, 3.72, -11.0);
-  // Front facade is split around a wide double door, so the exterior really opens into the home.
+
   addBox(scene, 8.45, 7.25, 0.72, outerStone, -6.775, 3.62, 0.0);
   addBox(scene, 8.45, 7.25, 0.72, outerStone, 6.775, 3.62, 0.0);
   addBox(scene, 5.3, 2.78, 0.72, outerStone, 0, 5.86, 0.0);
@@ -574,98 +1104,113 @@ function buildHome() {
   addBox(scene, 8.3, 7.05, 0.045, innerPlaster, 6.85, 3.58, -0.39, { castShadow: false });
   addBox(scene, 5.2, 2.65, 0.045, innerPlaster, 0, 5.9, -0.39, { castShadow: false });
 
-  // A generous floating roof slab and matching indoor ceiling create a modern villa silhouette.
+  // Floating Roof
   addBox(scene, 23.8, 0.5, 24.6, roofMat, 0, 7.62, -10.75);
   addBox(scene, 24.1, 0.18, 0.28, walnut, 0, 7.28, 0.22);
   addBox(scene, 21.25, 0.18, 21.8, ceiling, 0, 7.25, -11.0, { castShadow: false });
-  for (const x of [-8.0, -4.0, 0, 4.0, 8.0]) addBox(scene, 0.07, 0.08, 21.2, brass, x, 7.12, -11.0, { castShadow: false });
-  for (const z of [-4, -9, -14, -19]) addBox(scene, 18.5, 0.055, 0.05, brass, 0, 7.12, z, { castShadow: false });
 
-  // Exterior window bays with a soft amber glow.
   createFacadeWindow(-6.8, 3.55, 3.5, 2.65);
   createFacadeWindow(6.8, 3.55, 3.5, 2.65);
-  // Warm modern wood slats frame the entry.
+
+  // Entrance Slats & Porch Canopy
   for (const side of [-1, 1]) {
     for (let i = 0; i < 9; i++) {
       const x = side * (2.82 + i * 0.105);
       addBox(scene, 0.055, 4.35, 0.07, i % 2 ? walnut : brass, x, 2.25, 0.42, { castShadow: false });
     }
   }
-  // Stone surround, porch canopy, slim columns and floating steps.
-  addBox(scene, 0.22, 4.55, 0.72, outerStone, -2.66, 2.24, 0.0);
-  addBox(scene, 0.22, 4.55, 0.72, outerStone, 2.66, 2.24, 0.0);
-  addBox(scene, 5.55, 0.19, 0.8, brass, 0, 4.47, 0.02, { castShadow: false });
+
   addBox(scene, 8.6, 0.32, 3.4, colorMaterial(0x3c3831, 0.5, 0.1), 0, 5.05, 1.55);
   addBox(scene, 8.8, 0.12, 3.5, brass, 0, 4.87, 1.55, { castShadow: false });
+
   for (const x of [-3.68, 3.68]) {
     addBox(scene, 0.36, 4.88, 0.42, outerStone, x, 2.48, 2.72);
-    addBox(scene, 0.66, 0.18, 0.68, brass, x, 4.96, 2.72);
-    addBox(scene, 0.62, 0.2, 0.65, outerStone, x, 0.12, 2.72);
   }
+
   const stepStone = colorMaterial(0xbab09f, 0.7);
-  for (let i = 0; i < 3; i++) addBox(scene, 7.8 - i * 0.65, 0.13, 0.62, stepStone, 0, 0.09 + i * 0.02, 0.72 + i * 0.58, { castShadow: false });
-  // Hinged double doors: the action key animates these into the house.
+  for (let i = 0; i < 3; i++) {
+    addBox(scene, 7.8 - i * 0.65, 0.13, 0.62, stepStone, 0, 0.09 + i * 0.02, 0.72 + i * 0.58, { castShadow: false });
+  }
+
+  // Hinged Doors
   leftDoorPivot = createDoorPivot(1);
   rightDoorPivot = createDoorPivot(-1);
-  leftDoorPivot.rotation.y = 0; rightDoorPivot.rotation.y = 0; doorProgress = 0; doorTarget = 0;
 
-  // Exterior lanterns and lush, sculpted greenery.
+  // Exterior Entrance Lanterns
   const wallGlow = new THREE.MeshStandardMaterial({ color: 0xffd39a, emissive: 0xffb34f, emissiveIntensity: 1.0, roughness: 0.3 });
   for (const x of [-3.2, 3.2]) {
     addBox(scene, 0.32, 0.52, 0.25, walnut, x, 3.6, 0.56);
     const glow = new THREE.Mesh(new THREE.SphereGeometry(0.14, 10, 8), wallGlow); glow.position.set(x, 3.6, 0.72); scene.add(glow);
     const light = new THREE.PointLight(0xffc277, 4.5, 9, 2); light.position.set(x, 3.55, 0.82); scene.add(light);
   }
-  createPlanter(-4.65, 2.55, 1.05, false); createPlanter(4.65, 2.55, 1.05, false);
+
+  // Front Porch Dedication Sign
+  const dedicationTex = createDedicationTexture();
+  const signMesh = new THREE.Mesh(new THREE.PlaneGeometry(2.4, 0.68), new THREE.MeshBasicMaterial({ map: dedicationTex }));
+  signMesh.position.set(0, 4.25, 0.88);
+  scene.add(signMesh);
+  dedicationSign = signMesh;
+
+  // Planters and Trees
+  createPlanter(-4.65, 0, 1.6);
+  createPlanter(4.65, 0, 1.6);
   createTree(-13.7, 4.5, 1.35); createTree(13.7, 4.5, 1.35);
   createTree(-16.5, 11.5, 1.0); createTree(16.5, 11.5, 1.0);
   for (const z of [5.2, 10.2, 15.2, 19.5]) { createPathLight(-4.3, z); createPathLight(4.3, z); }
 
-  // Warm, layered lighting: a cool dusk outside and a welcoming amber home inside.
-  scene.add(new THREE.HemisphereLight(0xd9e1f1, 0x303a32, 1.08));
-  const moon = new THREE.DirectionalLight(0xa7b9df, 1.25); moon.position.set(-14, 20, 10); moon.castShadow = true;
-  moon.shadow.mapSize.set(isMobileViewport() ? 512 : 1024, isMobileViewport() ? 512 : 1024); moon.shadow.camera.left = -24; moon.shadow.camera.right = 24; moon.shadow.camera.top = 22; moon.shadow.camera.bottom = -22; moon.shadow.bias = -0.0004; scene.add(moon);
-  const interiorWarm = new THREE.PointLight(0xffcf91, 8, 34, 2); interiorWarm.position.set(0, 5.7, -8); scene.add(interiorWarm);
-  const interiorBack = new THREE.PointLight(0xffd9a0, 7, 26, 2); interiorBack.position.set(0, 5.7, -18.5); scene.add(interiorBack);
-  const porchLight = new THREE.PointLight(0xffc97e, 5.5, 14, 2); porchLight.position.set(0, 4.6, 1.5); scene.add(porchLight);
-  const coolFill = new THREE.PointLight(0xaebcda, 2.0, 32, 2); coolFill.position.set(0, 5.0, 10); scene.add(coolFill);
-  const sconceZ = isMobileViewport() ? [-7.0, -17.0] : [-3.2, -9.5, -15.8, -20.0];
-  for (const z of sconceZ) {
-    for (const x of [-8.7, 8.7]) {
-      const sconce = new THREE.PointLight(0xffd6a0, isMobileViewport() ? 2.0 : 2.4, 7.2, 2);
-      sconce.position.set(x, 4.7, z); scene.add(sconce);
-    }
-  }
+  // Romantic Courtyard Crystal Heart Love Monument
+  createLoveMonument(0, 7.5);
 
-  // A quiet night sky with a small moon above the roofline.
+  // Fireplace & Anniversary Plaque inside
+  createFireplaceAndAnniversaryMantle();
+
+  // Fairy string lights & Floating romantic particles
+  createFairyLights();
+  createFloatingParticles();
+
+  // Layered Romantic Lighting
+  scene.add(new THREE.HemisphereLight(0xe8d0dc, 0x242d2a, 1.15));
+  const moon = new THREE.DirectionalLight(0xb4c5e8, 1.3); moon.position.set(-14, 20, 10); moon.castShadow = true;
+  moon.shadow.mapSize.set(isMobileViewport() ? 512 : 1024, isMobileViewport() ? 512 : 1024);
+  scene.add(moon);
+
+  const interiorWarm = new THREE.PointLight(0xffd19c, 8.5, 34, 2); interiorWarm.position.set(0, 5.7, -8); scene.add(interiorWarm);
+  const interiorBack = new THREE.PointLight(0xffdaa6, 7.5, 26, 2); interiorBack.position.set(0, 5.7, -18.5); scene.add(interiorBack);
+  const porchLight = new THREE.PointLight(0xffc97e, 5.5, 14, 2); porchLight.position.set(0, 4.6, 1.5); scene.add(porchLight);
+
+  // Stars & Moon
   const starPositions = [];
   let seed = 19;
   const random = () => { seed = (seed * 16807) % 2147483647; return (seed - 1) / 2147483646; };
-  for (let i = 0; i < 180; i++) starPositions.push((random() - 0.5) * 70, 10 + random() * 24, -3 + random() * 45);
+  for (let i = 0; i < 220; i++) starPositions.push((random() - 0.5) * 80, 10 + random() * 24, -3 + random() * 50);
   const starGeometry = new THREE.BufferGeometry(); starGeometry.setAttribute('position', new THREE.Float32BufferAttribute(starPositions, 3));
-  const stars = new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0xf4e6c9, size: 0.11, sizeAttenuation: true, transparent: true, opacity: 0.68 })); scene.add(stars);
-  const moonMesh = new THREE.Mesh(new THREE.SphereGeometry(1.05, 20, 16), new THREE.MeshBasicMaterial({ color: 0xe1d9bd })); moonMesh.position.set(-18, 15.5, 1.5); scene.add(moonMesh);
+  const stars = new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0xfff0d8, size: 0.12, transparent: true, opacity: 0.72 }));
+  scene.add(stars);
+
+  const moonMesh = new THREE.Mesh(new THREE.SphereGeometry(1.05, 20, 16), new THREE.MeshBasicMaterial({ color: 0xfff3cf }));
+  moonMesh.position.set(-18, 15.5, 1.5); scene.add(moonMesh);
 
   createLivingRoomFurniture();
 }
 
 function createWorld() {
   scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x111422);
   camera = new THREE.PerspectiveCamera(49, window.innerWidth / window.innerHeight, 0.1, 130);
   camera.position.set(0, 4.0, 22.0);
   if (!createRenderer()) return;
+
   buildHome();
   addMemoryFrames();
 
-  // A pair of stylized characters waits outside the front door.
   player = createAvatar({ name: 'تو', shirt: state.avatarColor, pants: 0xe2dbcf, skin: 0xe4b997, hair: 0x2c231f, longHair: true });
   player.position.copy(playerPosition); player.rotation.y = 0; scene.add(player);
   companion = createAvatar({ name: state.fromName, shirt: 0xe9e3d8, vestColor: 0x292c34, pants: 0x344052, skin: 0xd9aa88, hair: 0x322a27, curls: true });
   companion.position.set(-1.15, 0, 15.0); companion.rotation.y = 0; scene.add(companion);
+
   updateCamera(1);
   clock = new THREE.Clock();
   clock.stop();
-  // The welcome screen is HTML/CSS; keep WebGL idle until the player starts.
   renderer.setAnimationLoop(null);
 }
 
@@ -719,7 +1264,7 @@ function setHouseZone(inside) {
   insideHouse = inside;
   if (inside) {
     cameraDistance = 5.8; cameraHeight = 3.25; doorTarget = 1;
-    showToast(`به خانه‌ی ${state.toName} خوش آمدی`);
+    showToast(`به خانه‌ی خاطرات ${state.toName} خوش آمدی`);
   } else {
     cameraDistance = 7.8; cameraHeight = 3.65;
     showToast('به حیاط خانه برگشتی');
@@ -729,11 +1274,35 @@ function setHouseZone(inside) {
 
 function updateGame(dt, elapsed) {
   updateDoor(dt);
+
+  // Animate Fireplace Light Flickering
+  if (fireplaceLight) {
+    fireplaceLight.intensity = 5.2 + Math.sin(elapsed * 9.5) * 0.8 + Math.cos(elapsed * 14.2) * 0.5;
+  }
+
+  // Animate Crystal Heart Rotation and Pulse
+  if (crystalHeartMesh) {
+    crystalHeartMesh.rotation.y = elapsed * 0.85;
+    crystalHeartMesh.position.y = 1.62 + Math.sin(elapsed * 2.2) * 0.06;
+  }
+
+  // Animate Fairy Lights Twinkle
+  if (fairyBulbs.length > 0) {
+    fairyBulbs.forEach((bulb) => {
+      const flicker = Math.sin(elapsed * 3.5 + bulb.phase) * 0.3;
+      bulb.mesh.material.emissiveIntensity = bulb.baseIntensity + flicker;
+    });
+  }
+
+  // Animate Floating Particles
+  updateFloatingParticles(dt, elapsed);
+
   if (!started || !player) {
     updateCamera(0.12);
     return;
   }
-  if (currentMemory || helpOverlay.hidden === false) {
+
+  if (currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden) {
     animateAvatar(player, elapsed, false);
     animateAvatar(companion, elapsed, false, 1.4);
     updateCamera(0.12);
@@ -743,15 +1312,17 @@ function updateGame(dt, elapsed) {
   if (entryQueued && doorProgress > 0.72 && !movementTarget) {
     movementTarget = new THREE.Vector3(0, 0, -6.2);
   }
+
   const forwardInput = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
   const sideInput = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
   let moved = false;
+
   if (movementTarget) {
     const delta = movementTarget.clone().sub(player.position); delta.y = 0;
     const distance = delta.length();
     if (distance < 0.24) {
       movementTarget = null;
-      if (entryQueued) { entryQueued = false; showToast('قدم بزن و خاطره‌ها را پیدا کن'); }
+      if (entryQueued) { entryQueued = false; showToast('قدم بزن و قاب‌های اختصاصی را ببین'); }
     } else {
       delta.normalize(); player.position.addScaledVector(delta, Math.min(3.6 * dt, distance));
       player.rotation.y = Math.atan2(-delta.x, -delta.z); moved = true;
@@ -781,7 +1352,7 @@ function updateGame(dt, elapsed) {
   if (insideHouse && doorPassable && player.position.z > 0.85) setHouseZone(false);
   playerPosition.copy(player.position);
 
-  // The partner avatar follows, turning from the night outside into the warm living room.
+  // Companion follows
   const side = new THREE.Vector3(Math.cos(cameraYaw), 0, Math.sin(cameraYaw)).multiplyScalar(-1.05);
   const behind = new THREE.Vector3(Math.sin(cameraYaw), 0, Math.cos(cameraYaw)).multiplyScalar(0.42);
   const followTarget = player.position.clone().add(side).add(behind);
@@ -797,7 +1368,7 @@ function updateGame(dt, elapsed) {
   animateAvatar(player, elapsed, moved);
   animateAvatar(companion, elapsed, moved && companion.position.distanceTo(player.position) > 1.0, 1.4);
   updateCamera(1 - Math.exp(-dt * 5.0));
-  updateNearestMemory();
+  updateInteractions();
 }
 
 function render() {
@@ -810,7 +1381,7 @@ function render() {
 
 function syncAnimationLoop() {
   if (!renderer) return;
-  const shouldRender = started && !document.hidden && memoryOverlay.hidden && helpOverlay.hidden;
+  const shouldRender = started && !document.hidden && memoryOverlay.hidden && helpOverlay.hidden && anniversaryOverlay.hidden;
   if (shouldRender) {
     clock?.start();
     renderer.setAnimationLoop(render);
@@ -820,13 +1391,42 @@ function syncAnimationLoop() {
   }
 }
 
-function updateNearestMemory() {
+function updateInteractions() {
   if (!player) return;
   const card = $('#interaction-card');
   const button = $('#interact-button');
   const copy = $('#interaction-copy');
   const buttonLabel = button.querySelector('span:nth-child(2)');
   nearestMemory = null;
+  nearestInteractable = null;
+
+  // Check love monument distance
+  if (!insideHouse && loveMonument) {
+    const dMon = Math.hypot(player.position.x - loveMonument.x, player.position.z - loveMonument.z);
+    if (dMon < 2.8) {
+      nearestInteractable = { type: 'love-monument' };
+      card.classList.remove('is-hidden');
+      copy.textContent = 'نزدیک تندیس عشق هستی؛ برای ثبتِ «دوستت دارم» دکمه را بزن';
+      buttonLabel.textContent = '❤️ ثبتِ دوستت دارم';
+      button.disabled = false;
+      updateProgress();
+      return;
+    }
+  }
+
+  // Check anniversary mantle distance inside
+  if (insideHouse) {
+    const dMantel = Math.hypot(player.position.x - 0, player.position.z - (-21.5));
+    if (dMantel < 3.2) {
+      nearestInteractable = { type: 'anniversary-mantle' };
+      card.classList.remove('is-hidden');
+      copy.textContent = 'طاقِ تبریک سالگرد؛ برای جشن گرفتن دکمه را بزن';
+      buttonLabel.textContent = '💍 جشنِ سالگرد عشقمون';
+      button.disabled = false;
+      updateProgress();
+      return;
+    }
+  }
 
   if (!insideHouse) {
     if (started && isNearDoor() && !entryQueued) {
@@ -867,8 +1467,7 @@ function updateNearestMemory() {
 function updateProgress() {
   const visited = Number(localStorage.getItem('our-museum-visited') || '0');
   const count = clamp(visited, 0, memories.length);
-  const persianDigits = (n) => String(n).replace(/[0-9]/g, (d) => '۰۱۲۳۴۵۶۷۸۹'[Number(d)]);
-  $('#progress-count').textContent = `${persianDigits(count)} / ${persianDigits(memories.length)}`;
+  $('#progress-count').textContent = `${toPersianDigits(count)} / ${toPersianDigits(memories.length)}`;
   $('#progress-bar').style.width = `${(count / memories.length) * 100}%`;
 }
 
@@ -878,24 +1477,43 @@ function openMemory(memory, index) {
   movementTarget = null;
   $('#memory-title').textContent = memory.title;
   $('#memory-caption').textContent = memory.caption;
-  $('#memory-date').textContent = memory.date || `یادگاری شماره‌ی ${String(index + 1).padStart(2, '۰')}`;
+  $('#memory-date').textContent = memory.date || `یادگاری شماره‌ی ${toPersianDigits(index + 1)}`;
   $('#memory-author').textContent = state.fromName;
+
+  const cardEl = $('#memory-card-element');
+  // Reset all frame-style classes
+  memories.forEach((m) => {
+    if (m.frameStyle?.borderClass) cardEl.classList.remove(m.frameStyle.borderClass);
+  });
+  if (memory.frameStyle?.borderClass) {
+    cardEl.classList.add(memory.frameStyle.borderClass);
+  }
+
+  const frameBadge = $('#memory-frame-stylename');
+  if (frameBadge) {
+    frameBadge.textContent = memory.frameStyle?.styleName || 'قاب اختصاصی';
+  }
+
   const art = $('#memory-art-placeholder');
   const photo = $('#memory-photo');
   art.style.setProperty('--tone1', memory.palette[0]);
   art.style.setProperty('--tone2', memory.palette[1]);
   art.style.setProperty('--tone3', memory.palette[2]);
   art.querySelector('.art-corner-mark').textContent = `MEMORY / ${String(index + 1).padStart(2, '0')}`;
+
   if (memory.imageSrc) {
     photo.src = memory.imageSrc; photo.hidden = false; art.classList.add('has-photo');
   } else {
     photo.hidden = true; photo.removeAttribute('src'); art.classList.remove('has-photo');
   }
+
   const alreadySeen = new Set(JSON.parse(localStorage.getItem('our-museum-seen') || '[]'));
   alreadySeen.add(memory.id);
   localStorage.setItem('our-museum-seen', JSON.stringify([...alreadySeen]));
   localStorage.setItem('our-museum-visited', String(alreadySeen.size));
   updateProgress();
+
+  updateLoveUI();
   memoryOverlay.hidden = false;
   syncAnimationLoop();
   $('#close-memory').focus({ preventScroll: true });
@@ -906,20 +1524,46 @@ function closeMemory() {
   currentMemory = null;
   syncAnimationLoop();
   canvas.focus({ preventScroll: true });
-  updateNearestMemory();
+  updateInteractions();
+}
+
+function openAnniversaryModal() {
+  $('#anniv-from').textContent = state.fromName;
+  $('#anniv-to').textContent = state.toName;
+  $('#anniversary-card-msg').textContent = state.anniversaryMsg;
+  updateLoveUI();
+  anniversaryOverlay.hidden = false;
+  playCelebrationChord();
+  triggerHeartFX(window.innerWidth / 2, window.innerHeight / 2, 8);
+  syncAnimationLoop();
+  $('#close-anniversary').focus({ preventScroll: true });
+}
+
+function closeAnniversaryModal() {
+  anniversaryOverlay.hidden = true;
+  syncAnimationLoop();
+  canvas.focus({ preventScroll: true });
+  updateInteractions();
 }
 
 function beginEntry() {
-  if (!started || insideHouse || entryQueued || !isNearDoor()) return;
   entryQueued = true;
-  movementTarget = null;
   doorTarget = 1;
-  keys.clear();
-  showToast('درهای خانه باز می‌شوند…');
+  showToast('در خانه باز می‌شود...');
 }
 
 function interactNearest() {
-  if (!started || currentMemory || !helpOverlay.hidden) return;
+  if (!started || currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden) return;
+
+  if (nearestInteractable?.type === 'love-monument') {
+    addLoveCount();
+    return;
+  }
+  if (nearestInteractable?.type === 'anniversary-mantle') {
+    openAnniversaryModal();
+    return;
+  }
+
   if (entryQueued) {
     entryQueued = false; movementTarget = null; doorTarget = 0;
     showToast('ورود لغو شد'); return;
@@ -940,7 +1584,7 @@ function interactNearest() {
       if (distance < bestDistance) { bestDistance = distance; closest = record; }
     }
     if (closest) {
-      const approachDistance = 3.0;
+      const approachDistance = 2.8;
       movementTarget = new THREE.Vector3(
         closest.x + Math.sin(closest.rotationY) * approachDistance,
         0,
@@ -965,7 +1609,11 @@ function startGame() {
   state.fromName = $('#from-name').value.trim() || 'من';
   state.toName = $('#to-name').value.trim() || 'عزیزم';
   state.dedication = $('#dedication').value.trim() || museumDefaults.dedication;
+  if ($('#anniversary-msg')) state.anniversaryMsg = $('#anniversary-msg').value.trim() || museumDefaults.anniversaryText;
+  if ($('#initial-love-count')) state.loveCount = Number($('#initial-love-count').value) || museumDefaults.loveCount;
+
   localStorage.setItem(storageKey, JSON.stringify(state));
+
   if (!player) {
     createWorld();
     if (!player) {
@@ -975,14 +1623,23 @@ function startGame() {
     }
     updateProgress();
   }
+
   if (dedicationSign) {
     dedicationSign.material.map?.dispose();
     dedicationSign.material.map = createDedicationTexture();
     dedicationSign.material.needsUpdate = true;
   }
+  if (anniversaryMantleSign) {
+    anniversaryMantleSign.material.map?.dispose();
+    anniversaryMantleSign.material.map = createAnniversaryMantleTexture();
+    anniversaryMantleSign.material.needsUpdate = true;
+  }
+
   $('#hud-from').textContent = state.fromName;
   $('#hud-to').textContent = state.toName;
   $('#hud-subtitle').textContent = `خانه‌ی ${state.toName}`;
+  updateLoveUI();
+
   insideHouse = false; entryQueued = false; movementTarget = null; doorProgress = 0; doorTarget = 0;
   keys.clear(); resetJoystick();
   if (leftDoorPivot) leftDoorPivot.rotation.y = 0;
@@ -991,6 +1648,7 @@ function startGame() {
   companion.position.set(-1.15, 0, playerPosition.z + 1.0); companion.rotation.y = 0;
   cameraYaw = 0; cameraDistance = 7.8; cameraHeight = 3.65;
   updateSceneLocation();
+
   player.userData.label.material.map.dispose();
   player.userData.label.material.map = createSpriteLabel(state.toName, '#c9ad7b').material.map;
   player.userData.label.material.needsUpdate = true;
@@ -998,6 +1656,7 @@ function startGame() {
   companion.userData.label.material.map = createSpriteLabel(state.fromName, '#d89a92').material.map;
   companion.userData.label.material.needsUpdate = true;
   player.userData.shirtMaterial.color.set(state.avatarColor);
+
   started = true;
   for (const loadPhoto of pendingPhotoLoads.splice(0)) loadPhoto();
   syncAnimationLoop();
@@ -1005,26 +1664,37 @@ function startGame() {
   hud.classList.remove('is-hidden');
   canvas.focus({ preventScroll: true });
   setTimeout(() => { intro.hidden = true; }, 850);
-  showToast('از حیاط به سمت درِ خانه برو');
+  showToast('از حیاط به سمت درِ خانه برو یا به تندیس قلب سر بزن');
 }
 
-function updateSettingsFromForm() {
-  state.fromName = $('#from-name').value.trim() || 'من';
-  state.toName = $('#to-name').value.trim() || 'عزیزم';
-  state.dedication = $('#dedication').value.trim() || museumDefaults.dedication;
-  localStorage.setItem(storageKey, JSON.stringify(state));
-}
-
-function raycastFrame(event) {
-  if (!started || !insideHouse || !camera || currentMemory || !renderer) return;
+function raycastInteractive(event) {
+  if (!started || !camera || currentMemory || !renderer) return;
   const rect = canvas.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
   pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
-  const hits = raycaster.intersectObjects(frameTargets, false);
-  if (hits.length) {
-    const target = hits[0].object;
-    openMemory(target.userData.memory, target.userData.index);
+
+  // Check interactive elements (Heart monument, Anniversary Mantle)
+  const intHits = raycaster.intersectObjects(interactiveTargets, true);
+  if (intHits.length) {
+    const hitObj = intHits[0].object;
+    if (hitObj.userData?.type === 'love-monument') {
+      addLoveCount(event);
+      return;
+    }
+    if (hitObj.userData?.type === 'anniversary-mantle') {
+      openAnniversaryModal();
+      return;
+    }
+  }
+
+  // Check frames
+  if (insideHouse) {
+    const hits = raycaster.intersectObjects(frameTargets, false);
+    if (hits.length) {
+      const target = hits[0].object;
+      openMemory(target.userData.memory, target.userData.index);
+    }
   }
 }
 
@@ -1037,138 +1707,173 @@ function handleResize() {
   renderer.setSize(window.innerWidth, window.innerHeight);
 }
 
-// Form and personalization.
-setupForm.addEventListener('submit', (event) => { event.preventDefault(); updateSettingsFromForm(); startGame(); });
-document.querySelectorAll('.swatch').forEach((button) => {
-  button.addEventListener('click', () => {
-    document.querySelectorAll('.swatch').forEach((item) => item.classList.remove('is-selected'));
-    button.classList.add('is-selected'); state.avatarColor = button.dataset.color;
-    if (player?.userData.shirtMaterial) player.userData.shirtMaterial.color.set(state.avatarColor);
-  });
-});
-
-// Desktop controls; avoid hijacking typing in the setup form.
-window.addEventListener('keydown', (event) => {
-  if (['INPUT', 'TEXTAREA'].includes(document.activeElement?.tagName)) return;
-  if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(event.code) && started) event.preventDefault();
-  if (event.code === 'Escape') {
-    if (!memoryOverlay.hidden) closeMemory();
-    else if (!helpOverlay.hidden) closeHelp();
-    else if (movementTarget) { movementTarget = null; entryQueued = false; }
-    return;
-  }
-  if (event.code === 'KeyE' || event.code === 'Enter') { if (started && memoryOverlay.hidden && helpOverlay.hidden) interactNearest(); }
-  if (event.code === 'KeyW' || event.code === 'KeyA' || event.code === 'KeyS' || event.code === 'KeyD' || event.code.startsWith('Arrow') || event.code === 'ShiftLeft' || event.code === 'ShiftRight') keys.add(event.code);
-});
-window.addEventListener('keyup', (event) => keys.delete(event.code));
-window.addEventListener('blur', () => { keys.clear(); resetJoystick(); });
-document.addEventListener('visibilitychange', () => {
-  keys.clear(); resetJoystick();
-  syncAnimationLoop();
-});
-canvas.addEventListener('click', (event) => {
-  if (Date.now() < suppressClickUntil) return;
-  raycastFrame(event);
-});
-canvas.addEventListener('pointerdown', (event) => {
-  if (!started || currentMemory || (event.pointerType === 'mouse' && event.button !== 0)) return;
-  dragging = true; pointerMoved = false; dragPointerId = event.pointerId;
-  dragStart = { x: event.clientX, y: event.clientY };
-  canvas.setPointerCapture?.(event.pointerId);
-});
-canvas.addEventListener('pointermove', (event) => {
-  if (!dragging || !dragStart || event.pointerId !== dragPointerId) return;
-  const dx = event.clientX - dragStart.x;
-  const dy = event.clientY - dragStart.y;
-  if (Math.abs(dx) + Math.abs(dy) > 2) {
-    if (Math.abs(dx) + Math.abs(dy) > 5) pointerMoved = true;
-    const sensitivity = event.pointerType === 'touch' ? 0.0066 : 0.004;
-    cameraYaw -= dx * sensitivity;
-    cameraHeight = clamp(cameraHeight + dy * (event.pointerType === 'touch' ? 0.005 : 0.008), 2.55, 5.0);
-    dragStart = { x: event.clientX, y: event.clientY };
-  }
-});
-function finishCameraDrag(event) {
-  if (event?.pointerId !== undefined && dragPointerId !== null && event.pointerId !== dragPointerId) return;
-  if (pointerMoved) suppressClickUntil = Date.now() + 220;
-  dragging = false; dragStart = null; dragPointerId = null; pointerMoved = false;
-}
-canvas.addEventListener('pointerup', finishCameraDrag);
-canvas.addEventListener('pointercancel', finishCameraDrag);
-canvas.addEventListener('lostpointercapture', finishCameraDrag);
-canvas.addEventListener('wheel', (event) => {
-  if (!started) return;
-  cameraDistance = clamp(cameraDistance + Math.sign(event.deltaY) * 0.35, insideHouse ? 4.2 : 5.5, insideHouse ? 8.0 : 10.5);
-}, { passive: true });
-
-// Thumbstick-style movement for phones and tablets.
-const joystickBase = touchPad.querySelector('.joystick-base');
-const joystickKnob = $('#joystick-knob');
-function updateJoystick(event) {
-  if (!joystickCenter || !joystickKnob) return;
-  let dx = event.clientX - joystickCenter.x;
-  let dy = event.clientY - joystickCenter.y;
-  const radius = joystickBase.getBoundingClientRect().width * 0.31;
-  const magnitude = Math.hypot(dx, dy);
-  if (magnitude > radius) { dx = (dx / magnitude) * radius; dy = (dy / magnitude) * radius; }
-  joystickKnob.style.transform = `translate(${dx}px, ${dy}px)`;
-  for (const code of ['KeyW', 'KeyA', 'KeyS', 'KeyD']) keys.delete(code);
-  const deadzone = radius * 0.22;
-  if (dy < -deadzone) keys.add('KeyW');
-  if (dy > deadzone) keys.add('KeyS');
-  if (dx < -deadzone) keys.add('KeyA');
-  if (dx > deadzone) keys.add('KeyD');
-}
+// Touch joystick
 function resetJoystick() {
-  for (const code of ['KeyW', 'KeyA', 'KeyS', 'KeyD']) keys.delete(code);
-  if (joystickKnob) joystickKnob.style.transform = 'translate(0px, 0px)';
-  joystickPointerId = null; joystickCenter = null;
+  const knob = $('#joystick-knob');
+  if (knob) knob.style.transform = 'translate3d(0, 0, 0)';
+  joystickPointerId = null;
+  keys.delete('KeyW'); keys.delete('KeyS'); keys.delete('KeyA'); keys.delete('KeyD');
 }
-if (joystickBase) {
-  joystickBase.addEventListener('pointerdown', (event) => {
-    if (!started) return;
-    event.preventDefault(); joystickPointerId = event.pointerId;
-    const rect = joystickBase.getBoundingClientRect();
-    joystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-    joystickBase.setPointerCapture?.(event.pointerId);
-    updateJoystick(event);
+
+function setupEvents() {
+  window.addEventListener('resize', handleResize);
+  document.addEventListener('visibilitychange', syncAnimationLoop);
+
+  setupForm?.addEventListener('submit', (e) => {
+    e.preventDefault();
+    startGame();
   });
-  joystickBase.addEventListener('pointermove', (event) => {
-    if (event.pointerId !== joystickPointerId) return;
-    event.preventDefault(); updateJoystick(event);
+
+  document.querySelectorAll('.swatch').forEach((button) => {
+    button.addEventListener('click', () => {
+      document.querySelectorAll('.swatch').forEach((b) => b.classList.remove('is-selected'));
+      button.classList.add('is-selected');
+      state.avatarColor = button.dataset.color;
+      if (player) player.userData.shirtMaterial.color.set(state.avatarColor);
+    });
   });
-  const releaseJoystick = (event) => {
-    if (event.pointerId !== joystickPointerId) return;
-    event.preventDefault(); resetJoystick();
+
+  $('#anniversary-btn')?.addEventListener('click', () => {
+    openAnniversaryModal();
+  });
+
+  $('#love-counter-btn')?.addEventListener('click', (e) => {
+    addLoveCount(e);
+  });
+
+  $('#modal-love-btn')?.addEventListener('click', (e) => {
+    addLoveCount(e);
+  });
+
+  $('#anniv-heart-action')?.addEventListener('click', (e) => {
+    addLoveCount(e);
+  });
+
+  $('#close-anniversary')?.addEventListener('click', closeAnniversaryModal);
+  $('#anniv-close-action')?.addEventListener('click', closeAnniversaryModal);
+  $('#anniversary-backdrop')?.addEventListener('click', closeAnniversaryModal);
+
+  $('#close-memory')?.addEventListener('click', closeMemory);
+  $('#memory-backdrop')?.addEventListener('click', closeMemory);
+
+  $('#next-memory')?.addEventListener('click', () => {
+    if (!currentMemory) return;
+    const currentIndex = memories.findIndex((m) => m.id === currentMemory.id);
+    const nextIndex = (currentIndex + 1) % memories.length;
+    openMemory(memories[nextIndex], nextIndex);
+  });
+
+  $('#help-button')?.addEventListener('click', () => {
+    helpOverlay.hidden = false;
+    syncAnimationLoop();
+    $('#close-help')?.focus({ preventScroll: true });
+  });
+
+  $('#close-help')?.addEventListener('click', () => {
+    helpOverlay.hidden = true;
+    syncAnimationLoop();
+  });
+
+  $('#help-close-action')?.addEventListener('click', () => {
+    helpOverlay.hidden = true;
+    syncAnimationLoop();
+  });
+
+  $('#help-backdrop')?.addEventListener('click', () => {
+    helpOverlay.hidden = true;
+    syncAnimationLoop();
+  });
+
+  $('#interact-button')?.addEventListener('click', interactNearest);
+
+  $('#fullscreen-button')?.addEventListener('click', () => {
+    if (!document.fullscreenElement) {
+      document.documentElement.requestFullscreen?.().catch(() => {});
+    } else {
+      document.exitFullscreen?.().catch(() => {});
+    }
+  });
+
+  window.addEventListener('keydown', (e) => {
+    if (e.code === 'KeyE') {
+      interactNearest();
+      return;
+    }
+    if (e.code === 'Escape') {
+      if (!anniversaryOverlay.hidden) closeAnniversaryModal();
+      else if (!memoryOverlay.hidden) closeMemory();
+      else if (!helpOverlay.hidden) { helpOverlay.hidden = true; syncAnimationLoop(); }
+      return;
+    }
+    keys.add(e.code);
+  });
+
+  window.addEventListener('keyup', (e) => {
+    keys.delete(e.code);
+  });
+
+  // Canvas Drag & Click
+  canvas.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('#touch-pad')) return;
+    dragging = true;
+    dragPointerId = e.pointerId;
+    dragStart = { x: e.clientX, y: e.clientY };
+    pointerMoved = false;
+  });
+
+  window.addEventListener('pointermove', (e) => {
+    if (!dragging || e.pointerId !== dragPointerId) return;
+    const dx = e.clientX - dragStart.x;
+    if (Math.abs(dx) > 4) pointerMoved = true;
+    cameraYaw -= dx * 0.0055;
+    dragStart = { x: e.clientX, y: e.clientY };
+  });
+
+  const finishDrag = (e) => {
+    if (dragging && e.pointerId === dragPointerId) {
+      dragging = false;
+      if (!pointerMoved && Date.now() > suppressClickUntil) {
+        raycastInteractive(e);
+      }
+    }
   };
-  joystickBase.addEventListener('pointerup', releaseJoystick);
-  joystickBase.addEventListener('pointercancel', releaseJoystick);
-  joystickBase.addEventListener('lostpointercapture', releaseJoystick);
+  window.addEventListener('pointerup', finishDrag);
+  window.addEventListener('pointercancel', finishDrag);
+
+  // Touchpad joystick
+  touchPad?.addEventListener('pointerdown', (e) => {
+    joystickPointerId = e.pointerId;
+    const rect = $('#touch-pad .joystick-base').getBoundingClientRect();
+    joystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+  });
+
+  window.addEventListener('pointermove', (e) => {
+    if (e.pointerId !== joystickPointerId || !joystickCenter) return;
+    const dx = e.clientX - joystickCenter.x;
+    const dy = e.clientY - joystickCenter.y;
+    const maxDist = 38;
+    const dist = Math.hypot(dx, dy);
+    const clampedDist = Math.min(dist, maxDist);
+    const angle = Math.atan2(dy, dx);
+    const knobX = Math.cos(angle) * clampedDist;
+    const knobY = Math.sin(angle) * clampedDist;
+    const knob = $('#joystick-knob');
+    if (knob) knob.style.transform = `translate3d(${knobX}px, ${knobY}px, 0)`;
+
+    const threshold = 12;
+    if (dy < -threshold) keys.add('KeyW'); else keys.delete('KeyW');
+    if (dy > threshold) keys.add('KeyS'); else keys.delete('KeyS');
+    if (dx < -threshold) keys.add('KeyA'); else keys.delete('KeyA');
+    if (dx > threshold) keys.add('KeyD'); else keys.delete('KeyD');
+  });
+
+  const finishJoystick = (e) => {
+    if (e.pointerId === joystickPointerId) resetJoystick();
+  };
+  window.addEventListener('pointerup', finishJoystick);
+  window.addEventListener('pointercancel', finishJoystick);
 }
-$('#interact-button').addEventListener('click', interactNearest);
-$('#close-memory').addEventListener('click', closeMemory);
-$('#memory-backdrop').addEventListener('click', closeMemory);
-$('#next-memory').addEventListener('click', () => {
-  const index = memories.findIndex((memory) => memory.id === currentMemory?.id);
-  const next = memories[(index + 1) % memories.length];
-  closeMemory();
-  openMemory(next, (index + 1) % memories.length);
-});
 
-function openHelp() { helpOverlay.hidden = false; syncAnimationLoop(); $('#close-help').focus({ preventScroll: true }); }
-function closeHelp() { helpOverlay.hidden = true; syncAnimationLoop(); canvas.focus({ preventScroll: true }); }
-$('#help-button').addEventListener('click', openHelp);
-$('#close-help').addEventListener('click', closeHelp);
-$('#help-close-action').addEventListener('click', closeHelp);
-$('#help-backdrop').addEventListener('click', closeHelp);
-$('#fullscreen-button').addEventListener('click', async () => {
-  try {
-    if (!document.fullscreenElement) await document.documentElement.requestFullscreen();
-    else await document.exitFullscreen();
-  } catch { showToast('تمام‌صفحه در این مرورگر در دسترس نیست.'); }
-});
-
-// Keep the welcome screen lightweight; initialize WebGL and the 3D scene on demand.
-updateProgress();
-window.addEventListener('resize', handleResize);
-window.addEventListener('storage', (event) => { if (event.key === storageKey) showToast('تنظیمات هدیه به‌روز شد.'); });
+// Initial Setup
+updateLoveUI();
+setupEvents();
