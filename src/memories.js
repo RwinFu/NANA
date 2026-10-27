@@ -6,6 +6,7 @@ export const museumDefaults = {
   dedication: 'اولین سالگرد یکی شدنمون مبارک؛ تمام لحظه‌های با تو بودن، ارزش قاب گرفتن دارند.',
   anniversaryText: 'اولین سالگرد عشقمون مبارک قشنگم! ۳۶۵ روزه که با اومدنت به زندگیم همه‌چیز زیباتر شده ❤️💍✨',
   loveCount: 10240,
+  avatarColor: '#ff758f',
 };
 
 const memoryImage = (filename) => `${import.meta.env.BASE_URL}memories/${filename}`;

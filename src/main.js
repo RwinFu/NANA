@@ -9,14 +9,18 @@ const canvas = $('#world');
 const intro = $('#intro-screen');
 const hud = $('#hud');
 const setupForm = $('#setup-form');
-const touchPad = $('#touch-pad');
 const memoryOverlay = $('#memory-overlay');
 const helpOverlay = $('#help-overlay');
 const anniversaryOverlay = $('#anniversary-overlay');
 const loveletterOverlay = $('#loveletter-overlay');
 const floatingHeartsLayer = $('#floating-hearts');
 
-const storageKey = 'our-museum-gift-v3';
+const dynamicTouchIndicator = $('#dynamic-touch-indicator');
+const touchKnobInner = $('#dynamic-touch-indicator .touch-knob-inner');
+const mobileTapMarker = $('#mobile-tap-marker');
+const touchHintPill = $('#touch-hint-pill');
+
+const storageKey = 'our-museum-gift-v5';
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}') || {}; } catch { saved = {}; }
 const state = {
@@ -25,7 +29,7 @@ const state = {
   dedication: saved.dedication || museumDefaults.dedication,
   anniversaryMsg: saved.anniversaryMsg || museumDefaults.anniversaryText,
   loveCount: Number(saved.loveCount) || museumDefaults.loveCount,
-  avatarColor: saved.avatarColor || '#8f6670',
+  avatarColor: saved.avatarColor || '#ff758f',
 };
 
 // Form init
@@ -146,8 +150,8 @@ function toggleMusic() {
 function triggerConfetti(x = 0.5, y = 0.6) {
   try {
     confetti({
-      particleCount: 75,
-      spread: 80,
+      particleCount: 85,
+      spread: 85,
       origin: { x, y },
       colors: ['#ff4d6d', '#ffd875', '#ff758f', '#ffffff', '#e29578'],
       ticks: 200,
@@ -182,7 +186,7 @@ function updateLoveUI() {
 
 function triggerHeartFX(x, y, count = 1) {
   if (!floatingHeartsLayer) return;
-  const emojis = ['❤️', '💖', '💕', '✨', '💍', '🌸', '👑', '🎀'];
+  const emojis = ['❤️', '💖', '💕', '✨', '👑', '🌸', '🎀', '💎'];
   for (let i = 0; i < count; i++) {
     const el = document.createElement('span');
     el.className = 'floating-heart-particle';
@@ -225,7 +229,7 @@ function lerpAngle(from, to, t) {
   return from + shortestAngleDiff(from, to) * t;
 }
 
-// Camera & Physics variables
+// Scene & Camera variables
 let renderer, scene, camera, clock;
 let player, companion;
 let leftDoorPivot = null;
@@ -235,20 +239,20 @@ let currentMemory = null;
 let nearestMemory = null;
 let nearestInteractable = null;
 
-// Smooth Camera Controller State
+// Optimized Third-Person Camera State
 let cameraYaw = 0;
 let targetYaw = 0;
 let yawVelocity = 0;
 
-let cameraPitch = 0.22;
-let targetPitch = 0.22;
+let cameraPitch = 0.16;
+let targetPitch = 0.16;
 let pitchVelocity = 0;
 
-let cameraDistance = 7.8;
-let targetDistance = 7.8;
+let cameraDistance = 6.4;
+let targetDistance = 6.4;
 
-const cameraLookTarget = new THREE.Vector3(0, 1.2, 14);
-const desiredCameraLook = new THREE.Vector3(0, 1.2, 14);
+const cameraLookTarget = new THREE.Vector3(0, 1.35, 14);
+const desiredCameraLook = new THREE.Vector3(0, 1.35, 14);
 
 // Player physics state
 const playerPosition = new THREE.Vector3(0, 0, 14);
@@ -265,16 +269,22 @@ let isTouring = false;
 let tourStep = 0;
 let tourTimer = null;
 
-// Drag & touch pointers
-let isDragging = false;
-let dragPointerId = null;
+// Dynamic On-Screen Touch / Drag Movement State
+let touchMoveActive = false;
+let touchMovePointerId = null;
+let touchOriginX = 0;
+let touchOriginY = 0;
+let touchStartTime = 0;
+let touchVector = new THREE.Vector2(0, 0);
+let pointerMoved = false;
+
+// Drag pointer for camera rotation
+let isDraggingCamera = false;
+let cameraDragPointerId = null;
 let lastDragX = 0;
 let lastDragY = 0;
-let pointerMoved = false;
-let suppressClickUntil = 0;
-let joystickPointerId = null;
-let joystickCenter = null;
 let prevPinchDist = null;
+let tapMarkerTimer = null;
 
 let toastTimer = null;
 let movementTarget = null;
@@ -292,6 +302,7 @@ const keys = new Set();
 const frameTargets = [];
 const frameRecords = [];
 const interactiveTargets = [];
+const floorTargets = [];
 const pendingPhotoLoads = [];
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2();
@@ -316,7 +327,7 @@ function createRenderer() {
   renderer.setSize(window.innerWidth, window.innerHeight);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.24;
+  renderer.toneMappingExposure = 1.25;
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   return true;
@@ -400,7 +411,7 @@ function createLoveMonumentTexture() {
     ctx.fillText(`${toPersianDigits(state.loveCount)} بار گفتم دوستت دارم`, w / 2 + 10, h / 2 - 2);
 
     ctx.fillStyle = '#ff9ebb'; ctx.font = '11px Tahoma, Arial, sans-serif';
-    ctx.fillText('برای ثبتِ دوستت دارم کلیک کن (یا E بزن)', w / 2 + 10, h / 2 + 20);
+    ctx.fillText('برای ثبتِ دوستت دارم کلیک کن (یا ضربه بزن)', w / 2 + 10, h / 2 + 20);
   }, 440, 110);
 }
 
@@ -449,7 +460,7 @@ function makePlaqueTexture(memory, index) {
 }
 
 // Grand High-Impact 3D Frames (Larger & Prominent)
-function createFrame(memory, index, x, y, z, rotationY, width = 2.65, height = 3.45) {
+function createFrame(memory, index, x, y, z, rotationY, width = 2.85, height = 3.65) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
   group.rotation.y = rotationY;
@@ -475,7 +486,7 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.65, height = 3
   addBox(group, width, height, 0.11, frameMat, 0, 0, 0.04);
 
   // Inner Mat
-  const matMargin = 0.24;
+  const matMargin = 0.26;
   addBox(group, width - matMargin, height - matMargin, 0.06, matMat, 0, 0, 0.08, { castShadow: false });
 
   // Custom Architectural Features
@@ -540,89 +551,12 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.65, height = 3
       }
       break;
 
-    case 'rustic-timber':
+    default:
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
-          const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 8), colorMaterial(0x422d1e, 0.8));
-          peg.rotation.x = Math.PI / 2;
-          peg.position.set(sx * (halfW - 0.10), sy * (halfH - 0.10), 0.11);
-          group.add(peg);
-        }
-      }
-      break;
-
-    case 'pearl-silver':
-      for (let i = -5; i <= 5; i++) {
-        const beadTop = new THREE.Mesh(new THREE.SphereGeometry(0.028, 7, 7), accentMat);
-        beadTop.position.set(i * (width / 12), halfH - 0.05, 0.11); group.add(beadTop);
-        const beadBottom = new THREE.Mesh(new THREE.SphereGeometry(0.028, 7, 7), accentMat);
-        beadBottom.position.set(i * (width / 12), -halfH + 0.05, 0.11); group.add(beadBottom);
-      }
-      break;
-
-    case 'star-celebration':
-      for (const sx of [-1, 1]) {
-        for (const sy of [-1, 1]) {
-          const starStud = new THREE.Mesh(new THREE.OctahedronGeometry(0.065), accentMat);
-          starStud.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.14);
-          group.add(starStud);
-        }
-      }
-      {
-        const topStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.11), accentMat);
-        topStar.position.set(0, halfH + 0.12, 0.08);
-        group.add(topStar);
-      }
-      break;
-
-    case 'rose-quartz':
-      for (const sx of [-1, 1]) {
-        for (const sy of [-1, 1]) {
-          const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), accentMat);
-          pearl.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.13);
-          group.add(pearl);
-        }
-      }
-      break;
-
-    case 'gallery-monochrome':
-      for (const sx of [-1, 1]) {
-        for (const sy of [-1, 1]) {
-          const standoff = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.05, 12), accentMat);
-          standoff.rotation.x = Math.PI / 2;
-          standoff.position.set(sx * (halfW - 0.16), sy * (halfH - 0.16), 0.12);
-          group.add(standoff);
-        }
-      }
-      break;
-
-    case 'lavender-twilight':
-      for (const sx of [-1, 1]) {
-        for (const sy of [-1, 1]) {
-          const plate = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.04, 0.02), accentMat);
-          plate.position.set(sx * (halfW - 0.14), sy * (halfH - 0.06), 0.11); group.add(plate);
-          const plateV = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.20, 0.02), accentMat);
-          plateV.position.set(sx * (halfW - 0.06), sy * (halfH - 0.14), 0.11); group.add(plateV);
-        }
-      }
-      break;
-
-    case 'emerald-copper':
-      for (const sx of [-1, 1]) {
-        for (const sy of [-1, 1]) {
-          const clasp = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.04), accentMat);
-          clasp.position.set(sx * (halfW - 0.10), sy * (halfH - 0.10), 0.12);
-          group.add(clasp);
-        }
-      }
-      break;
-
-    case 'midnight-starlight':
-      for (const sx of [-1, 1]) {
-        for (const sy of [-1, 1]) {
-          const gem = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 8), accentMat);
-          gem.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.13);
-          group.add(gem);
+          const rosette = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), accentMat);
+          rosette.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.12);
+          group.add(rosette);
         }
       }
       break;
@@ -683,12 +617,12 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.65, height = 3
   bulbGlow.position.set(0, 0.07, 0.12); sconceGroup.add(bulbGlow);
   group.add(sconceGroup);
 
-  const frameSpot = new THREE.PointLight(0xffe6b0, isMobileViewport() ? 1.6 : 2.2, 4.8, 2);
+  const frameSpot = new THREE.PointLight(0xffe6b0, isMobileViewport() ? 1.6 : 2.2, 5.2, 2);
   frameSpot.position.set(0, halfH + 0.22, 0.48);
   group.add(frameSpot);
 
   // Plaque Below Frame
-  const plaqueWidth = Math.max(width - 0.05, 2.1);
+  const plaqueWidth = Math.max(width - 0.05, 2.3);
   addBox(group, plaqueWidth + 0.06, 0.54, 0.08, colorMaterial(fs.frameColor, 0.5, 0.2), 0, -halfH - 0.40, 0.015, { castShadow: false });
   const plaqueTex = makePlaqueTexture(memory, index);
   const plaque = new THREE.Mesh(new THREE.PlaneGeometry(plaqueWidth, 0.46), new THREE.MeshBasicMaterial({ map: plaqueTex }));
@@ -714,43 +648,241 @@ function createSpriteLabel(text, accent = '#ffd875') {
   return sprite;
 }
 
-// Cute & Aesthetic Nanaz Avatars
-function createAvatar(options = {}) {
+// Gorgeous High-Quality Princess Character in Pink Royal Ballgown
+function createPrincessAvatar(options = {}) {
   const root = new THREE.Group();
   const rig = new THREE.Group(); root.add(rig);
-  const skin = colorMaterial(options.skin || 0xf8d4c2, 0.70);
-  const shirt = colorMaterial(options.shirt || state.avatarColor || 0x8f6670, 0.75);
-  const pants = colorMaterial(options.pants || 0x31394a, 0.80);
-  const hair = colorMaterial(options.hair || 0x2c201a, 0.90);
-  const shoe = colorMaterial(0x3b302d, 0.7);
-  const eye = new THREE.MeshStandardMaterial({ color: 0x2c1f1b, roughness: 0.6 });
+
+  const skin = colorMaterial(options.skin || 0xffe2d2, 0.65);
+  const dressPink = colorMaterial(options.shirt || state.avatarColor || 0xff758f, 0.35, 0.15); // Shimmering Princess Satin
+  const dressAccentPink = colorMaterial(0xffa8ba, 0.45, 0.1);
+  const goldTrim = colorMaterial(0xffd875, 0.25, 0.85);
+  const pearlMat = colorMaterial(0xffffff, 0.15, 0.9);
+  const hairMat = colorMaterial(options.hair || 0x2b1c18, 0.85);
+  const eyeColor = new THREE.MeshStandardMaterial({ color: 0x1f1412, roughness: 0.3 });
+  const eyeWhite = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.3 });
+  const blushMat = colorMaterial(0xff4d6d, 0.3, 0.1);
+  const rubyGem = new THREE.MeshPhysicalMaterial({ color: 0xff1a4b, emissive: 0xaa0022, roughness: 0.1, metalness: 0.2, transmission: 0.6 });
+
+  // --- Voluminous Princess Ballgown Skirt ---
+  const skirtGroup = new THREE.Group();
+  skirtGroup.position.y = 0.98;
+  rig.add(skirtGroup);
+
+  // Upper Flared Peplum
+  const peplum = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.45, 16, 1, true), dressPink);
+  peplum.rotation.x = Math.PI;
+  peplum.position.y = -0.15;
+  peplum.castShadow = true;
+  skirtGroup.add(peplum);
+
+  // Main Voluminous Bell Skirt
+  const mainSkirt = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.82, 0.96, 18), dressPink);
+  mainSkirt.position.y = -0.48;
+  mainSkirt.castShadow = true;
+  skirtGroup.add(mainSkirt);
+
+  // Bottom Ruffled Lace Tier
+  const skirtHem = new THREE.Mesh(new THREE.CylinderGeometry(0.80, 0.88, 0.16, 18), dressAccentPink);
+  skirtHem.position.y = -0.92;
+  skirtHem.castShadow = true;
+  skirtGroup.add(skirtHem);
+
+  // Gold Trim Ribbon along skirt hem
+  const hemGoldRing = new THREE.Mesh(new THREE.TorusGeometry(0.86, 0.018, 6, 24), goldTrim);
+  hemGoldRing.rotation.x = Math.PI / 2;
+  hemGoldRing.position.y = -0.85;
+  skirtGroup.add(hemGoldRing);
+
+  // Big Princess Silk Ribbon Bow at the back of waist
+  const bowGroup = new THREE.Group();
+  bowGroup.position.set(0, 1.02, 0.28);
+  const bowCenter = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), goldTrim);
+  bowGroup.add(bowCenter);
+  for (const sx of [-1, 1]) {
+    const bowLoop = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.035, 6, 12), dressPink);
+    bowLoop.position.set(sx * 0.10, 0.02, 0);
+    bowLoop.rotation.y = sx * 0.35;
+    bowGroup.add(bowLoop);
+    const streamer = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.42, 0.02), dressPink);
+    streamer.position.set(sx * 0.07, -0.22, 0.02);
+    streamer.rotation.z = sx * -0.22;
+    bowGroup.add(streamer);
+  }
+  rig.add(bowGroup);
+
+  // --- Bodice & Sweetheart Corset ---
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.25, 0.52, 4, 12), dressPink);
+  torso.position.y = 1.34;
+  torso.castShadow = true;
+  rig.add(torso);
+
+  // Gold Corset Filigree & Sweetheart neckline trim
+  const waistGoldBand = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.016, 6, 18), goldTrim);
+  waistGoldBand.rotation.x = Math.PI / 2;
+  waistGoldBand.position.set(0, 1.05, 0);
+  rig.add(waistGoldBand);
+
+  const neckline = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.016, 6, 16), goldTrim);
+  neckline.rotation.x = Math.PI / 2.2;
+  neckline.position.set(0, 1.62, -0.16);
+  rig.add(neckline);
+
+  // Pearl Necklace Choker with Heart Pendant
+  const choker = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.012, 6, 16), pearlMat);
+  choker.rotation.x = Math.PI / 2;
+  choker.position.set(0, 1.76, -0.01);
+  rig.add(choker);
+
+  const heartPendant = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), rubyGem);
+  heartPendant.position.set(0, 1.72, -0.13);
+  rig.add(heartPendant);
+
+  // Hidden legs inside gown for smooth foot steps
+  const leftLeg = new THREE.Group(); leftLeg.position.set(-0.12, 0.65, 0); rig.add(leftLeg);
+  const rightLeg = new THREE.Group(); rightLeg.position.set(0.12, 0.65, 0); rig.add(rightLeg);
+  for (const leg of [leftLeg, rightLeg]) {
+    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.24), goldTrim);
+    shoe.position.set(0, -0.62, -0.05);
+    shoe.castShadow = true;
+    leg.add(shoe);
+  }
+
+  // --- Delicate Princess Arms with Puffy Off-shoulder Sleeves ---
+  const leftArm = new THREE.Group(); leftArm.position.set(-0.31, 1.54, 0); rig.add(leftArm);
+  const rightArm = new THREE.Group(); rightArm.position.set(0.31, 1.54, 0); rig.add(rightArm);
+  for (const arm of [leftArm, rightArm]) {
+    // Puffy Sleeve Cap
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), dressAccentPink);
+    puff.scale.set(1.1, 0.9, 1.1);
+    arm.add(puff);
+
+    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.072, 0.40, 3, 8), dressPink);
+    sleeve.position.y = -0.24; sleeve.rotation.z = arm === leftArm ? -0.06 : 0.06; sleeve.castShadow = true; arm.add(sleeve);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 8), skin);
+    hand.position.y = -0.52; hand.castShadow = true; arm.add(hand);
+  }
+
+  // --- Beautiful Princess Face & Cascading Hair ---
+  const head = new THREE.Group(); head.position.set(0, 2.06, 0); rig.add(head);
+  const face = new THREE.Mesh(new THREE.SphereGeometry(0.235, 16, 14), skin);
+  face.scale.set(0.92, 1.04, 0.92); face.castShadow = true; head.add(face);
+
+  // Hair Base
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.252, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.58), hairMat);
+  cap.position.y = 0.05; cap.castShadow = true; head.add(cap);
+
+  // Long flowing hair down the back
+  const backHair = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10), hairMat);
+  backHair.scale.set(1.15, 1.75, 0.75); backHair.position.set(0, -0.22, 0.08); backHair.castShadow = true; head.add(backHair);
+
+  // Cascading front locks over shoulders
+  for (const side of [-1, 1]) {
+    const lock = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.56, 3, 8), hairMat);
+    lock.position.set(side * 0.21, -0.28, -0.03); lock.rotation.z = side * -0.12; lock.castShadow = true; head.add(lock);
+  }
+
+  // --- Sparkling Golden Princess Crown / Tiara ---
+  const tiaraGroup = new THREE.Group();
+  tiaraGroup.position.set(0, 0.26, -0.02);
+  const crownBase = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.016, 6, 18), goldTrim);
+  crownBase.rotation.x = Math.PI / 2;
+  tiaraGroup.add(crownBase);
+
+  // 5 jeweled points of the crown
+  for (let i = -2; i <= 2; i++) {
+    const angle = i * 0.24;
+    const ptHeight = i === 0 ? 0.22 : Math.abs(i) === 1 ? 0.16 : 0.11;
+    const crownSpike = new THREE.Mesh(new THREE.ConeGeometry(0.032, ptHeight, 5), goldTrim);
+    crownSpike.position.set(Math.sin(angle) * 0.18, ptHeight / 2 + 0.01, -Math.cos(angle) * 0.18);
+    tiaraGroup.add(crownSpike);
+
+    // Gem on crown peak
+    const gem = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 6), i === 0 ? rubyGem : pearlMat);
+    gem.position.set(Math.sin(angle) * 0.18, ptHeight + 0.02, -Math.cos(angle) * 0.18);
+    tiaraGroup.add(gem);
+  }
+  head.add(tiaraGroup);
+
+  // --- Expressive Princess Eyes, Rosy Blush & Sweet Smile ---
+  for (const side of [-1, 1]) {
+    const eyeWh = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 7), eyeWhite);
+    eyeWh.position.set(side * 0.082, 0.012, -0.21); head.add(eyeWh);
+
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.018, 7, 6), eyeColor);
+    pupil.position.set(side * 0.082, 0.008, -0.235); head.add(pupil);
+
+    // Eye sparkle highlight
+    const glint = new THREE.Mesh(new THREE.SphereGeometry(0.007, 5, 5), eyeWhite);
+    glint.position.set(side * 0.082 - 0.005, 0.015, -0.246); head.add(glint);
+
+    // Eyelash curve
+    const lash = new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.004, 3, 6, Math.PI * 0.5), eyeColor);
+    lash.position.set(side * 0.082, 0.035, -0.215);
+    lash.rotation.z = side > 0 ? 0.2 : Math.PI - 0.2;
+    head.add(lash);
+
+    // Rosy Blush
+    const blush = new THREE.Mesh(new THREE.CircleGeometry(0.042, 12), blushMat);
+    blush.position.set(side * 0.12, -0.04, -0.218);
+    blush.rotation.y = side * 0.32;
+    head.add(blush);
+  }
+
+  const cuteNose = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 6), skin);
+  cuteNose.position.set(0, -0.03, -0.232); head.add(cuteNose);
+
+  const sweetMouth = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.006, 4, 8, Math.PI), colorMaterial(0xd84c6c, 0.3));
+  sweetMouth.position.set(0, -0.08, -0.215); sweetMouth.rotation.z = Math.PI; head.add(sweetMouth);
+
+  const label = createSpriteLabel(options.name || 'پرنسس من', '#ffd875');
+  label.position.y = 2.82; rig.add(label);
+
+  root.userData = {
+    rig, leftLeg, rightLeg, leftArm, rightArm, head, skirtGroup, bowGroup, label,
+    shirtMaterial: dressPink, phase: Math.random() * 6.28
+  };
+  root.traverse((obj) => { if (obj.isMesh) { obj.castShadow = true; if (obj.geometry.type !== 'PlaneGeometry') obj.receiveShadow = true; } });
+  return root;
+}
+
+// Handsome Companion Avatar in Dashing Royal Suit
+function createCompanionAvatar(options = {}) {
+  const root = new THREE.Group();
+  const rig = new THREE.Group(); root.add(rig);
+
+  const skin = colorMaterial(options.skin || 0xd9aa88, 0.70);
+  const suitMat = colorMaterial(options.shirt || 0x24222b, 0.55, 0.1);
+  const shirtWhite = colorMaterial(0xffffff, 0.45);
+  const goldTrim = colorMaterial(0xffd875, 0.25, 0.85);
+  const pantsMat = colorMaterial(0x1e1c24, 0.75);
+  const shoe = colorMaterial(0x141218, 0.6);
+  const hair = colorMaterial(options.hair || 0x2e2420, 0.90);
+  const eye = new THREE.MeshStandardMaterial({ color: 0x241a18, roughness: 0.5 });
   const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
-  const blush = colorMaterial(0xff758f, 0.35, 0.2);
 
-  const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.235, 0.27, 0.34, 10), pants);
+  const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.27, 0.34, 10), pantsMat);
   hips.position.y = 0.78; hips.castShadow = true; rig.add(hips);
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.29, 0.56, 4, 10), shirt);
-  torso.position.y = 1.27; torso.castShadow = true; rig.add(torso);
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.018, 6, 16), colorMaterial(0xffe5ec, 0.45));
-  collar.position.set(0, 1.70, -0.015); collar.rotation.x = Math.PI / 2; rig.add(collar);
 
-  if (options.vestColor) {
-    const vestMat = colorMaterial(options.vestColor, 0.72);
-    for (const side of [-1, 1]) {
-      const vestPanel = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.5, 0.035), vestMat);
-      vestPanel.position.set(side * 0.09, 1.29, -0.278); vestPanel.castShadow = true; rig.add(vestPanel);
-    }
-    const buttonMat = colorMaterial(0xffd875, 0.25, 0.7);
-    for (const y of [1.16, 1.31, 1.46]) {
-      const button = new THREE.Mesh(new THREE.SphereGeometry(0.018, 7, 6), buttonMat);
-      button.position.set(0, y, -0.302); rig.add(button);
-    }
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.29, 0.56, 4, 10), suitMat);
+  torso.position.y = 1.28; torso.castShadow = true; rig.add(torso);
+
+  // White Shirt V-collar & Bow Tie
+  const shirtPanel = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.38, 0.04), shirtWhite);
+  shirtPanel.position.set(0, 1.42, -0.26); rig.add(shirtPanel);
+
+  const bowTie = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.018, 5, 8), colorMaterial(0x8f1d32, 0.3));
+  bowTie.position.set(0, 1.56, -0.29); rig.add(bowTie);
+
+  for (const y of [1.22, 1.34]) {
+    const btn = new THREE.Mesh(new THREE.SphereGeometry(0.016, 6, 6), goldTrim);
+    btn.position.set(0, y, -0.285); rig.add(btn);
   }
 
   const leftLeg = new THREE.Group(); leftLeg.position.set(-0.14, 0.69, 0); rig.add(leftLeg);
   const rightLeg = new THREE.Group(); rightLeg.position.set(0.14, 0.69, 0); rig.add(rightLeg);
   for (const leg of [leftLeg, rightLeg]) {
-    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.105, 0.46, 3, 8), pants);
+    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.105, 0.46, 3, 8), pantsMat);
     mesh.position.y = -0.28; mesh.castShadow = true; leg.add(mesh);
     const foot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.11, 0.33), shoe);
     foot.position.set(0, -0.61, -0.075); foot.castShadow = true; leg.add(foot);
@@ -759,7 +891,7 @@ function createAvatar(options = {}) {
   const leftArm = new THREE.Group(); leftArm.position.set(-0.34, 1.56, 0); rig.add(leftArm);
   const rightArm = new THREE.Group(); rightArm.position.set(0.34, 1.56, 0); rig.add(rightArm);
   for (const arm of [leftArm, rightArm]) {
-    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.42, 3, 8), shirt);
+    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.42, 3, 8), suitMat);
     sleeve.position.y = -0.25; sleeve.rotation.z = arm === leftArm ? -0.08 : 0.08; sleeve.castShadow = true; arm.add(sleeve);
     const hand = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), skin);
     hand.position.y = -0.55; hand.castShadow = true; arm.add(hand);
@@ -768,83 +900,54 @@ function createAvatar(options = {}) {
   const head = new THREE.Group(); head.position.set(0, 2.08, 0); rig.add(head);
   const face = new THREE.Mesh(new THREE.SphereGeometry(0.245, 16, 14), skin);
   face.scale.set(0.91, 1.06, 0.92); face.castShadow = true; head.add(face);
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.257, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.56), hair);
-  cap.position.y = 0.05; cap.castShadow = true; head.add(cap);
 
-  if (options.longHair) {
-    const backHair = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 10), hair);
-    backHair.scale.set(1.10, 1.35, 0.70); backHair.position.set(0, -0.06, 0.06); backHair.castShadow = true; head.add(backHair);
-    for (const side of [-1, 1]) {
-      const lock = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.48, 3, 8), hair);
-      lock.position.set(side * 0.20, -0.26, -0.01); lock.castShadow = true; head.add(lock);
-    }
-    // Cute Ribbon on Hair
-    const bowMat = colorMaterial(0xff4d6d, 0.3, 0.4);
-    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.03, 6, 12), bowMat);
-    bow.position.set(0, 0.28, 0.12); head.add(bow);
-  } else if (options.curls) {
-    const curlPoints = [
-      [-0.17, 0.10, -0.11], [-0.09, 0.17, -0.16], [0, 0.18, -0.17], [0.09, 0.17, -0.16], [0.17, 0.10, -0.11],
-      [-0.20, 0.04, -0.08], [-0.12, 0.08, -0.19], [-0.04, 0.10, -0.21], [0.04, 0.10, -0.21], [0.12, 0.08, -0.19], [0.20, 0.04, -0.08],
-    ];
-    for (const [cx, cy, cz] of curlPoints) {
-      const curl = new THREE.Mesh(new THREE.SphereGeometry(0.073, 8, 7), hair);
-      curl.position.set(cx, cy, cz); curl.castShadow = true; head.add(curl);
-    }
-  } else {
-    const fringe = new THREE.Mesh(new THREE.SphereGeometry(0.17, 10, 8, 0, Math.PI, 0, Math.PI * 0.34), hair);
-    fringe.position.set(0, 0.1, -0.16); fringe.rotation.x = 0.24; head.add(fringe);
-  }
+  const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.257, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.56), hair);
+  hairCap.position.y = 0.05; hairCap.castShadow = true; head.add(hairCap);
 
-  // Sparkling Eyes & Cute Cheeks
   for (const side of [-1, 1]) {
-    const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 7), white);
-    eyeWhite.position.set(side * 0.082, 0.012, -0.218); head.add(eyeWhite);
+    const eyeWhiteMesh = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 7), white);
+    eyeWhiteMesh.position.set(side * 0.082, 0.012, -0.218); head.add(eyeWhiteMesh);
     const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.014, 7, 6), eye);
     pupil.position.set(side * 0.082, 0.008, -0.24); head.add(pupil);
-    // Cute blush
-    const blushSpot = new THREE.Mesh(new THREE.CircleGeometry(0.038, 10), blush);
-    blushSpot.position.set(side * 0.12, -0.04, -0.225);
-    blushSpot.rotation.y = side * 0.3;
-    head.add(blushSpot);
   }
 
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.025, 7, 6), skin);
-  nose.scale.set(0.72, 0.8, 0.75); nose.position.set(0, -0.035, -0.238); head.add(nose);
-  const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.006, 4, 9, Math.PI), colorMaterial(0xd85b74, 0.4));
-  mouth.position.set(0, -0.085, -0.22); mouth.rotation.z = Math.PI; head.add(mouth);
+  const label = createSpriteLabel(options.name || 'من', '#ff8fa3');
+  label.position.y = 2.79; rig.add(label);
 
-  const label = createSpriteLabel(options.name || ''); label.position.y = 2.79; rig.add(label);
-  root.userData = { rig, leftLeg, rightLeg, leftArm, rightArm, head, label, shirtMaterial: shirt, phase: Math.random() * 6.28 };
+  root.userData = { rig, leftLeg, rightLeg, leftArm, rightArm, head, label, phase: Math.random() * 6.28 };
   root.traverse((obj) => { if (obj.isMesh) { obj.castShadow = true; if (obj.geometry.type !== 'PlaneGeometry') obj.receiveShadow = true; } });
   return root;
 }
 
-// Gallery Walkway Elements: Rose Petals, Runner Carpet, Floral Arches, Candles
+// VERY LONG Grand Gallery Corridor Walkway Elements
 function createGalleryWalkway() {
   const runnerMat = colorMaterial(0x821c2d, 0.95);
   const runnerGoldEdge = colorMaterial(0xffd875, 0.3, 0.8);
 
-  // Velvet aisle runner carpet
-  addBox(scene, 3.8, 0.025, 21.8, runnerMat, 0, 0.005, -11.0, { receiveShadow: true });
-  addBox(scene, 0.08, 0.03, 21.8, runnerGoldEdge, -1.9, 0.01, -11.0, { castShadow: false });
-  addBox(scene, 0.08, 0.03, 21.8, runnerGoldEdge, 1.9, 0.01, -11.0, { castShadow: false });
+  const corridorLength = 68.0;
+  const corridorCenterZ = -corridorLength / 2;
 
-  // Scattered Rose Petals on the aisle
+  // Velvet aisle runner carpet down the entire length
+  addBox(scene, 4.4, 0.025, corridorLength - 1.0, runnerMat, 0, 0.005, corridorCenterZ, { receiveShadow: true });
+  addBox(scene, 0.10, 0.03, corridorLength - 1.0, runnerGoldEdge, -2.2, 0.01, corridorCenterZ, { castShadow: false });
+  addBox(scene, 0.10, 0.03, corridorLength - 1.0, runnerGoldEdge, 2.2, 0.01, corridorCenterZ, { castShadow: false });
+
+  // 150+ Scattered Rose Petals along the long aisle
   const petalMat = colorMaterial(0xff2a5c, 0.4, 0.2);
-  for (let i = 0; i < 45; i++) {
-    const petal = new THREE.Mesh(new THREE.CircleGeometry(0.08 + Math.random() * 0.04, 6), petalMat);
+  const petalMatPink = colorMaterial(0xff758f, 0.4, 0.2);
+  for (let i = 0; i < 160; i++) {
+    const petal = new THREE.Mesh(new THREE.CircleGeometry(0.075 + Math.random() * 0.05, 6), i % 2 ? petalMat : petalMatPink);
     petal.rotation.x = -Math.PI / 2;
     petal.rotation.z = Math.random() * Math.PI * 2;
-    petal.position.set((Math.random() - 0.5) * 3.2, 0.022, -1.5 - Math.random() * 19.0);
+    petal.position.set((Math.random() - 0.5) * 3.8, 0.022, -1.2 - Math.random() * (corridorLength - 4.0));
     scene.add(petal);
   }
 
-  // Romantic Tea-light Candles lining both sides of the runner
+  // Romantic Tea-light Candles along the sides of the aisle runner
   const candleWax = colorMaterial(0xfffaf0, 0.3);
   const candleFlame = new THREE.MeshBasicMaterial({ color: 0xffaa33 });
-  for (let z = -1.8; z >= -20.5; z -= 3.2) {
-    for (const sx of [-1.75, 1.75]) {
+  for (let z = -2.0; z >= -65.0; z -= 3.0) {
+    for (const sx of [-2.05, 2.05]) {
       const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 8), candleWax);
       candle.position.set(sx, 0.08, z);
       scene.add(candle);
@@ -853,17 +956,80 @@ function createGalleryWalkway() {
       flame.position.set(sx, 0.17, z);
       scene.add(flame);
 
-      const light = new THREE.PointLight(0xffb84d, 1.4, 3.6, 2);
+      const light = new THREE.PointLight(0xffb84d, 1.4, 3.8, 2);
       light.position.set(sx, 0.22, z);
       scene.add(light);
       candleFlickers.push({ light, flame, baseIntensity: 1.4, phase: Math.random() * 6.28 });
     }
   }
 
-  // 2 Romantic Floral Arches along the gallery
-  for (const archZ of [-5.5, -15.5]) {
+  // 7 Grand Floral Arches spanning across the long corridor
+  const archPositionsZ = [-3.5, -13.0, -22.5, -32.0, -41.5, -51.0, -60.5];
+  archPositionsZ.forEach((archZ) => {
     createFloralArch(0, archZ);
+  });
+
+  // Architectural Columns along left and right walls
+  for (let z = -2.5; z >= -64.0; z -= 9.5) {
+    createClassicColumn(-9.6, z);
+    createClassicColumn(9.6, z);
   }
+
+  // Grand Crystal Chandeliers suspended from ceiling
+  for (let z = -8.0; z >= -62.0; z -= 11.0) {
+    createCrystalChandelier(0, 6.8, z);
+  }
+}
+
+function createClassicColumn(x, z) {
+  const colGroup = new THREE.Group();
+  colGroup.position.set(x, 0, z);
+  scene.add(colGroup);
+
+  const marbleMat = colorMaterial(0xe8e2d8, 0.65, 0.05);
+  const goldTrim = colorMaterial(0xffd875, 0.25, 0.8);
+
+  addBox(colGroup, 0.85, 0.35, 0.85, marbleMat, 0, 0.175, 0);
+  addBox(colGroup, 0.75, 0.12, 0.75, goldTrim, 0, 0.41, 0);
+
+  const pillar = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.32, 6.2, 12), marbleMat);
+  pillar.position.y = 3.6;
+  pillar.castShadow = true;
+  colGroup.add(pillar);
+
+  addBox(colGroup, 0.75, 0.14, 0.75, goldTrim, 0, 6.78, 0);
+  addBox(colGroup, 0.88, 0.38, 0.88, marbleMat, 0, 7.04, 0);
+}
+
+function createCrystalChandelier(x, y, z) {
+  const chanGroup = new THREE.Group();
+  chanGroup.position.set(x, y, z);
+  scene.add(chanGroup);
+
+  const goldMat = colorMaterial(0xffd875, 0.2, 0.85);
+  const crystalMat = new THREE.MeshPhysicalMaterial({
+    color: 0xffffff, roughness: 0.1, transmission: 0.8, ior: 1.5, emissive: 0xffe2b2, emissiveIntensity: 0.4
+  });
+
+  const chain = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.8, 6), goldMat);
+  chain.position.y = -0.4; chanGroup.add(chain);
+
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.55, 0.04, 8, 16), goldMat);
+  ring.rotation.x = Math.PI / 2; ring.position.y = -0.82; chanGroup.add(ring);
+
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2;
+    const crystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.08), crystalMat);
+    crystal.position.set(Math.cos(ang) * 0.55, -0.96, Math.sin(ang) * 0.55);
+    chanGroup.add(crystal);
+  }
+
+  const centerCrystal = new THREE.Mesh(new THREE.OctahedronGeometry(0.14), crystalMat);
+  centerCrystal.position.set(0, -1.05, 0); chanGroup.add(centerCrystal);
+
+  const light = new THREE.PointLight(0xffe2a8, 3.8, 11.0, 2);
+  light.position.set(0, -0.95, 0);
+  chanGroup.add(light);
 }
 
 function createFloralArch(x, z) {
@@ -877,40 +1043,52 @@ function createFloralArch(x, z) {
   const leafMat = colorMaterial(0x2f4d38, 0.85);
 
   // Main Arch Structure (Left Column, Right Column, Top Torus Arch)
-  addBox(archGroup, 0.12, 5.2, 0.12, goldArchMat, -2.4, 2.6, 0);
-  addBox(archGroup, 0.12, 5.2, 0.12, goldArchMat, 2.4, 2.6, 0);
+  addBox(archGroup, 0.14, 5.4, 0.14, goldArchMat, -2.6, 2.7, 0);
+  addBox(archGroup, 0.14, 5.4, 0.14, goldArchMat, 2.6, 2.7, 0);
 
-  const archTop = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.06, 8, 16, Math.PI), goldArchMat);
-  archTop.position.set(0, 5.2, 0);
+  const archTop = new THREE.Mesh(new THREE.TorusGeometry(2.6, 0.07, 8, 18, Math.PI), goldArchMat);
+  archTop.position.set(0, 5.4, 0);
   archGroup.add(archTop);
 
   // Roses & leaves along the arch curve
-  for (let i = 0; i <= 16; i++) {
-    const angle = (i / 16) * Math.PI;
-    const rx = Math.cos(angle) * 2.4;
-    const ry = 5.2 + Math.sin(angle) * 1.2;
-    const flower = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), i % 2 ? rosePink : roseWhite);
-    flower.position.set(rx, ry, (Math.random() - 0.5) * 0.15);
+  for (let i = 0; i <= 18; i++) {
+    const angle = (i / 18) * Math.PI;
+    const rx = Math.cos(angle) * 2.6;
+    const ry = 5.4 + Math.sin(angle) * 1.25;
+    const flower = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 8), i % 2 ? rosePink : roseWhite);
+    flower.position.set(rx, ry, (Math.random() - 0.5) * 0.16);
     archGroup.add(flower);
 
-    const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.02), leafMat);
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.15, 0.02), leafMat);
     leaf.rotation.z = angle;
     leaf.position.set(rx + (Math.random() - 0.5) * 0.1, ry, 0.08);
     archGroup.add(leaf);
   }
 }
 
+// Memory Frames placed along the long corridor
 function addMemoryFrames() {
-  const sideZ = [-17.2, -12.0, -6.8, -1.9];
-  const layout = [
-    { x: -6.45, z: -21.91, rot: 0 }, { x: -2.15, z: -21.91, rot: 0 },
-    { x: 2.15, z: -21.91, rot: 0 }, { x: 6.45, z: -21.91, rot: 0 },
-    ...sideZ.map((z) => ({ x: -10.34, z, rot: Math.PI / 2 })),
-    ...sideZ.map((z) => ({ x: 10.34, z, rot: -Math.PI / 2 })),
+  const frameSpots = [
+    // 6 Frames along West (left) Wall (x = -9.2)
+    { x: -9.2, z: -7.5, rot: Math.PI / 2 },
+    { x: -9.2, z: -17.0, rot: Math.PI / 2 },
+    { x: -9.2, z: -26.5, rot: Math.PI / 2 },
+    { x: -9.2, z: -36.0, rot: Math.PI / 2 },
+    { x: -9.2, z: -45.5, rot: Math.PI / 2 },
+    { x: -9.2, z: -55.0, rot: Math.PI / 2 },
+
+    // 6 Frames along East (right) Wall (x = +9.2)
+    { x: 9.2, z: -7.5, rot: -Math.PI / 2 },
+    { x: 9.2, z: -17.0, rot: -Math.PI / 2 },
+    { x: 9.2, z: -26.5, rot: -Math.PI / 2 },
+    { x: 9.2, z: -36.0, rot: -Math.PI / 2 },
+    { x: 9.2, z: -45.5, rot: -Math.PI / 2 },
+    { x: 9.2, z: -55.0, rot: -Math.PI / 2 },
   ];
+
   memories.forEach((memory, index) => {
-    const spot = layout[index] || layout[layout.length - 1];
-    createFrame(memory, index, spot.x, 4.35, spot.z, spot.rot, 2.65, 3.45);
+    const spot = frameSpots[index] || frameSpots[frameSpots.length - 1];
+    createFrame(memory, index, spot.x, 4.35, spot.z, spot.rot, 2.85, 3.65);
   });
 }
 
@@ -934,7 +1112,7 @@ function makeWoodTexture() {
   }
   ctx.globalAlpha = 1;
   const texture = new THREE.CanvasTexture(image); texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(3.4, 5.8);
+  texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(3.4, 18.0);
   texture.anisotropy = renderer ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return texture;
 }
@@ -1095,53 +1273,54 @@ function createLoveMonument(x, z) {
   loveMonument = { x, z, group };
 }
 
+// Grand Centerpiece Fireplace & 1st Anniversary Mantle at the far end of the corridor
 function createFireplaceAndAnniversaryMantle() {
-  const mantelX = 0, mantelZ = -21.85;
+  const mantelX = 0, mantelZ = -67.85;
   const stoneMat = colorMaterial(0x282c33, 0.7, 0.1);
   const goldMat = colorMaterial(0xf3c858, 0.2, 0.8);
   const darkHearth = colorMaterial(0x15161a, 0.9);
 
-  addBox(scene, 4.4, 0.22, 1.2, stoneMat, mantelX, 0.11, mantelZ + 0.45);
-  addBox(scene, 0.65, 2.4, 0.8, stoneMat, mantelX - 1.6, 1.2, mantelZ + 0.35);
-  addBox(scene, 0.65, 2.4, 0.8, stoneMat, mantelX + 1.6, 1.2, mantelZ + 0.35);
-  addBox(scene, 4.2, 0.45, 0.95, stoneMat, mantelX, 2.42, mantelZ + 0.35);
-  addBox(scene, 4.4, 0.14, 1.1, goldMat, mantelX, 2.72, mantelZ + 0.35);
+  addBox(scene, 5.2, 0.25, 1.4, stoneMat, mantelX, 0.125, mantelZ + 0.45);
+  addBox(scene, 0.75, 2.8, 0.9, stoneMat, mantelX - 1.9, 1.4, mantelZ + 0.35);
+  addBox(scene, 0.75, 2.8, 0.9, stoneMat, mantelX + 1.9, 1.4, mantelZ + 0.35);
+  addBox(scene, 5.0, 0.52, 1.1, stoneMat, mantelX, 2.82, mantelZ + 0.35);
+  addBox(scene, 5.2, 0.16, 1.25, goldMat, mantelX, 3.16, mantelZ + 0.35);
 
-  addBox(scene, 2.55, 2.0, 0.6, darkHearth, mantelX, 1.0, mantelZ + 0.15, { castShadow: false });
+  addBox(scene, 3.0, 2.3, 0.7, darkHearth, mantelX, 1.15, mantelZ + 0.15, { castShadow: false });
 
   const logMat = colorMaterial(0x382317, 0.9);
-  for (let i = 0; i < 3; i++) {
-    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.09, 1.2, 6), logMat);
-    log.rotation.z = Math.PI / 2 + (i - 1) * 0.18;
-    log.position.set(mantelX + (i - 1) * 0.15, 0.28 + i * 0.08, mantelZ + 0.25);
+  for (let i = 0; i < 4; i++) {
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.10, 1.4, 6), logMat);
+    log.rotation.z = Math.PI / 2 + (i - 1.5) * 0.18;
+    log.position.set(mantelX + (i - 1.5) * 0.18, 0.28 + i * 0.08, mantelZ + 0.25);
     scene.add(log);
   }
-  const emberMat = new THREE.MeshStandardMaterial({ color: 0xff4d22, emissive: 0xff3300, emissiveIntensity: 2.2 });
-  for (let i = 0; i < 6; i++) {
-    const ember = new THREE.Mesh(new THREE.SphereGeometry(0.07, 6, 6), emberMat);
-    ember.position.set(mantelX + (Math.random() - 0.5) * 1.1, 0.22, mantelZ + 0.22 + (Math.random() - 0.5) * 0.3);
+  const emberMat = new THREE.MeshStandardMaterial({ color: 0xff4d22, emissive: 0xff3300, emissiveIntensity: 2.5 });
+  for (let i = 0; i < 8; i++) {
+    const ember = new THREE.Mesh(new THREE.SphereGeometry(0.08, 6, 6), emberMat);
+    ember.position.set(mantelX + (Math.random() - 0.5) * 1.4, 0.22, mantelZ + 0.22 + (Math.random() - 0.5) * 0.3);
     scene.add(ember);
   }
 
-  fireplaceLight = new THREE.PointLight(0xff6e2b, 5.5, 12.0, 2);
-  fireplaceLight.position.set(mantelX, 0.85, mantelZ + 0.55);
+  fireplaceLight = new THREE.PointLight(0xff6e2b, 6.0, 14.0, 2);
+  fireplaceLight.position.set(mantelX, 1.0, mantelZ + 0.55);
   scene.add(fireplaceLight);
 
   const plaqueTex = createAnniversaryMantleTexture();
-  const plaqueMesh = new THREE.Mesh(new THREE.PlaneGeometry(3.6, 0.85), new THREE.MeshBasicMaterial({ map: plaqueTex }));
-  plaqueMesh.position.set(mantelX, 3.82, mantelZ + 0.16);
+  const plaqueMesh = new THREE.Mesh(new THREE.PlaneGeometry(4.2, 0.95), new THREE.MeshBasicMaterial({ map: plaqueTex }));
+  plaqueMesh.position.set(mantelX, 4.35, mantelZ + 0.16);
   scene.add(plaqueMesh);
   anniversaryMantleSign = plaqueMesh;
 
-  const annivTarget = new THREE.Mesh(new THREE.BoxGeometry(3.6, 1.2, 0.4), new THREE.MeshBasicMaterial({ visible: false }));
-  annivTarget.position.set(mantelX, 3.82, mantelZ + 0.16);
+  const annivTarget = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.4, 0.5), new THREE.MeshBasicMaterial({ visible: false }));
+  annivTarget.position.set(mantelX, 4.35, mantelZ + 0.16);
   annivTarget.userData = { type: 'anniversary-mantle' };
   scene.add(annivTarget);
   interactiveTargets.push(annivTarget);
 
-  for (const sx of [-2.4, 2.4]) {
-    const sconce = new THREE.PointLight(0xffd17d, 2.5, 6.0, 2);
-    sconce.position.set(sx, 3.82, mantelZ + 0.4);
+  for (const sx of [-2.8, 2.8]) {
+    const sconce = new THREE.PointLight(0xffd17d, 3.2, 8.0, 2);
+    sconce.position.set(sx, 4.35, mantelZ + 0.4);
     scene.add(sconce);
   }
 }
@@ -1150,6 +1329,7 @@ function createFairyLights() {
   const bulbMat = new THREE.MeshStandardMaterial({ color: 0xffe299, emissive: 0xffb84d, emissiveIntensity: 1.8 });
   const bulbGeom = new THREE.SphereGeometry(0.045, 6, 6);
 
+  // Porch fairy lights
   for (let i = 0; i <= 14; i++) {
     const t = i / 14;
     const x = lerp(-3.8, 3.8, t);
@@ -1162,8 +1342,9 @@ function createFairyLights() {
     fairyBulbs.push({ mesh: bulb, baseIntensity: 1.8, phase: Math.random() * 6.28 });
   }
 
-  for (let row = 0; row < 3; row++) {
-    const z = -6.0 - row * 6.0;
+  // Ceiling fairy lights along the entire long corridor
+  for (let row = 0; row < 12; row++) {
+    const z = -4.0 - row * 5.2;
     for (let i = 0; i <= 10; i++) {
       const t = i / 10;
       const x = lerp(-8.5, 8.5, t);
@@ -1178,14 +1359,14 @@ function createFairyLights() {
 }
 
 function createFloatingParticles() {
-  const particleCount = 55;
+  const particleCount = 75;
   const positions = new Float32Array(particleCount * 3);
   const velocities = [];
 
   for (let i = 0; i < particleCount; i++) {
     positions[i * 3 + 0] = (Math.random() - 0.5) * 22;
     positions[i * 3 + 1] = 0.5 + Math.random() * 6.0;
-    positions[i * 3 + 2] = -22 + Math.random() * 38;
+    positions[i * 3 + 2] = -68 + Math.random() * 85;
     velocities.push({
       speedY: 0.15 + Math.random() * 0.25,
       driftX: (Math.random() - 0.5) * 0.12,
@@ -1233,7 +1414,7 @@ function updateFloatingParticles(dt, time) {
 
 function createLivingRoomFurniture() {
   const sofaGroup = new THREE.Group();
-  sofaGroup.position.set(0, 0, -11.0);
+  sofaGroup.position.set(0, 0, -62.5); // Placed at the romantic finale of the long corridor
   scene.add(sofaGroup);
 
   const sofaFabric = colorMaterial(0x42384a, 0.85);
@@ -1279,28 +1460,38 @@ function createLivingRoomFurniture() {
   sofaGroup.add(book);
 
   const bookTarget = new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.4, 0.5), new THREE.MeshBasicMaterial({ visible: false }));
-  bookTarget.position.set(0.42, 0.52, -10.85);
+  bookTarget.position.set(0.42, 0.52, -62.35);
   bookTarget.userData = { type: 'love-letter' };
   scene.add(bookTarget);
   interactiveTargets.push(bookTarget);
 }
 
+// VERY LONG Grand Architecture
 function buildHome() {
+  const corridorLength = 68.0;
+  const corridorCenterZ = -corridorLength / 2;
+
   const grassTexture = makeGrassTexture();
   const lawn = addGround(64, 44, new THREE.MeshStandardMaterial({ map: grassTexture, roughness: 0.92 }), 0, -0.05, 12);
   lawn.receiveShadow = true;
+  floorTargets.push(lawn);
 
   const pathMat = colorMaterial(0xdfd9ce, 0.84);
   const pathEdge = colorMaterial(0x8a7f72, 0.9);
-  addBox(scene, 6.4, 0.03, 22.8, pathMat, 0, -0.035, 10.7, { receiveShadow: true, castShadow: false });
+  const stonePath = addBox(scene, 6.4, 0.03, 22.8, pathMat, 0, -0.035, 10.7, { receiveShadow: true, castShadow: false });
   addBox(scene, 0.07, 0.035, 22.7, pathEdge, -3.22, -0.025, 10.7, { castShadow: false });
   addBox(scene, 0.07, 0.035, 22.7, pathEdge, 3.22, -0.025, 10.7, { castShadow: false });
+  floorTargets.push(stonePath);
 
   const woodTexture = makeWoodTexture();
-  const woodFloor = new THREE.Mesh(new THREE.PlaneGeometry(21.5, 22.2), new THREE.MeshStandardMaterial({ map: woodTexture, roughness: 0.65, metalness: 0.025 }));
-  woodFloor.rotation.x = -Math.PI / 2; woodFloor.position.set(0, -0.025, -11.0); woodFloor.receiveShadow = true; scene.add(woodFloor);
+  const woodFloor = new THREE.Mesh(
+    new THREE.PlaneGeometry(21.5, corridorLength + 0.8),
+    new THREE.MeshStandardMaterial({ map: woodTexture, roughness: 0.65, metalness: 0.025 })
+  );
+  woodFloor.rotation.x = -Math.PI / 2; woodFloor.position.set(0, -0.025, corridorCenterZ); woodFloor.receiveShadow = true; scene.add(woodFloor);
+  floorTargets.push(woodFloor);
 
-  // Gallery Walkway elements (aisle carpet, floral arches, candles, petals)
+  // Gallery Walkway elements (aisle carpet, floral arches, candles, petals, columns)
   createGalleryWalkway();
 
   const outerStone = colorMaterial(0xc7bda9, 0.86);
@@ -1312,9 +1503,10 @@ function buildHome() {
   const brass = colorMaterial(0x9d8157, 0.3, 0.55);
   const ceiling = colorMaterial(0xe1d9c9, 0.86);
 
-  addBox(scene, 21.8, 7.45, 0.62, featureWall, 0, 3.72, -22.25);
-  addBox(scene, 0.62, 7.45, 22.4, sidePlaster, -10.78, 3.72, -11.0);
-  addBox(scene, 0.62, 7.45, 22.4, sidePlaster, 10.78, 3.72, -11.0);
+  // Walls for the long corridor
+  addBox(scene, 21.8, 7.45, 0.62, featureWall, 0, 3.72, -corridorLength - 0.25);
+  addBox(scene, 0.62, 7.45, corridorLength + 0.8, sidePlaster, -10.78, 3.72, corridorCenterZ);
+  addBox(scene, 0.62, 7.45, corridorLength + 0.8, sidePlaster, 10.78, 3.72, corridorCenterZ);
 
   addBox(scene, 8.45, 7.25, 0.72, outerStone, -6.775, 3.62, 0.0);
   addBox(scene, 8.45, 7.25, 0.72, outerStone, 6.775, 3.62, 0.0);
@@ -1323,9 +1515,10 @@ function buildHome() {
   addBox(scene, 8.3, 7.05, 0.045, innerPlaster, 6.85, 3.58, -0.39, { castShadow: false });
   addBox(scene, 5.2, 2.65, 0.045, innerPlaster, 0, 5.9, -0.39, { castShadow: false });
 
-  addBox(scene, 23.8, 0.5, 24.6, roofMat, 0, 7.62, -10.75);
+  // Roof & Ceiling
+  addBox(scene, 23.8, 0.5, corridorLength + 3.0, roofMat, 0, 7.62, corridorCenterZ + 0.25);
   addBox(scene, 24.1, 0.18, 0.28, walnut, 0, 7.28, 0.22);
-  addBox(scene, 21.25, 0.18, 21.8, ceiling, 0, 7.25, -11.0, { castShadow: false });
+  addBox(scene, 21.25, 0.18, corridorLength + 0.4, ceiling, 0, 7.25, corridorCenterZ, { castShadow: false });
 
   createFacadeWindow(-6.8, 3.55, 3.5, 2.65);
   createFacadeWindow(6.8, 3.55, 3.5, 2.65);
@@ -1381,8 +1574,13 @@ function buildHome() {
   moon.shadow.mapSize.set(isMobileViewport() ? 512 : 1024, isMobileViewport() ? 512 : 1024);
   scene.add(moon);
 
-  const interiorWarm = new THREE.PointLight(0xffd19c, 8.5, 34, 2); interiorWarm.position.set(0, 5.7, -8); scene.add(interiorWarm);
-  const interiorBack = new THREE.PointLight(0xffdaa6, 7.5, 26, 2); interiorBack.position.set(0, 5.7, -18.5); scene.add(interiorBack);
+  // Warm interior ambient lights along the long corridor
+  for (let z = -6.0; z >= -62.0; z -= 14.0) {
+    const interiorLight = new THREE.PointLight(0xffd19c, 6.0, 24, 2);
+    interiorLight.position.set(0, 5.8, z);
+    scene.add(interiorLight);
+  }
+
   const porchLight = new THREE.PointLight(0xffc97e, 5.5, 14, 2); porchLight.position.set(0, 4.6, 1.5); scene.add(porchLight);
 
   const starPositions = [];
@@ -1402,19 +1600,32 @@ function buildHome() {
 function createWorld() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x111422);
-  camera = new THREE.PerspectiveCamera(49, window.innerWidth / window.innerHeight, 0.1, 130);
-  camera.position.set(0, 4.0, 22.0);
+  camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 140);
+  camera.position.set(0, 3.8, 21.0);
   if (!createRenderer()) return;
 
   buildHome();
   addMemoryFrames();
 
-  player = createAvatar({ name: state.toName || 'پرنسس من', shirt: state.avatarColor, pants: 0xfce4ec, skin: 0xfde2d2, hair: 0x241812, longHair: true });
+  // Create High-Quality Princess Avatar (Girlfriend in pink ballgown with golden tiara)
+  player = createPrincessAvatar({
+    name: state.toName || 'پرنسس من',
+    shirt: state.avatarColor || '#ff758f',
+    skin: 0xffe2d2,
+    hair: 0x241812,
+  });
   player.position.copy(playerPosition); player.rotation.y = 0; scene.add(player);
-  companion = createAvatar({ name: state.fromName || 'من', shirt: 0xe9e3d8, vestColor: 0x2c1f2e, pants: 0x344052, skin: 0xd9aa88, hair: 0x2e2420, curls: true });
+
+  // Companion Avatar (Boyfriend in Dashing Suit)
+  companion = createCompanionAvatar({
+    name: state.fromName || 'من',
+    shirt: 0x24222b,
+    skin: 0xd9aa88,
+    hair: 0x2e2420,
+  });
   companion.position.set(-1.15, 0, 15.0); companion.rotation.y = 0; scene.add(companion);
 
-  cameraLookTarget.copy(player.position).add(new THREE.Vector3(0, 1.2, 0));
+  cameraLookTarget.copy(player.position).add(new THREE.Vector3(0, 1.35, 0));
   updateCamera(1, 0.016);
 
   clock = new THREE.Clock();
@@ -1422,24 +1633,25 @@ function createWorld() {
   renderer.setAnimationLoop(null);
 }
 
-// Ultra-smooth Damped Camera Calculation
+// Ultra-Smooth Third-Person Camera with Flawless Framing and Collision Avoidance
 function updateCamera(smoothFactor = 1, dt = 0.016) {
   if (!camera || !player) return;
 
-  const rotDamp = 1 - Math.exp(-dt * 15.0);
+  const rotDamp = 1 - Math.exp(-dt * 16.0);
   cameraYaw = lerp(cameraYaw, targetYaw, rotDamp);
   cameraPitch = lerp(cameraPitch, targetPitch, rotDamp);
-  cameraDistance = lerp(cameraDistance, targetDistance, 1 - Math.exp(-dt * 12.0));
+  cameraDistance = lerp(cameraDistance, targetDistance, 1 - Math.exp(-dt * 14.0));
 
-  const leadOffset = new THREE.Vector3(playerVelocity.x * 0.22, 0, playerVelocity.z * 0.22);
-  const lookDesiredY = 1.15;
+  // Dynamic look target: slightly over character center
+  const leadOffset = new THREE.Vector3(playerVelocity.x * 0.18, 0, playerVelocity.z * 0.18);
+  const lookDesiredY = insideHouse ? 1.38 : 1.25;
   desiredCameraLook.set(
     player.position.x + leadOffset.x,
     player.position.y + lookDesiredY,
     player.position.z + leadOffset.z
   );
 
-  cameraLookTarget.lerp(desiredCameraLook, 1 - Math.exp(-dt * 14.0));
+  cameraLookTarget.lerp(desiredCameraLook, 1 - Math.exp(-dt * 15.0));
 
   const cosPitch = Math.cos(cameraPitch);
   const sinPitch = Math.sin(cameraPitch);
@@ -1448,11 +1660,16 @@ function updateCamera(smoothFactor = 1, dt = 0.016) {
 
   const desiredPos = new THREE.Vector3(
     cameraLookTarget.x - sinYaw * cosPitch * cameraDistance,
-    cameraLookTarget.y + sinPitch * cameraDistance + (insideHouse ? 0.3 : 0.6),
+    cameraLookTarget.y + sinPitch * cameraDistance + (insideHouse ? 0.35 : 0.65),
     cameraLookTarget.z + cosYaw * cosPitch * cameraDistance
   );
 
-  if (desiredPos.y < 0.8) desiredPos.y = 0.8;
+  // Prevent clipping through floor or side walls
+  if (desiredPos.y < 0.85) desiredPos.y = 0.85;
+  if (insideHouse) {
+    desiredPos.x = clamp(desiredPos.x, -8.6, 8.6);
+    desiredPos.z = clamp(desiredPos.z, -66.8, 1.8);
+  }
 
   camera.position.lerp(desiredPos, 1 - Math.exp(-dt * 16.0));
   camera.lookAt(cameraLookTarget);
@@ -1463,10 +1680,21 @@ function animateAvatar(avatar, time, walking, offset = 0, speed = 1) {
   const u = avatar.userData;
   const phase = time * (walking ? 9.5 * speed : 2.0) + u.phase + offset;
   const amp = walking ? Math.min(0.55, 0.42 * speed) : 0.02;
-  u.leftLeg.rotation.x = Math.sin(phase) * amp;
-  u.rightLeg.rotation.x = -Math.sin(phase) * amp;
-  u.leftArm.rotation.x = -Math.sin(phase) * amp * 0.62;
-  u.rightArm.rotation.x = Math.sin(phase) * amp * 0.62;
+
+  if (u.leftLeg) u.leftLeg.rotation.x = Math.sin(phase) * amp;
+  if (u.rightLeg) u.rightLeg.rotation.x = -Math.sin(phase) * amp;
+  if (u.leftArm) u.leftArm.rotation.x = -Math.sin(phase) * amp * 0.62;
+  if (u.rightArm) u.rightArm.rotation.x = Math.sin(phase) * amp * 0.62;
+
+  // Princess gown sway
+  if (u.skirtGroup) {
+    u.skirtGroup.rotation.z = walking ? Math.sin(phase * 0.5) * 0.06 : Math.sin(time * 1.5) * 0.015;
+    u.skirtGroup.rotation.x = walking ? Math.cos(phase) * 0.05 : 0;
+  }
+  if (u.bowGroup) {
+    u.bowGroup.rotation.x = walking ? Math.sin(phase) * 0.08 : 0;
+  }
+
   u.rig.position.y = walking ? Math.abs(Math.sin(phase * 0.5)) * (0.04 * speed) : Math.sin(time * 1.3 + u.phase) * 0.015;
   u.head.rotation.z = walking ? Math.sin(phase * 0.35) * 0.018 : Math.sin(time * 1.0 + u.phase) * 0.012;
 }
@@ -1484,7 +1712,7 @@ function isNearDoor() {
 
 function updateSceneLocation() {
   const label = $('#scene-location')?.querySelector('span:last-child');
-  if (label) label.textContent = insideHouse ? 'راهروی رویایی خاطرات' : 'حیاط خانه';
+  if (label) label.textContent = insideHouse ? 'راهروی رویایی و باشکوه خاطرات' : 'حیاط خانه';
   const subtitle = $('#hud-subtitle');
   if (subtitle) subtitle.textContent = insideHouse ? `راهروی خاطرات ۱ سالگی` : 'جلوی خانه‌ی خاطره‌ها';
 }
@@ -1493,16 +1721,16 @@ function setHouseZone(inside) {
   if (insideHouse === inside) return;
   insideHouse = inside;
   if (inside) {
-    targetDistance = 5.6; targetPitch = 0.20; doorTarget = 1;
+    targetDistance = 6.4; targetPitch = 0.16; doorTarget = 1;
     showToast(`به راهروی خاطرات ۱ سالگی ${state.toName} خوش آمدی 🌸`);
   } else {
-    targetDistance = 7.8; targetPitch = 0.24;
+    targetDistance = 8.0; targetPitch = 0.22;
     showToast('به حیاط خانه برگشتی');
   }
   updateSceneLocation();
 }
 
-// Cinematic Auto-Tour Handler
+// Cinematic Auto-Tour Handler along the long corridor
 function startCinematicTour() {
   if (!started) return;
   isTouring = true;
@@ -1521,9 +1749,14 @@ function startCinematicTour() {
 function advanceTourStep() {
   if (!isTouring) return;
   if (tourStep >= frameRecords.length) {
-    stopCinematicTour();
-    showToast('✨ تور سینمایی تمام شد! ۱ سالگیمون مبارک 💍');
-    openAnniversaryModal();
+    // Grand Finale at Fireplace & Anniversary Altar
+    movementTarget = new THREE.Vector3(0, 0, -64.5);
+    targetYaw = 0;
+    setTimeout(() => {
+      stopCinematicTour();
+      showToast('✨ به انتهای راهرو رسیدیم! اولین سالگردمون مبارک 💍');
+      openAnniversaryModal();
+    }, 4500);
     return;
   }
 
@@ -1546,7 +1779,7 @@ function advanceTourStep() {
       tourStep++;
       advanceTourStep();
     }, 4500);
-  }, 3800);
+  }, 4200);
 }
 
 function stopCinematicTour() {
@@ -1560,15 +1793,15 @@ function updateGame(dt, elapsed) {
   updateDoor(dt);
   TWEEN.update();
 
-  if (!isDragging) {
+  if (!isDraggingCamera) {
     targetYaw += yawVelocity * dt;
-    targetPitch = clamp(targetPitch + pitchVelocity * dt, 0.02, 0.62);
+    targetPitch = clamp(targetPitch + pitchVelocity * dt, 0.02, 0.58);
     yawVelocity = lerp(yawVelocity, 0, 1 - Math.exp(-dt * 8.0));
     pitchVelocity = lerp(pitchVelocity, 0, 1 - Math.exp(-dt * 8.0));
   }
 
   if (fireplaceLight) {
-    fireplaceLight.intensity = 5.2 + Math.sin(elapsed * 9.5) * 0.8 + Math.cos(elapsed * 14.2) * 0.5;
+    fireplaceLight.intensity = 5.6 + Math.sin(elapsed * 9.5) * 0.8 + Math.cos(elapsed * 14.2) * 0.5;
   }
 
   if (crystalHeartMesh) {
@@ -1611,13 +1844,24 @@ function updateGame(dt, elapsed) {
   const forwardInput = (keys.has('KeyW') || keys.has('ArrowUp') ? 1 : 0) - (keys.has('KeyS') || keys.has('ArrowDown') ? 1 : 0);
   const sideInput = (keys.has('KeyD') || keys.has('ArrowRight') ? 1 : 0) - (keys.has('KeyA') || keys.has('ArrowLeft') ? 1 : 0);
 
-  if (forwardInput || sideInput) {
+  if (forwardInput || sideInput || touchMoveActive) {
     if (isTouring) stopCinematicTour();
   }
 
   const desiredVelocity = new THREE.Vector3();
 
-  if (movementTarget) {
+  // Dynamic Touch Movement (Dragging anywhere on screen)
+  if (touchMoveActive && touchVector.lengthSq() > 0.02) {
+    const forward = new THREE.Vector3(Math.sin(cameraYaw), 0, -Math.cos(cameraYaw));
+    const right = new THREE.Vector3(Math.cos(cameraYaw), 0, Math.sin(cameraYaw));
+    const moveDir = forward.multiplyScalar(-touchVector.y).add(right.multiplyScalar(touchVector.x));
+    if (moveDir.lengthSq() > 0.01) {
+      moveDir.normalize();
+      const speed = (keys.has('ShiftLeft') ? 5.4 : 3.8) * Math.min(1.0, touchVector.length());
+      desiredVelocity.copy(moveDir).multiplyScalar(speed);
+      playerTargetRot = Math.atan2(-moveDir.x, -moveDir.z);
+    }
+  } else if (movementTarget) {
     const delta = movementTarget.clone().sub(player.position); delta.y = 0;
     const distance = delta.length();
     if (distance < 0.24) {
@@ -1625,7 +1869,7 @@ function updateGame(dt, elapsed) {
       if (entryQueued) { entryQueued = false; showToast('قدم بزن و قاب‌های بزرگ راهرو را ببین'); }
     } else {
       delta.normalize();
-      const speed = Math.min(3.6, distance * 2.5);
+      const speed = Math.min(3.8, distance * 2.5);
       desiredVelocity.copy(delta).multiplyScalar(speed);
       playerTargetRot = Math.atan2(-delta.x, -delta.z);
     }
@@ -1635,7 +1879,7 @@ function updateGame(dt, elapsed) {
     const direction = forward.multiplyScalar(forwardInput).add(right.multiplyScalar(sideInput));
     if (direction.lengthSq() > 0) {
       direction.normalize();
-      const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 5.2 : 3.5;
+      const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 5.4 : 3.6;
       desiredVelocity.copy(direction).multiplyScalar(speed);
       playerTargetRot = Math.atan2(-direction.x, -direction.z);
     }
@@ -1657,8 +1901,8 @@ function updateGame(dt, elapsed) {
 
   const doorPassable = doorProgress > 0.72 && Math.abs(player.position.x) < 2.62;
   if (insideHouse) {
-    player.position.x = clamp(player.position.x, -9.8, 9.8);
-    player.position.z = clamp(player.position.z, -21.25, doorPassable ? 2.2 : -0.55);
+    player.position.x = clamp(player.position.x, -9.6, 9.6);
+    player.position.z = clamp(player.position.z, -67.2, doorPassable ? 2.2 : -0.55);
   } else {
     player.position.x = clamp(player.position.x, -17.0, 17.0);
     player.position.z = clamp(player.position.z, doorPassable ? -6.5 : 1.0, 22.0);
@@ -1667,24 +1911,24 @@ function updateGame(dt, elapsed) {
   if (insideHouse && doorPassable && player.position.z > 0.85) setHouseZone(false);
   playerPosition.copy(player.position);
 
-  // Companion follows
-  const side = new THREE.Vector3(Math.cos(cameraYaw), 0, Math.sin(cameraYaw)).multiplyScalar(-1.05);
-  const behind = new THREE.Vector3(Math.sin(cameraYaw), 0, Math.cos(cameraYaw)).multiplyScalar(0.42);
+  // Companion follows gracefully
+  const side = new THREE.Vector3(Math.cos(cameraYaw), 0, Math.sin(cameraYaw)).multiplyScalar(-1.15);
+  const behind = new THREE.Vector3(Math.sin(cameraYaw), 0, Math.cos(cameraYaw)).multiplyScalar(0.48);
   const followTarget = player.position.clone().add(side).add(behind);
   if (insideHouse) {
-    followTarget.x = clamp(followTarget.x, -9.4, 9.4); followTarget.z = clamp(followTarget.z, -20.8, -0.5);
+    followTarget.x = clamp(followTarget.x, -9.2, 9.2); followTarget.z = clamp(followTarget.z, -66.8, -0.5);
   } else {
     followTarget.x = clamp(followTarget.x, -15.5, 15.5); followTarget.z = clamp(followTarget.z, 1.2, 21.5);
   }
 
-  companion.position.lerp(followTarget, 1 - Math.exp(-dt * 2.8));
+  companion.position.lerp(followTarget, 1 - Math.exp(-dt * 3.0));
   const toPlayer = player.position.clone().sub(companion.position); toPlayer.y = 0;
   if (toPlayer.lengthSq() > 0.01) {
     const compTargetRot = Math.atan2(-toPlayer.x, -toPlayer.z);
     companion.rotation.y = lerpAngle(companion.rotation.y, compTargetRot, 1 - Math.exp(-dt * 12.0));
   }
 
-  animateAvatar(player, elapsed, isMoving, 0, currentSpeed / 3.5);
+  animateAvatar(player, elapsed, isMoving, 0, currentSpeed / 3.6);
   animateAvatar(companion, elapsed, isMoving && companion.position.distanceTo(player.position) > 0.8, 1.4, 1.0);
 
   updateCamera(1, dt);
@@ -1734,8 +1978,8 @@ function updateInteractions() {
   }
 
   if (insideHouse) {
-    const dMantel = Math.hypot(player.position.x - 0, player.position.z - (-21.5));
-    if (dMantel < 3.2) {
+    const dMantel = Math.hypot(player.position.x - 0, player.position.z - (-67.5));
+    if (dMantel < 3.8) {
       nearestInteractable = { type: 'anniversary-mantle' };
       card.classList.remove('is-hidden');
       copy.textContent = 'کتیبه‌ی ۱ سالگی عشقمون؛ برای دیدن جشن دکمه را بزن';
@@ -1745,7 +1989,7 @@ function updateInteractions() {
       return;
     }
 
-    const dBook = Math.hypot(player.position.x - 0.42, player.position.z - (-10.85));
+    const dBook = Math.hypot(player.position.x - 0.42, player.position.z - (-62.35));
     if (dBook < 2.4) {
       nearestInteractable = { type: 'love-letter' };
       card.classList.remove('is-hidden');
@@ -1779,7 +2023,7 @@ function updateInteractions() {
     const distance = Math.sqrt(dx * dx + dz * dz);
     if (distance < bestDistance) { bestDistance = distance; best = record; }
   }
-  nearestMemory = bestDistance < 3.8 ? best : null;
+  nearestMemory = bestDistance < 4.2 ? best : null;
   if (nearestMemory && started && !currentMemory) {
     card.classList.remove('is-hidden');
     copy.textContent = `برای دیدن «${nearestMemory.memory.title}» دکمه را بزن`;
@@ -1954,9 +2198,9 @@ function showToast(message) {
 }
 
 function resetCameraView() {
-  targetYaw = insideHouse ? 0 : 0;
-  targetPitch = insideHouse ? 0.18 : 0.22;
-  targetDistance = insideHouse ? 5.6 : 7.8;
+  targetYaw = 0;
+  targetPitch = insideHouse ? 0.16 : 0.22;
+  targetDistance = insideHouse ? 6.4 : 8.0;
   yawVelocity = 0;
   pitchVelocity = 0;
   showToast('زاویه‌ی دوربین تنظیم شد');
@@ -1998,7 +2242,10 @@ function startGame() {
   updateLoveUI();
 
   insideHouse = false; entryQueued = false; movementTarget = null; doorProgress = 0; doorTarget = 0;
-  keys.clear(); resetJoystick();
+  keys.clear();
+  touchMoveActive = false;
+  if (dynamicTouchIndicator) dynamicTouchIndicator.hidden = true;
+
   if (leftDoorPivot) leftDoorPivot.rotation.y = 0;
   if (rightDoorPivot) rightDoorPivot.rotation.y = 0;
   player.position.copy(playerPosition); player.rotation.y = 0;
@@ -2008,7 +2255,7 @@ function startGame() {
   companion.position.set(-1.15, 0, playerPosition.z + 1.0); companion.rotation.y = 0;
   cameraYaw = 0; targetYaw = 0; yawVelocity = 0;
   cameraPitch = 0.22; targetPitch = 0.22; pitchVelocity = 0;
-  cameraDistance = 7.8; targetDistance = 7.8;
+  cameraDistance = 8.0; targetDistance = 8.0;
   updateSceneLocation();
 
   player.userData.label.material.map.dispose();
@@ -2026,21 +2273,23 @@ function startGame() {
   hud.classList.remove('is-hidden');
   canvas.focus({ preventScroll: true });
   setTimeout(() => { intro.hidden = true; }, 850);
-  showToast('از حیاط به سمت راهروی خاطرات برو یا به تندیس قلب سر بزن 🌸');
+  showToast('انگشتت را روی صفحه بکش تا آزادانه حرکت کنی 🌸');
 }
 
-function raycastInteractive(event) {
+// Raycasting for Direct Taps (Frames, Altar, Love Monument or Ground)
+function handleScreenTap(clientX, clientY) {
   if (!started || !camera || currentMemory || !renderer) return;
   const rect = canvas.getBoundingClientRect();
-  pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
-  pointer.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+  pointer.x = ((clientX - rect.left) / rect.width) * 2 - 1;
+  pointer.y = -((clientY - rect.top) / rect.height) * 2 + 1;
   raycaster.setFromCamera(pointer, camera);
 
+  // 1. Check Interactive Objects
   const intHits = raycaster.intersectObjects(interactiveTargets, true);
   if (intHits.length) {
     const hitObj = intHits[0].object;
     if (hitObj.userData?.type === 'love-monument') {
-      addLoveCount(event);
+      addLoveCount({ clientX, clientY });
       return;
     }
     if (hitObj.userData?.type === 'anniversary-mantle') {
@@ -2053,29 +2302,54 @@ function raycastInteractive(event) {
     }
   }
 
+  // 2. Check Memory Frames
   if (insideHouse) {
-    const hits = raycaster.intersectObjects(frameTargets, false);
-    if (hits.length) {
-      const target = hits[0].object;
+    const frameHits = raycaster.intersectObjects(frameTargets, false);
+    if (frameHits.length) {
+      const target = frameHits[0].object;
       openMemory(target.userData.memory, target.userData.index);
+      return;
     }
+  }
+
+  // 3. Direct Tap-To-Walk on Ground / Walkway
+  const floorHits = raycaster.intersectObjects(floorTargets, false);
+  if (floorHits.length) {
+    const hit = floorHits[0];
+    const targetPt = hit.point;
+
+    // Constrain target within playable area
+    if (insideHouse) {
+      targetPt.x = clamp(targetPt.x, -8.5, 8.5);
+      targetPt.z = clamp(targetPt.z, -66.5, 0.5);
+    } else {
+      targetPt.x = clamp(targetPt.x, -16.0, 16.0);
+      targetPt.z = clamp(targetPt.z, 0.5, 21.0);
+    }
+
+    movementTarget = new THREE.Vector3(targetPt.x, 0, targetPt.z);
+
+    // Show Tap Marker at Screen Coord
+    if (mobileTapMarker) {
+      mobileTapMarker.style.left = `${clientX}px`;
+      mobileTapMarker.style.top = `${clientY}px`;
+      mobileTapMarker.hidden = false;
+      clearTimeout(tapMarkerTimer);
+      tapMarkerTimer = setTimeout(() => { mobileTapMarker.hidden = true; }, 900);
+    }
+
+    playRomanticChime(587.33);
+    triggerHeartFX(clientX, clientY, 2);
   }
 }
 
 function handleResize() {
   if (!camera || !renderer) return;
   camera.aspect = window.innerWidth / window.innerHeight;
-  camera.fov = window.innerWidth < 700 ? 55 : 49;
+  camera.fov = window.innerWidth < 700 ? 56 : 48;
   camera.updateProjectionMatrix();
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, isMobileViewport() ? 1.25 : 1.75));
   renderer.setSize(window.innerWidth, window.innerHeight);
-}
-
-function resetJoystick() {
-  const knob = $('#joystick-knob');
-  if (knob) knob.style.transform = 'translate3d(0, 0, 0)';
-  joystickPointerId = null;
-  keys.delete('KeyW'); keys.delete('KeyS'); keys.delete('KeyA'); keys.delete('KeyD');
 }
 
 function setupEvents() {
@@ -2168,7 +2442,7 @@ function setupEvents() {
 
   window.addEventListener('wheel', (e) => {
     if (currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden || !loveletterOverlay.hidden) return;
-    targetDistance = clamp(targetDistance + e.deltaY * 0.005, 3.2, 12.0);
+    targetDistance = clamp(targetDistance + e.deltaY * 0.005, 2.2, 11.5);
   }, { passive: true });
 
   window.addEventListener('keydown', (e) => {
@@ -2190,44 +2464,124 @@ function setupEvents() {
     keys.delete(e.code);
   });
 
+  // --- Dynamic On-Screen Direct Touch & Drag Handling ---
   canvas.addEventListener('pointerdown', (e) => {
-    if (e.target.closest('#touch-pad')) return;
-    isDragging = true;
-    dragPointerId = e.pointerId;
-    lastDragX = e.clientX;
-    lastDragY = e.clientY;
+    if (!started || currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden || !loveletterOverlay.hidden) return;
+
+    touchStartTime = Date.now();
     pointerMoved = false;
-    yawVelocity = 0;
-    pitchVelocity = 0;
+
+    // Touch device or mobile viewport: Primary touch is movement, secondary touch is camera
+    if (e.pointerType === 'touch' || isMobileViewport()) {
+      if (touchMovePointerId === null) {
+        touchMovePointerId = e.pointerId;
+        touchOriginX = e.clientX;
+        touchOriginY = e.clientY;
+        touchMoveActive = false;
+        touchVector.set(0, 0);
+
+        if (dynamicTouchIndicator) {
+          dynamicTouchIndicator.style.left = `${touchOriginX}px`;
+          dynamicTouchIndicator.style.top = `${touchOriginY}px`;
+          dynamicTouchIndicator.hidden = false;
+        }
+        if (touchKnobInner) {
+          touchKnobInner.style.transform = 'translate3d(0, 0, 0)';
+        }
+        touchHintPill?.classList.add('is-hidden');
+      } else if (cameraDragPointerId === null) {
+        cameraDragPointerId = e.pointerId;
+        isDraggingCamera = true;
+        lastDragX = e.clientX;
+        lastDragY = e.clientY;
+        yawVelocity = 0;
+        pitchVelocity = 0;
+      }
+    } else {
+      // Desktop Mouse Drag = Camera Rotation
+      isDraggingCamera = true;
+      cameraDragPointerId = e.pointerId;
+      lastDragX = e.clientX;
+      lastDragY = e.clientY;
+      yawVelocity = 0;
+      pitchVelocity = 0;
+    }
   });
 
   window.addEventListener('pointermove', (e) => {
-    if (!isDragging || e.pointerId !== dragPointerId) return;
-    const dx = e.clientX - lastDragX;
-    const dy = e.clientY - lastDragY;
-    if (Math.hypot(dx, dy) > 4) pointerMoved = true;
+    // 1. Handle Active Touch Movement on screen
+    if (e.pointerId === touchMovePointerId) {
+      const dx = e.clientX - touchOriginX;
+      const dy = e.clientY - touchOriginY;
+      const dist = Math.hypot(dx, dy);
 
-    targetYaw -= dx * 0.0048;
-    targetPitch = clamp(targetPitch + dy * 0.0035, 0.02, 0.62);
+      if (dist > 8) {
+        pointerMoved = true;
+        touchMoveActive = true;
+        movementTarget = null; // direct drag takes priority
 
-    yawVelocity = -dx * 0.0048 / 0.016;
-    pitchVelocity = dy * 0.0035 / 0.016;
+        const maxR = 38;
+        const angle = Math.atan2(dy, dx);
+        const knobX = Math.cos(angle) * Math.min(dist, maxR);
+        const knobY = Math.sin(angle) * Math.min(dist, maxR);
 
-    lastDragX = e.clientX;
-    lastDragY = e.clientY;
+        if (touchKnobInner) {
+          touchKnobInner.style.transform = `translate3d(${knobX}px, ${knobY}px, 0)`;
+        }
+
+        const normalizedPower = clamp((dist - 6) / 34, 0.2, 1.0);
+        touchVector.set(Math.cos(angle) * normalizedPower, Math.sin(angle) * normalizedPower);
+      }
+    }
+
+    // 2. Handle Camera Drag Rotation
+    if (isDraggingCamera && e.pointerId === cameraDragPointerId) {
+      const dx = e.clientX - lastDragX;
+      const dy = e.clientY - lastDragY;
+      if (Math.hypot(dx, dy) > 4) pointerMoved = true;
+
+      targetYaw -= dx * 0.0048;
+      targetPitch = clamp(targetPitch + dy * 0.0035, 0.02, 0.58);
+
+      yawVelocity = -dx * 0.0048 / 0.016;
+      pitchVelocity = dy * 0.0035 / 0.016;
+
+      lastDragX = e.clientX;
+      lastDragY = e.clientY;
+    }
   });
 
-  const finishDrag = (e) => {
-    if (isDragging && e.pointerId === dragPointerId) {
-      isDragging = false;
-      if (!pointerMoved && Date.now() > suppressClickUntil) {
-        raycastInteractive(e);
+  const finishTouch = (e) => {
+    // Finish on-screen movement touch
+    if (e.pointerId === touchMovePointerId) {
+      const tapDuration = Date.now() - touchStartTime;
+      const wasTap = !pointerMoved && tapDuration < 350;
+
+      touchMovePointerId = null;
+      touchMoveActive = false;
+      touchVector.set(0, 0);
+      if (dynamicTouchIndicator) dynamicTouchIndicator.hidden = true;
+      if (touchKnobInner) touchKnobInner.style.transform = 'translate3d(0, 0, 0)';
+
+      if (wasTap) {
+        handleScreenTap(e.clientX, e.clientY);
+      }
+    }
+
+    // Finish camera drag
+    if (isDraggingCamera && e.pointerId === cameraDragPointerId) {
+      isDraggingCamera = false;
+      cameraDragPointerId = null;
+      if (!pointerMoved && Date.now() - touchStartTime < 350) {
+        handleScreenTap(e.clientX, e.clientY);
       }
     }
   };
-  window.addEventListener('pointerup', finishDrag);
-  window.addEventListener('pointercancel', finishDrag);
 
+  window.addEventListener('pointerup', finishTouch);
+  window.addEventListener('pointercancel', finishTouch);
+
+  // Pinch-to-zoom for mobile touch
   canvas.addEventListener('touchstart', (e) => {
     if (e.touches.length === 2) {
       prevPinchDist = Math.hypot(
@@ -2244,7 +2598,7 @@ function setupEvents() {
         e.touches[0].clientY - e.touches[1].clientY
       );
       const delta = prevPinchDist - dist;
-      targetDistance = clamp(targetDistance + delta * 0.02, 3.2, 12.0);
+      targetDistance = clamp(targetDistance + delta * 0.02, 2.2, 11.5);
       prevPinchDist = dist;
     }
   }, { passive: true });
@@ -2252,38 +2606,6 @@ function setupEvents() {
   canvas.addEventListener('touchend', (e) => {
     if (e.touches.length < 2) prevPinchDist = null;
   });
-
-  touchPad?.addEventListener('pointerdown', (e) => {
-    joystickPointerId = e.pointerId;
-    const rect = $('#touch-pad .joystick-base').getBoundingClientRect();
-    joystickCenter = { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
-  });
-
-  window.addEventListener('pointermove', (e) => {
-    if (e.pointerId !== joystickPointerId || !joystickCenter) return;
-    const dx = e.clientX - joystickCenter.x;
-    const dy = e.clientY - joystickCenter.y;
-    const maxDist = 38;
-    const dist = Math.hypot(dx, dy);
-    const clampedDist = Math.min(dist, maxDist);
-    const angle = Math.atan2(dy, dx);
-    const knobX = Math.cos(angle) * clampedDist;
-    const knobY = Math.sin(angle) * clampedDist;
-    const knob = $('#joystick-knob');
-    if (knob) knob.style.transform = `translate3d(${knobX}px, ${knobY}px, 0)`;
-
-    const threshold = 12;
-    if (dy < -threshold) keys.add('KeyW'); else keys.delete('KeyW');
-    if (dy > threshold) keys.add('KeyS'); else keys.delete('KeyS');
-    if (dx < -threshold) keys.add('KeyA'); else keys.delete('KeyA');
-    if (dx > threshold) keys.add('KeyD'); else keys.delete('KeyD');
-  });
-
-  const finishJoystick = (e) => {
-    if (e.pointerId === joystickPointerId) resetJoystick();
-  };
-  window.addEventListener('pointerup', finishJoystick);
-  window.addEventListener('pointercancel', finishJoystick);
 }
 
 // Initial Setup
