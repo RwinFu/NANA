@@ -724,144 +724,416 @@ function createSpriteLabel(text, accent = '#ffd875') {
   return sprite;
 }
 
-// Gorgeous Miniature Chibi Princess Avatar in Pink Royal Ballgown
+// --- High-Resolution Expressive Anime / Chibi Face Textures ---
+function createPrincessFaceTexture(skinHex = '#ffe5d9') {
+  return makeCanvasTexture((ctx, w, h) => {
+    // Fill base skin tone
+    ctx.fillStyle = typeof skinHex === 'number' ? `#${skinHex.toString(16).padStart(6, '0')}` : skinHex;
+    ctx.fillRect(0, 0, w, h);
+
+    const cx = w / 2;
+    const cy = h / 2 + 10;
+
+    // Airbrushed Soft Rosy Cheeks (Blush)
+    for (const [bx, by] of [[cx - 105, cy + 28], [cx + 105, cy + 28]]) {
+      const blushGrad = ctx.createRadialGradient(bx, by, 4, bx, by, 58);
+      blushGrad.addColorStop(0, 'rgba(255, 80, 125, 0.68)');
+      blushGrad.addColorStop(0.5, 'rgba(255, 120, 150, 0.35)');
+      blushGrad.addColorStop(1, 'rgba(255, 140, 160, 0)');
+      ctx.fillStyle = blushGrad;
+      ctx.beginPath();
+      ctx.arc(bx, by, 58, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Cute blush sparkle marks (✨ / ✦)
+      ctx.fillStyle = 'rgba(255, 245, 248, 0.95)';
+      ctx.font = 'bold 18px Arial';
+      ctx.fillText('✦', bx - 12, by - 8);
+      ctx.font = 'bold 13px Arial';
+      ctx.fillText('✦', bx + 16, by + 10);
+    }
+
+    // --- Sparkling Anime Princess Eyes ---
+    const eyeSpacing = 82;
+    const eyeY = cy - 20;
+    const eyeW = 46;
+    const eyeH = 60;
+
+    for (const eyeX of [cx - eyeSpacing, cx + eyeSpacing]) {
+      const isLeft = eyeX < cx;
+
+      // Eye sclera (soft white base)
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(eyeX, eyeY, eyeW, eyeH, 0, 0, Math.PI * 2);
+      ctx.clip();
+
+      ctx.fillStyle = '#fffaff';
+      ctx.fillRect(eyeX - eyeW - 10, eyeY - eyeH - 10, eyeW * 2 + 20, eyeH * 2 + 20);
+
+      // Gradient Iris (Deep Berry Rose / Amber Chocolate)
+      const irisGrad = ctx.createLinearGradient(eyeX, eyeY - eyeH, eyeX, eyeY + eyeH);
+      irisGrad.addColorStop(0, '#2b0c18');
+      irisGrad.addColorStop(0.35, '#5c1a32');
+      irisGrad.addColorStop(0.7, '#c92a58');
+      irisGrad.addColorStop(1, '#ff758f');
+
+      ctx.fillStyle = irisGrad;
+      ctx.beginPath();
+      ctx.ellipse(eyeX, eyeY + 4, eyeW - 6, eyeH - 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Deep dark pupil
+      ctx.fillStyle = '#1a0610';
+      ctx.beginPath();
+      ctx.ellipse(eyeX, eyeY - 2, 20, 26, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Inner glowing crescent
+      ctx.fillStyle = 'rgba(255, 182, 193, 0.55)';
+      ctx.beginPath();
+      ctx.arc(eyeX, eyeY + 22, 19, 0.1 * Math.PI, 0.9 * Math.PI);
+      ctx.fill();
+
+      // Main big glossy highlight (top-left)
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.ellipse(eyeX - (isLeft ? 13 : 9), eyeY - 16, 14, 18, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Secondary star/heart sparkle (bottom-right)
+      ctx.fillStyle = 'rgba(255, 255, 255, 0.92)';
+      ctx.beginPath();
+      ctx.arc(eyeX + (isLeft ? 12 : 14), eyeY + 16, 7.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(eyeX - 8, eyeY + 24, 4.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+
+      // Upper Eyeliner & Curled Eyelashes
+      ctx.strokeStyle = '#200c16';
+      ctx.lineWidth = 7.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(eyeX, eyeY - 4, eyeW + 2, Math.PI * 1.08, Math.PI * 1.92);
+      ctx.stroke();
+
+      // Curled eyelash flicks
+      const flickDir = isLeft ? -1 : 1;
+      ctx.lineWidth = 4.5;
+      ctx.beginPath();
+      ctx.moveTo(eyeX + flickDir * (eyeW - 4), eyeY - 24);
+      ctx.quadraticCurveTo(
+        eyeX + flickDir * (eyeW + 16), eyeY - 36,
+        eyeX + flickDir * (eyeW + 22), eyeY - 42
+      );
+      ctx.stroke();
+
+      // Delicate Eyebrows
+      ctx.strokeStyle = '#5c3326';
+      ctx.lineWidth = 4.5;
+      ctx.beginPath();
+      ctx.arc(eyeX, eyeY - 56, 40, Math.PI * 1.18, Math.PI * 1.82);
+      ctx.stroke();
+    }
+
+    // Cute Subtle Nose Shading
+    ctx.fillStyle = 'rgba(216, 120, 110, 0.45)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 24, 4.5, 3.5, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Sweet Smiling Mouth with Pink Gloss
+    ctx.strokeStyle = '#b82a4a';
+    ctx.lineWidth = 4.5;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(cx, cy + 46, 20, 0.15 * Math.PI, 0.85 * Math.PI);
+    ctx.stroke();
+
+    // Soft Lip Tint
+    ctx.fillStyle = 'rgba(255, 100, 130, 0.35)';
+    ctx.beginPath();
+    ctx.arc(cx, cy + 48, 15, 0.2 * Math.PI, 0.8 * Math.PI);
+    ctx.fill();
+  }, 512, 512);
+}
+
+function createCompanionFaceTexture(skinHex = '#ecd4c2') {
+  return makeCanvasTexture((ctx, w, h) => {
+    // Fill base skin color
+    ctx.fillStyle = typeof skinHex === 'number' ? `#${skinHex.toString(16).padStart(6, '0')}` : skinHex;
+    ctx.fillRect(0, 0, w, h);
+
+    const cx = w / 2;
+    const cy = h / 2 + 10;
+
+    // Gentle Warm Peach Blush
+    for (const [bx, by] of [[cx - 100, cy + 28], [cx + 100, cy + 28]]) {
+      const blushGrad = ctx.createRadialGradient(bx, by, 4, bx, by, 48);
+      blushGrad.addColorStop(0, 'rgba(240, 105, 105, 0.45)');
+      blushGrad.addColorStop(0.6, 'rgba(240, 135, 125, 0.2)');
+      blushGrad.addColorStop(1, 'rgba(240, 135, 125, 0)');
+      ctx.fillStyle = blushGrad;
+      ctx.beginPath();
+      ctx.arc(bx, by, 48, 0, Math.PI * 2);
+      ctx.fill();
+    }
+
+    // --- Handsome Anime / Chibi Eyes ---
+    const eyeSpacing = 82;
+    const eyeY = cy - 20;
+    const eyeW = 44;
+    const eyeH = 54;
+
+    for (const eyeX of [cx - eyeSpacing, cx + eyeSpacing]) {
+      const isLeft = eyeX < cx;
+
+      ctx.save();
+      ctx.beginPath();
+      ctx.ellipse(eyeX, eyeY, eyeW, eyeH, 0, 0, Math.PI * 2);
+      ctx.clip();
+
+      ctx.fillStyle = '#fffaff';
+      ctx.fillRect(eyeX - eyeW - 10, eyeY - eyeH - 10, eyeW * 2 + 20, eyeH * 2 + 20);
+
+      // Gradient Iris (Deep Warm Amber / Mocha)
+      const irisGrad = ctx.createLinearGradient(eyeX, eyeY - eyeH, eyeX, eyeY + eyeH);
+      irisGrad.addColorStop(0, '#1c1514');
+      irisGrad.addColorStop(0.4, '#38221b');
+      irisGrad.addColorStop(0.8, '#7a4531');
+      irisGrad.addColorStop(1, '#a66848');
+
+      ctx.fillStyle = irisGrad;
+      ctx.beginPath();
+      ctx.ellipse(eyeX, eyeY + 2, eyeW - 6, eyeH - 4, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Pupil
+      ctx.fillStyle = '#0f0a09';
+      ctx.beginPath();
+      ctx.ellipse(eyeX, eyeY - 2, 18, 24, 0, 0, Math.PI * 2);
+      ctx.fill();
+
+      // Glossy specular highlight
+      ctx.fillStyle = '#ffffff';
+      ctx.beginPath();
+      ctx.ellipse(eyeX - (isLeft ? 12 : 8), eyeY - 14, 12, 15, -0.2, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.arc(eyeX + (isLeft ? 10 : 12), eyeY + 14, 6.5, 0, Math.PI * 2);
+      ctx.fill();
+
+      ctx.restore();
+
+      // Upper Eyeliner
+      ctx.strokeStyle = '#181210';
+      ctx.lineWidth = 6.5;
+      ctx.lineCap = 'round';
+      ctx.beginPath();
+      ctx.arc(eyeX, eyeY - 2, eyeW + 2, Math.PI * 1.1, Math.PI * 1.9);
+      ctx.stroke();
+
+      // Handsome Defined Eyebrows
+      ctx.strokeStyle = '#281a16';
+      ctx.lineWidth = 5.2;
+      ctx.beginPath();
+      ctx.moveTo(eyeX - (isLeft ? 36 : 32), eyeY - 46);
+      ctx.quadraticCurveTo(eyeX, eyeY - 58, eyeX + (isLeft ? 32 : 36), eyeY - 48);
+      ctx.stroke();
+    }
+
+    // Subtle Nose
+    ctx.fillStyle = 'rgba(180, 110, 90, 0.4)';
+    ctx.beginPath();
+    ctx.ellipse(cx, cy + 24, 4.2, 3.2, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    // Charming Confident Smile
+    ctx.strokeStyle = '#7a3228';
+    ctx.lineWidth = 4.2;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.arc(cx, cy + 46, 18, 0.12 * Math.PI, 0.88 * Math.PI);
+    ctx.stroke();
+  }, 512, 512);
+}
+
+// Gorgeous High-Quality Chibi Princess Avatar in Royal Silk Ballgown
 function createPrincessAvatar(options = {}) {
   const root = new THREE.Group();
   const rig = new THREE.Group(); root.add(rig);
 
-  const skin = colorMaterial(options.skin || 0xffe2d2, 0.65);
-  const dressPink = colorMaterial(options.shirt || state.avatarColor || 0xff758f, 0.35, 0.15); // Shimmering Princess Satin
-  const dressAccentPink = colorMaterial(0xffa8ba, 0.45, 0.1);
-  const goldTrim = colorMaterial(0xffd875, 0.25, 0.85);
+  const skinColor = options.skin || 0xffe5d9;
+  const skin = colorMaterial(skinColor, 0.65);
+  const dressPink = colorMaterial(options.shirt || state.avatarColor || 0xff758f, 0.32, 0.18); // Shimmering Royal Satin
+  const dressAccentPink = colorMaterial(0xfff0f4, 0.55, 0.05); // Scalloped Lace / Chiffon
+  const goldTrim = colorMaterial(0xffd875, 0.22, 0.88);
   const pearlMat = colorMaterial(0xffffff, 0.15, 0.9);
-  const hairMat = colorMaterial(options.hair || 0x2b1c18, 0.85);
-  const eyeColor = new THREE.MeshBasicMaterial({ color: 0x1f1412 });
-  const eyeWhite = new THREE.MeshBasicMaterial({ color: 0xffffff });
-  const blushMat = colorMaterial(0xff4d6d, 0.3, 0.1);
+  const hairMat = colorMaterial(options.hair || 0x2a1a15, 0.45, 0.15); // Glossy Brunette / Chocolate
   const rubyGem = new THREE.MeshBasicMaterial({ color: 0xff2a5c });
 
-  // --- Voluminous Princess Ballgown Skirt ---
+  // --- Voluminous Princess Ballgown Skirt (Smooth 32-segment Geometry) ---
   const skirtGroup = new THREE.Group();
   skirtGroup.position.y = 0.98;
   rig.add(skirtGroup);
 
-  // Upper Flared Peplum
-  const peplum = new THREE.Mesh(new THREE.ConeGeometry(0.55, 0.45, 16, 1, true), dressPink);
-  peplum.rotation.x = Math.PI;
-  peplum.position.y = -0.15;
-  peplum.castShadow = true;
-  skirtGroup.add(peplum);
-
   // Main Voluminous Bell Skirt
-  const mainSkirt = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.82, 0.96, 18), dressPink);
-  mainSkirt.position.y = -0.48;
+  const mainSkirtGeom = new THREE.CylinderGeometry(0.26, 0.86, 1.02, 32);
+  const mainSkirt = new THREE.Mesh(mainSkirtGeom, dressPink);
+  mainSkirt.position.y = -0.50;
   mainSkirt.castShadow = true;
   skirtGroup.add(mainSkirt);
 
-  // Bottom Ruffled Lace Tier
-  const skirtHem = new THREE.Mesh(new THREE.CylinderGeometry(0.80, 0.88, 0.16, 18), dressAccentPink);
-  skirtHem.position.y = -0.92;
+  // Bottom Ruffled Lace Tier (Petticoat peeking at hem)
+  const skirtHem = new THREE.Mesh(new THREE.CylinderGeometry(0.84, 0.91, 0.15, 32), dressAccentPink);
+  skirtHem.position.y = -0.96;
   skirtHem.castShadow = true;
   skirtGroup.add(skirtHem);
 
   // Gold Trim Ribbon along skirt hem
-  const hemGoldRing = new THREE.Mesh(new THREE.TorusGeometry(0.86, 0.018, 6, 24), goldTrim);
+  const hemGoldRing = new THREE.Mesh(new THREE.TorusGeometry(0.89, 0.016, 8, 32), goldTrim);
   hemGoldRing.rotation.x = Math.PI / 2;
-  hemGoldRing.position.y = -0.85;
+  hemGoldRing.position.y = -0.89;
   skirtGroup.add(hemGoldRing);
 
   // Big Princess Silk Ribbon Bow at the back of waist
   const bowGroup = new THREE.Group();
   bowGroup.position.set(0, 1.02, 0.28);
-  const bowCenter = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), goldTrim);
+  const bowCenter = new THREE.Mesh(new THREE.SphereGeometry(0.055, 12, 12), rubyGem);
   bowGroup.add(bowCenter);
   for (const sx of [-1, 1]) {
-    const bowLoop = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.035, 6, 12), dressPink);
-    bowLoop.position.set(sx * 0.10, 0.02, 0);
+    const bowLoop = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.038, 8, 16), dressPink);
+    bowLoop.position.set(sx * 0.11, 0.02, 0);
     bowLoop.rotation.y = sx * 0.3;
     bowGroup.add(bowLoop);
-    const streamer = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.42, 0.02), dressPink);
-    streamer.position.set(sx * 0.07, -0.22, 0.02);
+    const streamer = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.44, 0.02), dressPink);
+    streamer.position.set(sx * 0.08, -0.22, 0.02);
     streamer.rotation.z = sx * -0.22;
     bowGroup.add(streamer);
   }
   rig.add(bowGroup);
 
   // --- Bodice & Sweetheart Corset ---
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.25, 0.52, 4, 12), dressPink);
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.24, 0.48, 8, 24), dressPink);
   torso.position.y = 1.34;
   torso.castShadow = true;
   rig.add(torso);
 
   // Gold Corset Filigree & Sweetheart neckline trim
-  const waistGoldBand = new THREE.Mesh(new THREE.TorusGeometry(0.25, 0.016, 6, 18), goldTrim);
+  const waistGoldBand = new THREE.Mesh(new THREE.TorusGeometry(0.245, 0.016, 8, 24), goldTrim);
   waistGoldBand.rotation.x = Math.PI / 2;
   waistGoldBand.position.set(0, 1.05, 0);
   rig.add(waistGoldBand);
 
-  const neckline = new THREE.Mesh(new THREE.TorusGeometry(0.15, 0.016, 6, 16), goldTrim);
+  const neckline = new THREE.Mesh(new THREE.TorusGeometry(0.145, 0.016, 8, 24), goldTrim);
   neckline.rotation.x = Math.PI / 2.2;
-  neckline.position.set(0, 1.62, -0.16);
+  neckline.position.set(0, 1.62, -0.15);
+  neckline.castShadow = true;
   rig.add(neckline);
 
   // Pearl Necklace Choker with Heart Pendant
-  const choker = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.012, 6, 16), pearlMat);
+  const choker = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.012, 8, 24), pearlMat);
   choker.rotation.x = Math.PI / 2;
   choker.position.set(0, 1.76, -0.01);
   rig.add(choker);
 
-  const heartPendant = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), rubyGem);
+  const heartPendant = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 10), rubyGem);
   heartPendant.position.set(0, 1.72, -0.13);
   rig.add(heartPendant);
 
   // Hidden legs inside gown for smooth foot steps
-  const leftLeg = new THREE.Group(); leftLeg.position.set(-0.12, 0.65, 0); rig.add(leftLeg);
-  const rightLeg = new THREE.Group(); rightLeg.position.set(0.12, 0.65, 0); rig.add(rightLeg);
+  const leftLeg = new THREE.Group(); leftLeg.position.set(-0.11, 0.65, 0); rig.add(leftLeg);
+  const rightLeg = new THREE.Group(); rightLeg.position.set(0.11, 0.65, 0); rig.add(rightLeg);
   for (const leg of [leftLeg, rightLeg]) {
-    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.24), goldTrim);
-    shoe.position.set(0, -0.62, -0.05);
+    const shoe = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.08, 0.22), goldTrim);
+    shoe.position.set(0, -0.62, -0.04);
     shoe.castShadow = true;
     leg.add(shoe);
   }
 
   // --- Delicate Princess Arms with Puffy Off-shoulder Sleeves ---
-  const leftArm = new THREE.Group(); leftArm.position.set(-0.31, 1.54, 0); rig.add(leftArm);
-  const rightArm = new THREE.Group(); rightArm.position.set(0.31, 1.54, 0); rig.add(rightArm);
+  const leftArm = new THREE.Group(); leftArm.position.set(-0.30, 1.54, 0); rig.add(leftArm);
+  const rightArm = new THREE.Group(); rightArm.position.set(0.30, 1.54, 0); rig.add(rightArm);
   for (const arm of [leftArm, rightArm]) {
     // Puffy Sleeve Cap
-    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.11, 10, 8), dressAccentPink);
+    const puff = new THREE.Mesh(new THREE.SphereGeometry(0.115, 14, 12), dressAccentPink);
     puff.scale.set(1.1, 0.9, 1.1);
     arm.add(puff);
 
-    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.072, 0.40, 3, 8), dressPink);
+    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.068, 0.40, 6, 14), dressPink);
     sleeve.position.y = -0.24; sleeve.rotation.z = arm === leftArm ? -0.06 : 0.06; sleeve.castShadow = true; arm.add(sleeve);
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.075, 8, 8), skin);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.072, 12, 10), skin);
     hand.position.y = -0.52; hand.castShadow = true; arm.add(hand);
   }
 
-  // --- Beautiful Princess Face & Cascading Hair ---
+  // --- High-Resolution Princess Head & Sparkling Anime Face ---
   const head = new THREE.Group(); head.position.set(0, 2.06, 0); rig.add(head);
-  const face = new THREE.Mesh(new THREE.SphereGeometry(0.235, 16, 14), skin);
-  face.scale.set(0.92, 1.04, 0.92); face.castShadow = true; head.add(face);
 
-  // Hair Base
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.252, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.58), hairMat);
-  cap.position.y = 0.05; cap.castShadow = true; head.add(cap);
+  // Smooth Base Head Sphere (32x24 segments)
+  const faceGeom = new THREE.SphereGeometry(0.24, 32, 24);
+  const faceMesh = new THREE.Mesh(faceGeom, skin);
+  faceMesh.scale.set(0.93, 1.02, 0.93);
+  faceMesh.castShadow = true;
+  head.add(faceMesh);
 
-  // Long flowing hair down the back
-  const backHair = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10), hairMat);
-  backHair.scale.set(1.15, 1.75, 0.75); backHair.position.set(0, -0.22, 0.08); backHair.castShadow = true; head.add(backHair);
+  // High-Res Face Texture Shell (Seamless crystal-clear anime eyes, blush & smile)
+  const faceTex = createPrincessFaceTexture(skinColor);
+  const faceShellGeom = new THREE.SphereGeometry(0.242, 32, 24, -Math.PI * 0.42, Math.PI * 0.84, Math.PI * 0.18, Math.PI * 0.64);
+  const faceShellMat = new THREE.MeshBasicMaterial({ map: faceTex, transparent: true, side: THREE.DoubleSide });
+  const faceShell = new THREE.Mesh(faceShellGeom, faceShellMat);
+  faceShell.scale.set(0.93, 1.02, 0.93);
+  head.add(faceShell);
 
-  // Cascading front locks over shoulders
+  // --- Layered Chibi Anime Hair (Voluminous Cap, Front Bangs & Side Curls) ---
+  // Main Hair Cap
+  const hairCapGeom = new THREE.SphereGeometry(0.258, 32, 24, 0, Math.PI * 2, 0, Math.PI * 0.60);
+  const hairCap = new THREE.Mesh(hairCapGeom, hairMat);
+  hairCap.position.y = 0.04;
+  hairCap.castShadow = true;
+  head.add(hairCap);
+
+  // Voluminous Back Hair cascading down
+  const backHair = new THREE.Mesh(new THREE.SphereGeometry(0.265, 20, 18), hairMat);
+  backHair.scale.set(1.12, 1.72, 0.78);
+  backHair.position.set(0, -0.22, 0.08);
+  backHair.castShadow = true;
+  head.add(backHair);
+
+  // Layered Sculpted Bangs across Forehead (5 curved locks)
+  for (let i = -2; i <= 2; i++) {
+    const ang = i * 0.22;
+    const lockLen = i === 0 ? 0.16 : 0.20;
+    const lock = new THREE.Mesh(new THREE.ConeGeometry(0.042, lockLen, 8), hairMat);
+    lock.rotation.z = -ang * 0.8;
+    lock.rotation.x = Math.PI * 0.88;
+    lock.position.set(Math.sin(ang) * 0.18, 0.12 - Math.abs(i) * 0.02, -0.19 - Math.cos(ang) * 0.04);
+    lock.castShadow = true;
+    head.add(lock);
+  }
+
+  // Cascading Side Locks over shoulders
   for (const side of [-1, 1]) {
-    const lock = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.56, 3, 8), hairMat);
-    lock.position.set(side * 0.21, -0.28, -0.03); lock.rotation.z = side * -0.12; lock.castShadow = true; head.add(lock);
+    const sideLock = new THREE.Mesh(new THREE.CapsuleGeometry(0.068, 0.58, 6, 14), hairMat);
+    sideLock.position.set(side * 0.22, -0.28, -0.04);
+    sideLock.rotation.z = side * -0.12;
+    sideLock.castShadow = true;
+    head.add(sideLock);
+
+    // Pearl Earring
+    const earring = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), pearlMat);
+    earring.position.set(side * 0.24, -0.04, -0.04);
+    head.add(earring);
   }
 
   // --- Sparkling Golden Princess Crown / Tiara ---
   const tiaraGroup = new THREE.Group();
   tiaraGroup.position.set(0, 0.26, -0.02);
-  const crownBase = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.016, 6, 18), goldTrim);
+  const crownBase = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.016, 8, 24), goldTrim);
   crownBase.rotation.x = Math.PI / 2;
   tiaraGroup.add(crownBase);
 
@@ -869,47 +1141,16 @@ function createPrincessAvatar(options = {}) {
   for (let i = -2; i <= 2; i++) {
     const angle = i * 0.24;
     const ptHeight = i === 0 ? 0.22 : Math.abs(i) === 1 ? 0.16 : 0.11;
-    const crownSpike = new THREE.Mesh(new THREE.ConeGeometry(0.032, ptHeight, 5), goldTrim);
+    const crownSpike = new THREE.Mesh(new THREE.ConeGeometry(0.032, ptHeight, 6), goldTrim);
     crownSpike.position.set(Math.sin(angle) * 0.18, ptHeight / 2 + 0.01, -Math.cos(angle) * 0.18);
     tiaraGroup.add(crownSpike);
 
     // Gem on crown peak
-    const gem = new THREE.Mesh(new THREE.SphereGeometry(0.022, 6, 6), i === 0 ? rubyGem : pearlMat);
+    const gem = new THREE.Mesh(new THREE.SphereGeometry(0.022, 8, 8), i === 0 ? rubyGem : pearlMat);
     gem.position.set(Math.sin(angle) * 0.18, ptHeight + 0.02, -Math.cos(angle) * 0.18);
     tiaraGroup.add(gem);
   }
   head.add(tiaraGroup);
-
-  // --- Expressive Princess Eyes, Rosy Blush & Sweet Smile ---
-  for (const side of [-1, 1]) {
-    const eyeWh = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 7), eyeWhite);
-    eyeWh.position.set(side * 0.082, 0.012, -0.21); head.add(eyeWh);
-
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.018, 7, 6), eyeColor);
-    pupil.position.set(side * 0.082, 0.008, -0.235); head.add(pupil);
-
-    // Eye sparkle highlight
-    const glint = new THREE.Mesh(new THREE.SphereGeometry(0.007, 5, 5), eyeWhite);
-    glint.position.set(side * 0.082 - 0.005, 0.015, -0.246); head.add(glint);
-
-    // Eyelash curve
-    const lash = new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.004, 3, 6, Math.PI * 0.5), eyeColor);
-    lash.position.set(side * 0.082, 0.035, -0.215);
-    lash.rotation.z = side > 0 ? 0.2 : Math.PI - 0.2;
-    head.add(lash);
-
-    // Rosy Blush
-    const blush = new THREE.Mesh(new THREE.CircleGeometry(0.042, 12), blushMat);
-    blush.position.set(side * 0.12, -0.04, -0.218);
-    blush.rotation.y = side * 0.32;
-    head.add(blush);
-  }
-
-  const cuteNose = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 6), skin);
-  cuteNose.position.set(0, -0.03, -0.232); head.add(cuteNose);
-
-  const sweetMouth = new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.006, 4, 8, Math.PI), colorMaterial(0xd84c6c, 0.3));
-  sweetMouth.position.set(0, -0.08, -0.215); sweetMouth.rotation.z = Math.PI; head.add(sweetMouth);
 
   const label = createSpriteLabel(options.name || 'پرنسس من', '#ffd875');
   label.position.y = 2.82; rig.add(label);
@@ -930,69 +1171,119 @@ function createPrincessAvatar(options = {}) {
   return root;
 }
 
-// Handsome Miniature Companion Avatar in Dashing Royal Suit
+// Handsome High-Quality Chibi Companion Avatar in Tailored Royal Suit
 function createCompanionAvatar(options = {}) {
   const root = new THREE.Group();
   const rig = new THREE.Group(); root.add(rig);
 
-  const skin = colorMaterial(options.skin || 0xd9aa88, 0.70);
-  const suitMat = colorMaterial(options.shirt || 0x24222b, 0.55, 0.1);
-  const shirtWhite = colorMaterial(0xffffff, 0.45);
-  const goldTrim = colorMaterial(0xffd875, 0.25, 0.85);
-  const pantsMat = colorMaterial(0x1e1c24, 0.75);
-  const shoe = colorMaterial(0x141218, 0.6);
-  const hair = colorMaterial(options.hair || 0x2e2420, 0.90);
-  const eye = new THREE.MeshBasicMaterial({ color: 0x241a18 });
-  const white = new THREE.MeshBasicMaterial({ color: 0xffffff });
+  const skinColor = options.skin || 0xecd4c2;
+  const skin = colorMaterial(skinColor, 0.68);
+  const suitMat = colorMaterial(options.shirt || 0x1e1c26, 0.50, 0.12); // Tailored Midnight Velvet
+  const shirtWhite = colorMaterial(0xffffff, 0.40);
+  const goldTrim = colorMaterial(0xffd875, 0.22, 0.85);
+  const bowTieMat = colorMaterial(0x8a1c2f, 0.35, 0.2); // Burgundy Silk Bow Tie
+  const pantsMat = colorMaterial(0x18161f, 0.70);
+  const shoeMat = colorMaterial(0x121016, 0.25, 0.4); // Polished Leather
+  const hairMat = colorMaterial(options.hair || 0x241b18, 0.45, 0.10); // Stylish Espresso / Dark Mocha
+  const roseRed = new THREE.MeshBasicMaterial({ color: 0xff2a5c });
+  const leafGreen = colorMaterial(0x2d4c38, 0.85);
 
-  const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.27, 0.34, 10), pantsMat);
+  const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.27, 0.34, 16), pantsMat);
   hips.position.y = 0.78; hips.castShadow = true; rig.add(hips);
 
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.29, 0.56, 4, 10), suitMat);
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 0.54, 6, 20), suitMat);
   torso.position.y = 1.28; torso.castShadow = true; rig.add(torso);
 
-  // White Shirt V-collar & Bow Tie
-  const shirtPanel = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.38, 0.04), shirtWhite);
-  shirtPanel.position.set(0, 1.42, -0.26); rig.add(shirtPanel);
+  // White Dress Shirt Panel & Lapels
+  const shirtPanel = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.38, 0.04), shirtWhite);
+  shirtPanel.position.set(0, 1.42, -0.25); rig.add(shirtPanel);
 
-  const bowTie = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.018, 5, 8), colorMaterial(0x8f1d32, 0.3));
+  // Tuxedo Lapels
+  for (const sx of [-1, 1]) {
+    const lapel = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.36, 0.02), suitMat);
+    lapel.position.set(sx * 0.10, 1.42, -0.27);
+    lapel.rotation.z = sx * -0.15;
+    rig.add(lapel);
+  }
+
+  // Silk Bow Tie
+  const bowTie = new THREE.Mesh(new THREE.TorusGeometry(0.045, 0.018, 6, 12), bowTieMat);
   bowTie.position.set(0, 1.56, -0.29); rig.add(bowTie);
 
+  // Gold Shirt Buttons
   for (const y of [1.22, 1.34]) {
-    const btn = new THREE.Mesh(new THREE.SphereGeometry(0.016, 6, 6), goldTrim);
-    btn.position.set(0, y, -0.285); rig.add(btn);
+    const btn = new THREE.Mesh(new THREE.SphereGeometry(0.016, 8, 8), goldTrim);
+    btn.position.set(0, y, -0.28); rig.add(btn);
   }
 
-  const leftLeg = new THREE.Group(); leftLeg.position.set(-0.14, 0.69, 0); rig.add(leftLeg);
-  const rightLeg = new THREE.Group(); rightLeg.position.set(0.14, 0.69, 0); rig.add(rightLeg);
+  // Red Rose Boutoniere Corsage pinned to left lapel
+  const corsage = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), roseRed);
+  corsage.position.set(0.14, 1.46, -0.28); rig.add(corsage);
+  const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.04, 0.01), leafGreen);
+  leaf.position.set(0.16, 1.44, -0.27); rig.add(leaf);
+
+  // Legs & Polished Dress Shoes
+  const leftLeg = new THREE.Group(); leftLeg.position.set(-0.13, 0.69, 0); rig.add(leftLeg);
+  const rightLeg = new THREE.Group(); rightLeg.position.set(0.13, 0.69, 0); rig.add(rightLeg);
   for (const leg of [leftLeg, rightLeg]) {
-    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.105, 0.46, 3, 8), pantsMat);
+    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.10, 0.46, 4, 12), pantsMat);
     mesh.position.y = -0.28; mesh.castShadow = true; leg.add(mesh);
-    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.11, 0.33), shoe);
-    foot.position.set(0, -0.61, -0.075); foot.castShadow = true; leg.add(foot);
+    const foot = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.10, 0.30), shoeMat);
+    foot.position.set(0, -0.61, -0.06); foot.castShadow = true; leg.add(foot);
   }
 
-  const leftArm = new THREE.Group(); leftArm.position.set(-0.34, 1.56, 0); rig.add(leftArm);
-  const rightArm = new THREE.Group(); rightArm.position.set(0.34, 1.56, 0); rig.add(rightArm);
+  // Arms with tailored suit sleeves
+  const leftArm = new THREE.Group(); leftArm.position.set(-0.33, 1.56, 0); rig.add(leftArm);
+  const rightArm = new THREE.Group(); rightArm.position.set(0.33, 1.56, 0); rig.add(rightArm);
   for (const arm of [leftArm, rightArm]) {
-    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.09, 0.42, 3, 8), suitMat);
+    const sleeve = new THREE.Mesh(new THREE.CapsuleGeometry(0.088, 0.42, 4, 12), suitMat);
     sleeve.position.y = -0.25; sleeve.rotation.z = arm === leftArm ? -0.08 : 0.08; sleeve.castShadow = true; arm.add(sleeve);
-    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), skin);
-    hand.position.y = -0.55; hand.castShadow = true; arm.add(hand);
+    const hand = new THREE.Mesh(new THREE.SphereGeometry(0.082, 12, 10), skin);
+    hand.position.y = -0.54; hand.castShadow = true; arm.add(hand);
   }
 
+  // --- Head & Handsome Face ---
   const head = new THREE.Group(); head.position.set(0, 2.08, 0); rig.add(head);
-  const face = new THREE.Mesh(new THREE.SphereGeometry(0.245, 16, 14), skin);
-  face.scale.set(0.91, 1.06, 0.92); face.castShadow = true; head.add(face);
 
-  const hairCap = new THREE.Mesh(new THREE.SphereGeometry(0.257, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.56), hair);
-  hairCap.position.y = 0.05; hairCap.castShadow = true; head.add(hairCap);
+  // Smooth Base Head Sphere (32x24 segments)
+  const faceGeom = new THREE.SphereGeometry(0.245, 32, 24);
+  const faceMesh = new THREE.Mesh(faceGeom, skin);
+  faceMesh.scale.set(0.92, 1.04, 0.92);
+  faceMesh.castShadow = true;
+  head.add(faceMesh);
 
+  // High-Res Face Texture Shell
+  const faceTex = createCompanionFaceTexture(skinColor);
+  const faceShellGeom = new THREE.SphereGeometry(0.247, 32, 24, -Math.PI * 0.42, Math.PI * 0.84, Math.PI * 0.18, Math.PI * 0.64);
+  const faceShellMat = new THREE.MeshBasicMaterial({ map: faceTex, transparent: true, side: THREE.DoubleSide });
+  const faceShell = new THREE.Mesh(faceShellGeom, faceShellMat);
+  faceShell.scale.set(0.92, 1.04, 0.92);
+  head.add(faceShell);
+
+  // --- Layered Stylish Anime/K-Pop Hair (Side-parted Fringe & Volume) ---
+  const hairCapGeom = new THREE.SphereGeometry(0.262, 32, 24, 0, Math.PI * 2, 0, Math.PI * 0.58);
+  const hairCap = new THREE.Mesh(hairCapGeom, hairMat);
+  hairCap.position.y = 0.04;
+  hairCap.castShadow = true;
+  head.add(hairCap);
+
+  // Layered Sculpted Bangs across Forehead (4 side-parted locks)
+  for (let i = -1.5; i <= 2; i++) {
+    const ang = i * 0.22;
+    const lockLen = 0.18 + Math.abs(i) * 0.03;
+    const lock = new THREE.Mesh(new THREE.ConeGeometry(0.048, lockLen, 8), hairMat);
+    lock.rotation.z = -ang * 0.7 - 0.2;
+    lock.rotation.x = Math.PI * 0.86;
+    lock.position.set(Math.sin(ang) * 0.17 + 0.02, 0.14, -0.19 - Math.cos(ang) * 0.03);
+    lock.castShadow = true;
+    head.add(lock);
+  }
+
+  // Sideburns
   for (const side of [-1, 1]) {
-    const eyeWhiteMesh = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 7), white);
-    eyeWhiteMesh.position.set(side * 0.082, 0.012, -0.218); head.add(eyeWhiteMesh);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.014, 7, 6), eye);
-    pupil.position.set(side * 0.082, 0.008, -0.24); head.add(pupil);
+    const sb = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.18, 0.08), hairMat);
+    sb.position.set(side * 0.23, 0.02, -0.06);
+    head.add(sb);
   }
 
   const label = createSpriteLabel(options.name || 'من', '#ff8fa3');
