@@ -13,6 +13,7 @@ const memoryOverlay = $('#memory-overlay');
 const helpOverlay = $('#help-overlay');
 const anniversaryOverlay = $('#anniversary-overlay');
 const loveletterOverlay = $('#loveletter-overlay');
+const polaroidOverlay = $('#polaroid-overlay');
 const floatingHeartsLayer = $('#floating-hearts');
 
 const dynamicTouchIndicator = $('#dynamic-touch-indicator');
@@ -83,6 +84,62 @@ function playCelebrationChord() {
   notes.forEach((freq, idx) => {
     setTimeout(() => playRomanticChime(freq), idx * 110);
   });
+}
+
+function playCameraShutterSound() {
+  try {
+    initAudio();
+    const osc1 = audioCtx.createOscillator();
+    const g1 = audioCtx.createGain();
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(800, audioCtx.currentTime);
+    osc1.frequency.exponentialRampToValueAtTime(120, audioCtx.currentTime + 0.06);
+    g1.gain.setValueAtTime(0.35, audioCtx.currentTime);
+    g1.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.08);
+    osc1.connect(g1); g1.connect(audioCtx.destination);
+    osc1.start(); osc1.stop(audioCtx.currentTime + 0.09);
+
+    setTimeout(() => {
+      if (!audioCtx) return;
+      const osc2 = audioCtx.createOscillator();
+      const g2 = audioCtx.createGain();
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(1200, audioCtx.currentTime);
+      osc2.frequency.exponentialRampToValueAtTime(300, audioCtx.currentTime + 0.08);
+      g2.gain.setValueAtTime(0.28, audioCtx.currentTime);
+      g2.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.1);
+      osc2.connect(g2); g2.connect(audioCtx.destination);
+      osc2.start(); osc2.stop(audioCtx.currentTime + 0.11);
+    }, 70);
+  } catch (e) {}
+}
+
+function playFireworkSound() {
+  try {
+    initAudio();
+    const osc = audioCtx.createOscillator();
+    const g = audioCtx.createGain();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(300, audioCtx.currentTime);
+    osc.frequency.exponentialRampToValueAtTime(1400, audioCtx.currentTime + 0.4);
+    g.gain.setValueAtTime(0.12, audioCtx.currentTime);
+    g.gain.linearRampToValueAtTime(0.01, audioCtx.currentTime + 0.45);
+    osc.connect(g); g.connect(audioCtx.destination);
+    osc.start(); osc.stop(audioCtx.currentTime + 0.46);
+
+    setTimeout(() => {
+      if (!audioCtx) return;
+      const osc2 = audioCtx.createOscillator();
+      const g2 = audioCtx.createGain();
+      osc2.type = 'triangle';
+      osc2.frequency.setValueAtTime(140, audioCtx.currentTime);
+      osc2.frequency.exponentialRampToValueAtTime(35, audioCtx.currentTime + 0.6);
+      g2.gain.setValueAtTime(0.35, audioCtx.currentTime);
+      g2.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.7);
+      osc2.connect(g2); g2.connect(audioCtx.destination);
+      osc2.start(); osc2.stop(audioCtx.currentTime + 0.75);
+    }, 380);
+  } catch (e) {}
 }
 
 // Procedural Romantic Piano Melody Generator
@@ -303,6 +360,21 @@ const fairyBulbs = [];
 const candleFlames = [];
 const giantLetterHearts = [];
 const activePointers = new Map();
+
+// Couple Emotes & Poses State
+let couplePose = 'normal'; // 'normal' | 'dance' | 'kiss' | 'holding_hands' | 'sitting'
+let poseTimer = 0;
+
+// Magic Footsteps State
+const magicFootsteps = [];
+let lastFootstepTime = 0;
+let footstepToggle = false;
+
+// Fireworks, Sky Lanterns & Meteors State
+const activeFireworks = [];
+const activeLanterns = [];
+const activeMeteors = [];
+let nextMeteorTime = 3.5;
 
 const keys = new Set();
 const frameTargets = [];
@@ -1731,6 +1803,368 @@ function createGiantLoveLetterAltar(x, z) {
   }
 }
 
+// --- Magic Footsteps (Princess Glowing Petal Trails) ---
+function spawnMagicFootstep(x, z) {
+  const geom = new THREE.PlaneGeometry(0.28, 0.28);
+  const footTex = makeCanvasTexture((ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    const grad = ctx.createRadialGradient(w / 2, h / 2, 2, w / 2, h / 2, w / 2);
+    grad.addColorStop(0, '#ffffff');
+    grad.addColorStop(0.35, '#ff8fa3');
+    grad.addColorStop(0.7, '#ffd875');
+    grad.addColorStop(1, 'transparent');
+    ctx.fillStyle = grad;
+    ctx.beginPath(); ctx.arc(w / 2, h / 2, w / 2 - 2, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = '#ff2a5c';
+    ctx.font = 'bold 16px Arial';
+    ctx.textAlign = 'center';
+    ctx.fillText('♡', w / 2, h / 2 + 5);
+  }, 64, 64);
+
+  const mat = new THREE.MeshBasicMaterial({
+    map: footTex,
+    transparent: true,
+    opacity: 0.85,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+  });
+
+  const mesh = new THREE.Mesh(geom, mat);
+  mesh.rotation.x = -Math.PI / 2;
+  mesh.rotation.z = Math.random() * Math.PI * 2;
+  mesh.position.set(x, 0.026, z);
+  scene.add(mesh);
+
+  magicFootsteps.push({ mesh, mat, life: 1.0, maxLife: 1.0 });
+}
+
+function updateMagicFootsteps(dt) {
+  for (let i = magicFootsteps.length - 1; i >= 0; i--) {
+    const step = magicFootsteps[i];
+    step.life -= dt * 0.85;
+    if (step.life <= 0) {
+      scene.remove(step.mesh);
+      step.mat.dispose();
+      step.mesh.geometry.dispose();
+      magicFootsteps.splice(i, 1);
+    } else {
+      step.mat.opacity = (step.life / step.maxLife) * 0.85;
+      const s = 1.0 + (1.0 - step.life) * 0.35;
+      step.mesh.scale.set(s, s, s);
+    }
+  }
+}
+
+// --- Shooting Stars (Meteors in Night Sky) ---
+function spawnMeteor() {
+  if (!scene) return;
+  const startX = (Math.random() - 0.5) * 40 - 10;
+  const startY = 22 + Math.random() * 8;
+  const startZ = 10 + (Math.random() - 0.5) * 20;
+
+  const dirX = 14 + Math.random() * 8;
+  const dirY = -8 - Math.random() * 4;
+  const dirZ = -6 + (Math.random() - 0.5) * 6;
+
+  const mat = new THREE.MeshBasicMaterial({ color: 0xfff4d0, transparent: true, opacity: 1 });
+  const geom = new THREE.SphereGeometry(0.18, 6, 6);
+  const mesh = new THREE.Mesh(geom, mat);
+  mesh.position.set(startX, startY, startZ);
+  scene.add(mesh);
+
+  activeMeteors.push({
+    mesh, mat,
+    pos: new THREE.Vector3(startX, startY, startZ),
+    vel: new THREE.Vector3(dirX, dirY, dirZ),
+    life: 1.4,
+  });
+}
+
+function updateMeteors(dt) {
+  for (let i = activeMeteors.length - 1; i >= 0; i--) {
+    const m = activeMeteors[i];
+    m.life -= dt;
+    if (m.life <= 0) {
+      scene.remove(m.mesh);
+      m.mat.dispose();
+      m.mesh.geometry.dispose();
+      activeMeteors.splice(i, 1);
+    } else {
+      m.pos.addScaledVector(m.vel, dt);
+      m.mesh.position.copy(m.pos);
+      m.mat.opacity = Math.min(1.0, m.life / 0.4);
+    }
+  }
+}
+
+// --- Sky Lanterns (فانوس‌های آرزو) ---
+function spawnSkyLantern(x, z, customY = 0.5) {
+  const group = new THREE.Group();
+  group.position.set(x, customY, z);
+  scene.add(group);
+
+  const lanternPaper = new THREE.MeshBasicMaterial({ color: 0xffc470, transparent: true, opacity: 0.92 });
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0xff7722 });
+  const goldRingMat = colorMaterial(0xffd875, 0.2, 0.8);
+
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.18, 0.42, 8), lanternPaper);
+  body.position.y = 0.21; group.add(body);
+
+  const flame = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.14, 6), flameMat);
+  flame.position.y = 0.15; group.add(flame);
+
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(0.19, 0.018, 6, 12), goldRingMat);
+  ring.rotation.x = Math.PI / 2; ring.position.y = 0.03; group.add(ring);
+
+  activeLanterns.push({
+    group,
+    speedY: 0.9 + Math.random() * 0.6,
+    driftX: (Math.random() - 0.5) * 0.4,
+    driftZ: (Math.random() - 0.5) * 0.3,
+    phase: Math.random() * 6.28,
+  });
+}
+
+function initSkyLanterns() {
+  for (let i = 0; i < 14; i++) {
+    const lx = (Math.random() - 0.5) * 28;
+    const ly = 3.0 + Math.random() * 22;
+    const lz = 18 - Math.random() * 80;
+    spawnSkyLantern(lx, lz, ly);
+  }
+}
+
+function updateSkyLanterns(dt, elapsed) {
+  for (let i = 0; i < activeLanterns.length; i++) {
+    const l = activeLanterns[i];
+    l.group.position.y += l.speedY * dt;
+    l.group.position.x += Math.sin(elapsed + l.phase) * l.driftX * dt;
+    l.group.position.z += Math.cos(elapsed * 0.8 + l.phase) * l.driftZ * dt;
+    l.group.rotation.y = elapsed * 0.3 + l.phase;
+
+    if (l.group.position.y > 32) {
+      l.group.position.y = 0.5;
+      l.group.position.x = (Math.random() - 0.5) * 26;
+      l.group.position.z = 16 - Math.random() * 75;
+    }
+  }
+}
+
+// --- 3D Heart Fireworks System (آتش‌بازی سه‌بعدی) ---
+function triggerFireworkShow() {
+  playFireworkSound();
+  const colors = [0xff2a5c, 0xffd875, 0x48cae4, 0xff758f, 0xc77dff, 0x52b788];
+  for (let i = 0; i < 6; i++) {
+    setTimeout(() => {
+      const fx = (Math.random() - 0.5) * 24;
+      const fz = 8 + (Math.random() - 0.5) * 20;
+      const color = colors[i % colors.length];
+      spawnFireworkBurst(fx, 14 + Math.random() * 6, fz, color);
+      triggerConfetti(0.2 + i * 0.12, 0.3);
+    }, i * 380);
+  }
+  showToast('🎆 جشن آتش‌بازی و فانوس‌های آرزو در آسمان!');
+}
+
+function spawnFireworkBurst(x, y, z, colorHex) {
+  if (!scene) return;
+  const particleCount = 42;
+  const geom = new THREE.BufferGeometry();
+  const positions = new Float32Array(particleCount * 3);
+  const velocities = [];
+
+  for (let i = 0; i < particleCount; i++) {
+    positions[i * 3 + 0] = x;
+    positions[i * 3 + 1] = y;
+    positions[i * 3 + 2] = z;
+
+    const angle = (i / particleCount) * Math.PI * 2;
+    const speed = 4.2 + Math.random() * 3.5;
+    const vx = Math.cos(angle) * speed;
+    const vy = (Math.sin(angle) + 0.3) * speed;
+    const vz = (Math.random() - 0.5) * speed * 0.8;
+
+    velocities.push({ vx, vy, vz });
+  }
+
+  geom.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+
+  const mat = new THREE.PointsMaterial({
+    color: colorHex,
+    size: 0.28,
+    transparent: true,
+    opacity: 1.0,
+    blending: THREE.AdditiveBlending,
+    depthWrite: false,
+  });
+
+  const points = new THREE.Points(geom, mat);
+  scene.add(points);
+
+  activeFireworks.push({ points, geom, velocities, life: 1.6, maxLife: 1.6 });
+}
+
+function updateFireworks(dt) {
+  for (let i = activeFireworks.length - 1; i >= 0; i--) {
+    const fw = activeFireworks[i];
+    fw.life -= dt;
+    if (fw.life <= 0) {
+      scene.remove(fw.points);
+      fw.geom.dispose();
+      fw.points.material.dispose();
+      activeFireworks.splice(i, 1);
+    } else {
+      const pos = fw.geom.attributes.position.array;
+      const gravity = -4.5;
+      for (let j = 0; j < fw.velocities.length; j++) {
+        const v = fw.velocities[j];
+        v.vy += gravity * dt;
+        pos[j * 3 + 0] += v.vx * dt;
+        pos[j * 3 + 1] += v.vy * dt;
+        pos[j * 3 + 2] += v.vz * dt;
+      }
+      fw.geom.attributes.position.needsUpdate = true;
+      fw.points.material.opacity = fw.life / fw.maxLife;
+    }
+  }
+}
+
+// --- Couple Emotes & Poses Handler ---
+function setCouplePose(poseName) {
+  couplePose = poseName;
+  document.querySelectorAll('.emote-btn').forEach((b) => b.classList.remove('is-active'));
+
+  if (poseName === 'dance') {
+    $('#emote-dance-btn')?.classList.add('is-active');
+    playRomanticChime(659.25);
+    setTimeout(() => playRomanticChime(783.99), 180);
+    setTimeout(() => playRomanticChime(1046.5), 360);
+    showToast('💃 همراه پرنسس شد و شروع به رقصیدن کردند 💖');
+    triggerHeartFX(window.innerWidth / 2, window.innerHeight / 2, 8);
+  } else if (poseName === 'kiss') {
+    $('#emote-kiss-btn')?.classList.add('is-active');
+    playRomanticChime(880.0);
+    showToast('💋 پرنسس یک بوسه‌ی قلبی به همراهش فرستاد!');
+    triggerHeartFX(window.innerWidth / 2, window.innerHeight / 2, 12);
+    setTimeout(() => { if (couplePose === 'kiss') setCouplePose('normal'); }, 3200);
+  } else if (poseName === 'holding_hands') {
+    $('#emote-hands-btn')?.classList.add('is-active');
+    playRomanticChime(587.33);
+    showToast('👫 دست در دست هم در راهروی رویایی قدم می‌زنید...');
+  } else if (poseName === 'sitting') {
+    $('#emote-sofa-btn')?.classList.add('is-active');
+    playRomanticChime(523.25);
+    movementTarget = new THREE.Vector3(-4.8, 0, -62.5);
+    showToast('🛋️ به سمت مبل سلطنتی کنار شومینه حرکت می‌کنید ✨');
+  } else {
+    showToast('حالت گردش عادی فعال شد 🌸');
+  }
+}
+
+// --- Photo Booth & Polaroid Snapshot Handler ---
+function takePolaroidSnapshot() {
+  if (!started || !renderer) return;
+
+  playCameraShutterSound();
+
+  const flash = $('#camera-flash-fx');
+  if (flash) {
+    flash.hidden = false;
+    flash.classList.add('flashing');
+    setTimeout(() => {
+      flash.classList.remove('flashing');
+      setTimeout(() => { flash.hidden = true; }, 400);
+    }, 120);
+  }
+
+  renderer.render(scene, camera);
+  const dataURL = canvas.toDataURL('image/png');
+
+  $('#polaroid-image-preview').src = dataURL;
+  $('#polaroid-couple').textContent = `${state.fromName || 'من'} ♡ ${state.toName || 'پرنسس من'}`;
+  polaroidOverlay.hidden = false;
+  syncAnimationLoop();
+}
+
+function downloadPolaroidCard() {
+  const previewImg = $('#polaroid-image-preview');
+  if (!previewImg || !previewImg.src) return;
+
+  const cardCanvas = document.createElement('canvas');
+  cardCanvas.width = 1200;
+  cardCanvas.height = 1450;
+  const ctx = cardCanvas.getContext('2d');
+
+  // Polaroid Paper background
+  ctx.fillStyle = '#fdfbf7';
+  ctx.fillRect(0, 0, 1200, 1450);
+
+  // Outer paper border
+  ctx.strokeStyle = '#ebdccb';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(10, 10, 1180, 1430);
+
+  // Gold washi tape on top
+  ctx.fillStyle = '#ffd875';
+  ctx.save();
+  ctx.translate(600, 48);
+  ctx.rotate(-0.025);
+  ctx.fillRect(-220, -22, 440, 44);
+  ctx.fillStyle = '#3b2210';
+  ctx.font = 'bold 22px Tahoma, Arial';
+  ctx.textAlign = 'center';
+  ctx.direction = 'rtl';
+  ctx.fillText('🌸 OUR 1ST ANNIVERSARY 🌸', 0, 8);
+  ctx.restore();
+
+  // Photo Inset
+  const photoX = 60, photoY = 95, photoW = 1080, photoH = 810;
+  ctx.fillStyle = '#111420';
+  ctx.fillRect(photoX, photoY, photoW, photoH);
+  ctx.drawImage(previewImg, photoX, photoY, photoW, photoH);
+
+  // Photo border
+  ctx.strokeStyle = '#dfd3c3';
+  ctx.lineWidth = 6;
+  ctx.strokeRect(photoX, photoY, photoW, photoH);
+
+  // Decorative stickers on photo
+  ctx.font = '48px Arial';
+  ctx.fillText('👑', photoX + photoW - 55, photoY + 65);
+  ctx.fillText('💍', photoX + 55, photoY + 65);
+  ctx.fillText('💖', photoX + 55, photoY + photoH - 25);
+  ctx.fillText('✨', photoX + photoW - 55, photoY + photoH - 25);
+
+  // Persian Caption
+  ctx.textAlign = 'center';
+  ctx.direction = 'rtl';
+  ctx.fillStyle = '#3d2a20';
+  ctx.font = 'bold 44px Tahoma, Arial';
+  ctx.fillText('«اولین سالگرد یکی شدنمون مبارک»', 600, 1030);
+
+  ctx.fillStyle = '#c9184a';
+  ctx.font = 'bold 36px Tahoma, Arial';
+  ctx.fillText(`${state.fromName || 'من'} ♡ ${state.toName || 'پرنسس من'}`, 600, 1120);
+
+  ctx.fillStyle = '#8c7b6d';
+  ctx.font = '28px Tahoma, Arial';
+  ctx.fillText('۳۶۵ روز خاطره‌ی قشنگ · عشق تا ابد و بی‌نهایت 💍✨', 600, 1210);
+
+  const downloadLink = document.createElement('a');
+  downloadLink.download = `Anniversary-Photo-${Date.now()}.png`;
+  downloadLink.href = cardCanvas.toDataURL('image/png');
+  downloadLink.click();
+
+  showToast('💾 عکس یادگاری با موفقیت در گالری ذخیره شد 🌸');
+  triggerConfetti(0.5, 0.4);
+}
+
+function closePolaroidModal() {
+  polaroidOverlay.hidden = true;
+  syncAnimationLoop();
+  canvas.focus({ preventScroll: true });
+}
+
 // VERY LONG Grand Architecture with Nanaz Walls & Mouldings
 function buildHome() {
   const corridorLength = 68.0;
@@ -1870,6 +2304,7 @@ function buildHome() {
   createFireplaceAndAnniversaryMantle();
   createFairyLights();
   createFloatingParticles();
+  initSkyLanterns();
 
   // --- Optimized Rock-Solid Global Lighting (Guaranteed Bright & Rich on ALL Mobile Devices) ---
   const ambientLight = new THREE.AmbientLight(0xfff6ea, 1.75);
@@ -1994,6 +2429,27 @@ function animateAvatar(avatar, time, walking, offset = 0, speed = 1) {
   if (u.rightLeg) u.rightLeg.rotation.x = -Math.sin(phase) * amp;
   if (u.leftArm) u.leftArm.rotation.x = -Math.sin(phase) * amp * 0.62;
   if (u.rightArm) u.rightArm.rotation.x = Math.sin(phase) * amp * 0.62;
+
+  // Couple Poses Special Arm & Body Overrides
+  if (couplePose === 'dance') {
+    if (avatar === player) {
+      if (u.leftArm) u.leftArm.rotation.x = -0.75 + Math.sin(time * 3.0) * 0.15;
+      if (u.rightArm) u.rightArm.rotation.x = -0.75 - Math.sin(time * 3.0) * 0.15;
+    } else if (avatar === companion) {
+      if (u.leftArm) u.leftArm.rotation.x = -0.75 - Math.sin(time * 3.0) * 0.15;
+      if (u.rightArm) u.rightArm.rotation.x = -0.75 + Math.sin(time * 3.0) * 0.15;
+    }
+  } else if (couplePose === 'holding_hands') {
+    if (avatar === player && u.rightArm) u.rightArm.rotation.z = -0.32;
+    if (avatar === companion && u.leftArm) u.leftArm.rotation.z = 0.32;
+  } else if (couplePose === 'sitting') {
+    if (u.leftLeg) u.leftLeg.rotation.x = -1.45;
+    if (u.rightLeg) u.rightLeg.rotation.x = -1.45;
+    if (u.leftArm) u.leftArm.rotation.x = -0.4;
+    if (u.rightArm) u.rightArm.rotation.x = -0.4;
+    u.rig.position.y = 0.08 + Math.sin(time * 1.5) * 0.01;
+    return;
+  }
 
   // Princess gown mini sway
   if (u.skirtGroup) {
@@ -2133,13 +2589,24 @@ function updateGame(dt, elapsed) {
   }
 
   updateFloatingParticles(dt, elapsed);
+  updateMagicFootsteps(dt);
+  updateMeteors(dt);
+  updateSkyLanterns(dt, elapsed);
+  updateFireworks(dt);
+
+  // Auto Shooting Stars occasionally in the night sky
+  nextMeteorTime -= dt;
+  if (nextMeteorTime <= 0) {
+    spawnMeteor();
+    nextMeteorTime = 5.0 + Math.random() * 7.0;
+  }
 
   if (!started || !player) {
     updateCamera(1, dt);
     return;
   }
 
-  if (currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden || !loveletterOverlay.hidden) {
+  if (currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden || !loveletterOverlay.hidden || !polaroidOverlay.hidden) {
     animateAvatar(player, elapsed, false);
     animateAvatar(companion, elapsed, false, 1.4);
     updateCamera(1, dt);
@@ -2220,25 +2687,72 @@ function updateGame(dt, elapsed) {
   if (insideHouse && doorPassable && player.position.z > 0.85) setHouseZone(false);
   playerPosition.copy(player.position);
 
-  // Companion follows gracefully
-  const side = new THREE.Vector3(Math.cos(cameraYaw), 0, Math.sin(cameraYaw)).multiplyScalar(-0.95);
-  const behind = new THREE.Vector3(Math.sin(cameraYaw), 0, Math.cos(cameraYaw)).multiplyScalar(0.40);
-  const followTarget = player.position.clone().add(side).add(behind);
-  if (insideHouse) {
-    followTarget.x = clamp(followTarget.x, -9.2, 9.2); followTarget.z = clamp(followTarget.z, -66.8, -0.5);
+  // Spawn Magic Footstep Sparkles on Princess Steps
+  if (isMoving && currentSpeed > 0.25) {
+    lastFootstepTime += dt;
+    if (lastFootstepTime > 0.24) {
+      lastFootstepTime = 0;
+      footstepToggle = !footstepToggle;
+      const footOffsetX = Math.cos(player.rotation.y + Math.PI / 2) * (footstepToggle ? 0.12 : -0.12);
+      const footOffsetZ = -Math.sin(player.rotation.y + Math.PI / 2) * (footstepToggle ? 0.12 : -0.12);
+      spawnMagicFootstep(player.position.x + footOffsetX, player.position.z + footOffsetZ);
+    }
+  }
+
+  // --- Couple Emotes Behavior ---
+  if (couplePose === 'dance') {
+    // Face each other and waltz together!
+    const danceCenter = player.position.clone();
+    player.rotation.y += dt * 1.35;
+    companion.position.set(
+      danceCenter.x + Math.sin(player.rotation.y) * 0.85,
+      0,
+      danceCenter.z + Math.cos(player.rotation.y) * 0.85
+    );
+    companion.rotation.y = player.rotation.y + Math.PI;
+
+    if (Math.random() < 0.05) {
+      triggerHeartFX(
+        window.innerWidth / 2 + (Math.random() - 0.5) * 100,
+        window.innerHeight / 2 + (Math.random() - 0.5) * 80,
+        1
+      );
+    }
+  } else if (couplePose === 'holding_hands') {
+    // Companion walks closely side by side
+    const sideOffset = new THREE.Vector3(Math.cos(cameraYaw), 0, Math.sin(cameraYaw)).multiplyScalar(-0.62);
+    const handTarget = player.position.clone().add(sideOffset);
+    companion.position.lerp(handTarget, 1 - Math.exp(-dt * 14.0));
+    companion.rotation.y = lerpAngle(companion.rotation.y, player.rotation.y, 1 - Math.exp(-dt * 14.0));
+  } else if (couplePose === 'sitting') {
+    // Sitting beside each other on royal lounge sofa
+    if (player.position.distanceTo(new THREE.Vector3(-4.8, 0, -62.5)) < 1.2) {
+      player.position.set(-4.8, 0.38, -62.1);
+      player.rotation.y = Math.PI / 2;
+      companion.position.set(-4.8, 0.38, -62.8);
+      companion.rotation.y = Math.PI / 2;
+    }
   } else {
-    followTarget.x = clamp(followTarget.x, -15.5, 15.5); followTarget.z = clamp(followTarget.z, 1.2, 21.5);
+    // Normal follow
+    const side = new THREE.Vector3(Math.cos(cameraYaw), 0, Math.sin(cameraYaw)).multiplyScalar(-0.95);
+    const behind = new THREE.Vector3(Math.sin(cameraYaw), 0, Math.cos(cameraYaw)).multiplyScalar(0.40);
+    const followTarget = player.position.clone().add(side).add(behind);
+    if (insideHouse) {
+      followTarget.x = clamp(followTarget.x, -9.2, 9.2); followTarget.z = clamp(followTarget.z, -66.8, -0.5);
+    } else {
+      followTarget.x = clamp(followTarget.x, -15.5, 15.5); followTarget.z = clamp(followTarget.z, 1.2, 21.5);
+    }
+
+    companion.position.lerp(followTarget, 1 - Math.exp(-dt * 3.0));
+    const toPlayer = player.position.clone().sub(companion.position); toPlayer.y = 0;
+    if (toPlayer.lengthSq() > 0.01) {
+      const compTargetRot = Math.atan2(-toPlayer.x, -toPlayer.z);
+      companion.rotation.y = lerpAngle(companion.rotation.y, compTargetRot, 1 - Math.exp(-dt * 12.0));
+    }
   }
 
-  companion.position.lerp(followTarget, 1 - Math.exp(-dt * 3.0));
-  const toPlayer = player.position.clone().sub(companion.position); toPlayer.y = 0;
-  if (toPlayer.lengthSq() > 0.01) {
-    const compTargetRot = Math.atan2(-toPlayer.x, -toPlayer.z);
-    companion.rotation.y = lerpAngle(companion.rotation.y, compTargetRot, 1 - Math.exp(-dt * 12.0));
-  }
-
-  animateAvatar(player, elapsed, isMoving, 0, currentSpeed / 3.2);
-  animateAvatar(companion, elapsed, isMoving && companion.position.distanceTo(player.position) > 0.6, 1.4, 1.0);
+  animateAvatar(player, elapsed, isMoving || couplePose === 'dance', 0, currentSpeed / 3.2);
+  animateAvatar(companion, elapsed, (isMoving && companion.position.distanceTo(player.position) > 0.6) || couplePose === 'dance', 1.4, 1.0);
 
   updateCamera(1, dt);
   updateInteractions();
@@ -2254,7 +2768,7 @@ function render() {
 
 function syncAnimationLoop() {
   if (!renderer) return;
-  const shouldRender = started && !document.hidden && memoryOverlay.hidden && helpOverlay.hidden && anniversaryOverlay.hidden && loveletterOverlay.hidden;
+  const shouldRender = started && !document.hidden && memoryOverlay.hidden && helpOverlay.hidden && anniversaryOverlay.hidden && loveletterOverlay.hidden && polaroidOverlay.hidden;
   if (shouldRender) {
     clock?.start();
     renderer.setAnimationLoop(render);
@@ -2670,6 +3184,15 @@ function handleScreenTap(clientX, clientY) {
 
     playRomanticChime(587.33);
     triggerHeartFX(clientX, clientY, 2);
+    return;
+  }
+
+  // 4. Tap on Sky (in yard) -> release a romantic Sky Lantern & Meteor!
+  if (!insideHouse && clientY < window.innerHeight * 0.45) {
+    spawnSkyLantern((Math.random() - 0.5) * 14, player.position.z - 5.0, 1.2);
+    if (Math.random() < 0.6) spawnMeteor();
+    playRomanticChime(783.99);
+    showToast('✨ یک فانوس آرزو به آسمان پرواز کرد ✨');
   }
 }
 
@@ -2699,6 +3222,29 @@ function setupEvents() {
       if (player) player.userData.shirtMaterial.color.set(state.avatarColor);
     });
   });
+
+  $('#photo-mode-btn')?.addEventListener('click', takePolaroidSnapshot);
+  $('#download-polaroid-btn')?.addEventListener('click', downloadPolaroidCard);
+  $('#retake-photo-btn')?.addEventListener('click', () => {
+    closePolaroidModal();
+    setTimeout(takePolaroidSnapshot, 200);
+  });
+  $('#close-polaroid')?.addEventListener('click', closePolaroidModal);
+  $('#polaroid-backdrop')?.addEventListener('click', closePolaroidModal);
+
+  $('#emote-dance-btn')?.addEventListener('click', () => {
+    setCouplePose(couplePose === 'dance' ? 'normal' : 'dance');
+  });
+  $('#emote-kiss-btn')?.addEventListener('click', () => {
+    setCouplePose('kiss');
+  });
+  $('#emote-hands-btn')?.addEventListener('click', () => {
+    setCouplePose(couplePose === 'holding_hands' ? 'normal' : 'holding_hands');
+  });
+  $('#emote-sofa-btn')?.addEventListener('click', () => {
+    setCouplePose('sitting');
+  });
+  $('#emote-fireworks-btn')?.addEventListener('click', triggerFireworkShow);
 
   $('#music-toggle-btn')?.addEventListener('click', toggleMusic);
   $('#cinema-tour-btn')?.addEventListener('click', () => {

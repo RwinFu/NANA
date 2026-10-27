@@ -426,6 +426,196 @@ button { cursor: pointer; }
 @keyframes card-in { from { opacity:0; transform:translateY(12px) scale(.985); } to { opacity:1; transform:translateY(0) scale(1); } }
 @keyframes rise-in { from { opacity:0; transform:translate(-50%,8px); } to { opacity:1; transform:translate(-50%,0); } }
 
+/* Couple Emotes Floating Action Bar */
+.couple-emotes-bar {
+  position: absolute;
+  left: 50%;
+  bottom: calc(76px + env(safe-area-inset-bottom));
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 10px;
+  border-radius: 99px;
+  background: rgba(26, 20, 32, 0.88);
+  border: 1px solid rgba(255, 216, 117, 0.45);
+  box-shadow: 0 8px 30px rgba(0, 0, 0, 0.55), 0 0 16px rgba(255, 117, 143, 0.25);
+  backdrop-filter: blur(10px);
+  z-index: 10;
+  max-width: calc(100% - 24px);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.couple-emotes-bar::-webkit-scrollbar { display: none; }
+
+.emote-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255, 216, 117, 0.25);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff6ee;
+  font-size: 10px;
+  font-weight: 700;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: transform 0.18s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.2s, border-color 0.2s, box-shadow 0.2s;
+}
+.emote-btn:hover, .emote-btn:active {
+  background: linear-gradient(135deg, rgba(255, 117, 143, 0.4), rgba(255, 216, 117, 0.35));
+  border-color: #ffd875;
+  transform: scale(1.05) translateY(-2px);
+  box-shadow: 0 4px 14px rgba(255, 117, 143, 0.4);
+}
+.emote-btn.is-active {
+  background: linear-gradient(135deg, #ff4d6d, #c9184a);
+  border-color: #ffd875;
+  box-shadow: 0 0 12px rgba(255, 77, 109, 0.7);
+}
+.emote-icon { font-size: 13px; }
+.emote-text { font-size: 9.5px; }
+
+/* Camera Flash Effect */
+.camera-flash-fx {
+  position: fixed;
+  inset: 0;
+  background: #ffffff;
+  z-index: 999;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.4s ease-out;
+}
+.camera-flash-fx.flashing {
+  opacity: 0.95;
+  transition: opacity 0.05s ease-in;
+}
+
+/* Polaroid Modal Overlay */
+.polaroid-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 25;
+  display: grid;
+  place-items: center;
+  padding: 20px;
+}
+.polaroid-overlay[hidden] { display: none; }
+.polaroid-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(10, 8, 16, 0.82);
+  backdrop-filter: blur(14px);
+  animation: fade-in 0.3s ease both;
+}
+
+.nanaz-polaroid-card {
+  position: relative;
+  z-index: 1;
+  width: min(440px, 100%);
+  padding: 24px 22px 20px;
+  background: #fdfbf7;
+  border-radius: 12px;
+  box-shadow: 0 25px 80px rgba(0, 0, 0, 0.75), 0 0 40px rgba(255, 216, 117, 0.2);
+  border: 1px solid #ebdccb;
+  text-align: center;
+  direction: rtl;
+  animation: card-in 0.38s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+
+.polaroid-washi-tape {
+  display: inline-block;
+  background: #ffd875;
+  color: #3b2210;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 1px;
+  padding: 4px 18px;
+  margin-bottom: 12px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transform: rotate(-1.5deg);
+}
+
+.polaroid-photo-frame {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  background: #111420;
+  border-radius: 6px;
+  overflow: hidden;
+  box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.4), 0 4px 12px rgba(0, 0, 0, 0.15);
+  border: 2px solid #dfd3c3;
+}
+.polaroid-photo-frame img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.polaroid-stickers {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+}
+.p-sticker {
+  position: absolute;
+  font-size: 22px;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.4));
+}
+.sticker-crown { top: 8px; right: 10px; transform: rotate(12deg); }
+.sticker-ring { top: 8px; left: 10px; transform: rotate(-10deg); }
+.sticker-heart { bottom: 10px; left: 12px; transform: rotate(8deg); }
+.sticker-sparkle { bottom: 10px; right: 12px; }
+
+.polaroid-caption {
+  margin-top: 14px;
+}
+.polaroid-title {
+  margin: 0 0 4px;
+  font-family: var(--serif);
+  font-size: 20px;
+  font-weight: 700;
+  color: #3d2a20;
+}
+.polaroid-meta {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #8c7b6d;
+  margin-top: 6px;
+  padding: 0 4px;
+}
+.polaroid-couple-names {
+  font-weight: 700;
+  color: #c9184a;
+}
+
+.polaroid-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+.download-polaroid-btn {
+  flex: 1;
+  min-height: 44px;
+  font-size: 11px;
+}
+.polaroid-retake-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 8px;
+  font-size: 18px;
+}
+
+@keyframes float-ring {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-8px); }
+}
+
 @media (max-width: 900px) {
   .intro-screen { grid-template-columns: minmax(330px,.95fr) minmax(300px,1.05fr); }
   .intro-panel { padding-left: 32px; padding-right: 32px; }
@@ -467,8 +657,15 @@ button { cursor: pointer; }
   .interact-button { pointer-events:auto; min-height:44px; max-width:80vw; padding:0 14px; border-radius:12px; font-size:10px; box-shadow:0 10px 28px #0006; }
   .interact-key { display:none; }
   .interaction-card { bottom:calc(74px + env(safe-area-inset-bottom)); font-size:9.5px; }
+  .couple-emotes-bar { bottom: calc(68px + env(safe-area-inset-bottom)); padding: 4px 8px; gap: 4px; }
+  .emote-btn { padding: 4px 9px; font-size: 8.5px; }
+  .emote-icon { font-size: 11px; }
+  .emote-text { font-size: 8.5px; }
   .touch-hint-pill { top: 92px; font-size: 8px; padding: 4px 10px; }
-  .memory-overlay, .help-overlay, .anniversary-overlay, .loveletter-overlay { padding:12px; }
+  .memory-overlay, .help-overlay, .anniversary-overlay, .loveletter-overlay, .polaroid-overlay { padding:12px; }
+  .nanaz-polaroid-card { padding: 18px 14px 14px; }
+  .polaroid-title { font-size: 17px; }
+  .p-sticker { font-size: 18px; }
   .memory-card { grid-template-columns:1fr; width:min(480px,100%); max-height:calc(100dvh - 24px); overflow-y:auto; }
   .memory-image-wrap { padding:22px 20px 14px; min-height:280px; }
   .memory-art-placeholder { min-height:240px; }
