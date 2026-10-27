@@ -16,7 +16,7 @@ const anniversaryOverlay = $('#anniversary-overlay');
 const loveletterOverlay = $('#loveletter-overlay');
 const floatingHeartsLayer = $('#floating-hearts');
 
-const storageKey = 'our-museum-gift-v2';
+const storageKey = 'our-museum-gift-v3';
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}') || {}; } catch { saved = {}; }
 const state = {
@@ -25,7 +25,7 @@ const state = {
   dedication: saved.dedication || museumDefaults.dedication,
   anniversaryMsg: saved.anniversaryMsg || museumDefaults.anniversaryText,
   loveCount: Number(saved.loveCount) || museumDefaults.loveCount,
-  avatarColor: saved.avatarColor || '#30313a',
+  avatarColor: saved.avatarColor || '#8f6670',
 };
 
 // Form init
@@ -83,13 +83,9 @@ function playCelebrationChord() {
 
 // Procedural Romantic Piano Melody Generator
 const romanticProgression = [
-  // C major chord & arpeggios
   [261.63, 329.63, 392.00, 523.25, 659.25],
-  // G major chord & arpeggios
   [196.00, 246.94, 293.66, 392.00, 493.88],
-  // A minor chord & arpeggios
   [220.00, 261.63, 329.63, 440.00, 523.25],
-  // F major chord & arpeggios
   [174.61, 220.00, 261.63, 349.23, 440.00],
 ];
 
@@ -150,13 +146,13 @@ function toggleMusic() {
 function triggerConfetti(x = 0.5, y = 0.6) {
   try {
     confetti({
-      particleCount: 65,
-      spread: 75,
+      particleCount: 75,
+      spread: 80,
       origin: { x, y },
       colors: ['#ff4d6d', '#ffd875', '#ff758f', '#ffffff', '#e29578'],
       ticks: 200,
-      gravity: 0.9,
-      scalar: 1.1,
+      gravity: 0.85,
+      scalar: 1.15,
     });
   } catch (e) {
     // Ignore confetti errors
@@ -186,7 +182,7 @@ function updateLoveUI() {
 
 function triggerHeartFX(x, y, count = 1) {
   if (!floatingHeartsLayer) return;
-  const emojis = ['❤️', '💖', '💕', '✨', '💍', '🌸'];
+  const emojis = ['❤️', '💖', '💕', '✨', '💍', '🌸', '👑', '🎀'];
   for (let i = 0; i < count; i++) {
     const el = document.createElement('span');
     el.className = 'floating-heart-particle';
@@ -195,10 +191,10 @@ function triggerHeartFX(x, y, count = 1) {
     const posY = y ?? (window.innerHeight / 2 + (Math.random() - 0.5) * 100);
     el.style.left = `${posX}px`;
     el.style.top = `${posY}px`;
-    el.style.setProperty('--dx', `${(Math.random() - 0.5) * 80}px`);
+    el.style.setProperty('--dx', `${(Math.random() - 0.5) * 90}px`);
     el.style.setProperty('--rot', `${(Math.random() - 0.5) * 35}deg`);
     el.style.setProperty('--rot2', `${(Math.random() - 0.5) * 45}deg`);
-    el.style.fontSize = `${16 + Math.random() * 16}px`;
+    el.style.fontSize = `${18 + Math.random() * 16}px`;
     floatingHeartsLayer.appendChild(el);
     setTimeout(() => el.remove(), 1900);
   }
@@ -210,9 +206,9 @@ function addLoveCount(event) {
   playRomanticChime(659.25 + Math.random() * 200);
   const clientX = event?.clientX ?? window.innerWidth / 2;
   const clientY = event?.clientY ?? window.innerHeight / 2;
-  triggerHeartFX(clientX, clientY, 3);
+  triggerHeartFX(clientX, clientY, 4);
   triggerConfetti(clientX / window.innerWidth, clientY / window.innerHeight);
-  showToast(`❤️ یک «دوستت دارم» دیگر ثبت شد! (مجموعاً ${toPersianDigits(state.loveCount)} بار)`);
+  showToast(`❤️ یک «دوستت دارم» دیگر به قلب پرنسسم رفت! (مجموعاً ${toPersianDigits(state.loveCount)} بار)`);
 }
 
 // Math and damping helpers
@@ -290,6 +286,7 @@ let crystalHeartMesh = null;
 let fireplaceLight = null;
 let floatingParticleSystem = null;
 const fairyBulbs = [];
+const candleFlickers = [];
 
 const keys = new Set();
 const frameTargets = [];
@@ -349,13 +346,13 @@ function makeCanvasTexture(draw, width = 512, height = 256) {
 function createDedicationTexture() {
   return makeCanvasTexture((ctx, w, h) => {
     ctx.fillStyle = '#1c202d'; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = '#d4af37'; ctx.lineWidth = 2.5; ctx.strokeRect(8, 8, w - 16, h - 16);
-    ctx.strokeStyle = '#e8a5a544'; ctx.lineWidth = 1; ctx.strokeRect(14, 14, w - 28, h - 28);
-    ctx.fillStyle = '#f3cf7a'; ctx.font = '600 11px Georgia, serif'; ctx.textAlign = 'center'; ctx.direction = 'ltr';
-    ctx.fillText('OUR HOME · ANNIVERSARY & VALENTINE', w / 2, 23);
-    ctx.fillStyle = '#fff4e0'; ctx.font = '600 22px Tahoma, Arial, sans-serif'; ctx.direction = 'rtl';
-    ctx.fillText(`برایِ ${state.toName} عزیزم`, w / 2, 51, w - 36);
-    ctx.fillStyle = '#d2c5ab'; ctx.font = '14px Tahoma, Arial, sans-serif';
+    ctx.strokeStyle = '#ffd875'; ctx.lineWidth = 3; ctx.strokeRect(8, 8, w - 16, h - 16);
+    ctx.strokeStyle = '#ff9ebb44'; ctx.lineWidth = 1; ctx.strokeRect(14, 14, w - 28, h - 28);
+    ctx.fillStyle = '#ffd875'; ctx.font = '700 12px Georgia, serif'; ctx.textAlign = 'center'; ctx.direction = 'ltr';
+    ctx.fillText('OUR 1ST ANNIVERSARY · 365 DAYS OF LOVE', w / 2, 24);
+    ctx.fillStyle = '#fff4e0'; ctx.font = 'bold 22px Tahoma, Arial, sans-serif'; ctx.direction = 'rtl';
+    ctx.fillText(`برایِ ${state.toName} عزیزم`, w / 2, 53, w - 36);
+    ctx.fillStyle = '#d2c5ab'; ctx.font = '13.5px Tahoma, Arial, sans-serif';
     const words = state.dedication.split(/\s+/); const lines = [''];
     for (const word of words) {
       const current = lines[lines.length - 1];
@@ -363,36 +360,36 @@ function createDedicationTexture() {
       if (ctx.measureText(candidate).width > w - 56 && lines.length < 2) lines.push(word);
       else lines[lines.length - 1] = candidate;
     }
-    ctx.fillText(lines[0] || 'تمامِ لحظه‌های ما', w / 2, 77, w - 42);
-    if (lines[1]) ctx.fillText(lines[1], w / 2, 96, w - 42);
-    ctx.fillStyle = '#f2a6b2'; ctx.font = 'italic 12px Georgia, serif'; ctx.direction = 'ltr';
-    ctx.fillText(`with endless love, ${state.fromName} ♡`, w / 2, 126, w - 32);
+    ctx.fillText(lines[0] || 'تمامِ لحظه‌های ما', w / 2, 79, w - 42);
+    if (lines[1]) ctx.fillText(lines[1], w / 2, 98, w - 42);
+    ctx.fillStyle = '#ff8fa3'; ctx.font = 'italic 12px Georgia, serif'; ctx.direction = 'ltr';
+    ctx.fillText(`Forever & Always, ${state.fromName} ♡`, w / 2, 127, w - 32);
   }, 512, 144);
 }
 
 function createAnniversaryMantleTexture() {
   return makeCanvasTexture((ctx, w, h) => {
     const grad = ctx.createLinearGradient(0, 0, w, 0);
-    grad.addColorStop(0, '#2b1c26'); grad.addColorStop(0.5, '#411e30'); grad.addColorStop(1, '#2b1c26');
+    grad.addColorStop(0, '#2b1c26'); grad.addColorStop(0.5, '#481c32'); grad.addColorStop(1, '#2b1c26');
     ctx.fillStyle = grad; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = '#ffd875'; ctx.lineWidth = 3; ctx.strokeRect(6, 6, w - 12, h - 12);
-    ctx.strokeStyle = '#ff9ebb66'; ctx.lineWidth = 1; ctx.strokeRect(12, 12, w - 24, h - 24);
+    ctx.strokeStyle = '#ffd875'; ctx.lineWidth = 3.5; ctx.strokeRect(6, 6, w - 12, h - 12);
+    ctx.strokeStyle = '#ff9ebb88'; ctx.lineWidth = 1; ctx.strokeRect(12, 12, w - 24, h - 24);
 
-    ctx.fillStyle = '#ffd875'; ctx.font = 'bold 24px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
-    ctx.fillText('✨ سالگرد عشقمون مبارک ✨', w / 2, 42);
+    ctx.fillStyle = '#ffd875'; ctx.font = 'bold 25px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
+    ctx.fillText('✨ اولین سالگرد عشقمون مبارک ✨', w / 2, 42);
 
-    ctx.fillStyle = '#fff0f4'; ctx.font = '600 15px Tahoma, Arial, sans-serif';
-    ctx.fillText(`${state.fromName}  ❤️  ${state.toName}`, w / 2, 72);
+    ctx.fillStyle = '#fff0f4'; ctx.font = '700 16px Tahoma, Arial, sans-serif';
+    ctx.fillText(`${state.fromName}  ❤️  ${state.toName}  (۳۶۵ روز عاشقی)`, w / 2, 73);
 
-    ctx.fillStyle = '#ffccd5'; ctx.font = 'italic 12px Georgia, serif'; ctx.direction = 'ltr';
-    ctx.fillText('Forever & Always · Click to Celebrate', w / 2, 100);
+    ctx.fillStyle = '#ffd5de'; ctx.font = 'italic 12px Georgia, serif'; ctx.direction = 'ltr';
+    ctx.fillText('Happy 1st Anniversary · Click to Celebrate', w / 2, 102);
   }, 512, 120);
 }
 
 function createLoveMonumentTexture() {
   return makeCanvasTexture((ctx, w, h) => {
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = 'rgba(28, 16, 26, 0.88)';
+    ctx.fillStyle = 'rgba(28, 16, 26, 0.9)';
     ctx.beginPath(); ctx.roundRect(10, 10, w - 20, h - 20, 24); ctx.fill();
     ctx.strokeStyle = '#ff4d6d'; ctx.lineWidth = 2.5; ctx.stroke();
 
@@ -430,28 +427,29 @@ function makeAbstractArtwork(memory, index) {
     ctx.beginPath(); ctx.roundRect(w * 0.39, h * 0.36, w * 0.22, h * 0.18, 7); ctx.stroke();
     ctx.beginPath(); ctx.arc(w * 0.5, h * 0.45, h * 0.045, 0, Math.PI * 2); ctx.stroke();
     ctx.globalAlpha = 1;
-    ctx.fillStyle = '#fffaf0'; ctx.font = '600 13px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
-    ctx.fillText('جای عکس', w / 2, h * 0.62);
-    ctx.fillStyle = '#fffaf0a8'; ctx.font = '9px Arial, sans-serif'; ctx.direction = 'ltr';
-    ctx.fillText(`MEMORY ${String(index + 1).padStart(2, '0')}`, w / 2, h * 0.94);
+    ctx.fillStyle = '#fffaf0'; ctx.font = 'bold 15px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
+    ctx.fillText('خاطره‌ی دونفره', w / 2, h * 0.62);
+    ctx.fillStyle = '#fffaf0a8'; ctx.font = '10px Arial, sans-serif'; ctx.direction = 'ltr';
+    ctx.fillText(`1ST ANNIVERSARY · MEMORY ${String(index + 1).padStart(2, '0')}`, w / 2, h * 0.94);
   }, 600, 800);
 }
 
 function makePlaqueTexture(memory, index) {
   const fs = memory.frameStyle || {};
   const bg = fs.plaqueBg || '#1c2130';
-  const border = fs.plaqueBorder || '#a88d5d';
+  const border = fs.plaqueBorder || '#ffd875';
   return makeCanvasTexture((ctx, w, h) => {
     ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
-    ctx.strokeStyle = border; ctx.lineWidth = 2; ctx.strokeRect(9, 9, w - 18, h - 18);
-    ctx.fillStyle = border; ctx.font = '600 11px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
+    ctx.strokeStyle = border; ctx.lineWidth = 2.5; ctx.strokeRect(9, 9, w - 18, h - 18);
+    ctx.fillStyle = border; ctx.font = 'bold 12px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
     ctx.fillText(`خاطره‌ی ${String(index + 1).padStart(2, '۰')} · ${fs.styleName ? fs.styleName.split(' ')[0] : 'یادگاری'}`, w / 2, 32);
-    ctx.fillStyle = '#f8f1e2'; ctx.font = 'bold 23px Tahoma, Arial, sans-serif';
+    ctx.fillStyle = '#fff8eb'; ctx.font = 'bold 24px Tahoma, Arial, sans-serif';
     ctx.fillText(memory.title, w / 2, 70);
   }, 512, 112);
 }
 
-function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2.95) {
+// Grand High-Impact 3D Frames (Larger & Prominent)
+function createFrame(memory, index, x, y, z, rotationY, width = 2.65, height = 3.45) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
   group.rotation.y = rotationY;
@@ -471,13 +469,13 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
   const darkBack = colorMaterial(0x0c0e12, 0.4);
 
   // Backing & Shadow
-  addBox(group, width + 0.16, height + 0.16, 0.12, darkBack, 0, 0, -0.02, { castShadow: true, receiveShadow: false });
+  addBox(group, width + 0.18, height + 0.18, 0.12, darkBack, 0, 0, -0.02, { castShadow: true, receiveShadow: false });
 
   // Main Frame Moulding
-  addBox(group, width, height, 0.10, frameMat, 0, 0, 0.04);
+  addBox(group, width, height, 0.11, frameMat, 0, 0, 0.04);
 
   // Inner Mat
-  const matMargin = 0.22;
+  const matMargin = 0.24;
   addBox(group, width - matMargin, height - matMargin, 0.06, matMat, 0, 0, 0.08, { castShadow: false });
 
   // Custom Architectural Features
@@ -488,33 +486,33 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
     case 'rose-gold-romance':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
-          const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.065, 0.065, 0.04, 8), accentMat);
+          const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.05, 8), accentMat);
           rose.rotation.x = Math.PI / 2;
-          rose.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.14);
+          rose.position.set(sx * (halfW - 0.14), sy * (halfH - 0.14), 0.14);
           group.add(rose);
-          const center = new THREE.Mesh(new THREE.SphereGeometry(0.035, 8, 8), colorMaterial(0xfff0f2, 0.2, 0.8));
-          center.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.165);
+          const center = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), colorMaterial(0xfff0f2, 0.2, 0.8));
+          center.position.set(sx * (halfW - 0.14), sy * (halfH - 0.14), 0.17);
           group.add(center);
         }
       }
-      addBox(group, width - 0.32, height - 0.32, 0.025, accentMat, 0, 0, 0.11, { castShadow: false });
+      addBox(group, width - 0.36, height - 0.36, 0.025, accentMat, 0, 0, 0.11, { castShadow: false });
       break;
 
     case 'baroque-gold':
       {
-        const crown = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.28, 5), accentMat);
-        crown.position.set(0, halfH + 0.14, 0.06);
+        const crown = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.32, 5), accentMat);
+        crown.position.set(0, halfH + 0.16, 0.06);
         group.add(crown);
-        for (const sx of [-0.22, 0.22]) {
-          const miniPinnacle = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), accentMat);
-          miniPinnacle.position.set(sx, halfH + 0.08, 0.06);
+        for (const sx of [-0.26, 0.26]) {
+          const miniPinnacle = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), accentMat);
+          miniPinnacle.position.set(sx, halfH + 0.10, 0.06);
           group.add(miniPinnacle);
         }
         for (const sx of [-1, 1]) {
           for (const sy of [-1, 1]) {
-            const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.16, 0.04), accentMat);
+            const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.04), accentMat);
             bracket.rotation.z = Math.PI / 4;
-            bracket.position.set(sx * (halfW - 0.10), sy * (halfH - 0.10), 0.12);
+            bracket.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.12);
             group.add(bracket);
           }
         }
@@ -522,18 +520,18 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
       break;
 
     case 'honey-walnut':
-      addBox(group, width - 0.08, 0.025, 0.025, accentMat, 0, halfH - 0.06, 0.10, { castShadow: false });
-      addBox(group, width - 0.08, 0.025, 0.025, accentMat, 0, -halfH + 0.06, 0.10, { castShadow: false });
-      addBox(group, 0.025, height - 0.08, 0.025, accentMat, halfW - 0.06, 0, 0.10, { castShadow: false });
-      addBox(group, 0.025, height - 0.08, 0.025, accentMat, -halfW + 0.06, 0, 0.10, { castShadow: false });
+      addBox(group, width - 0.10, 0.03, 0.025, accentMat, 0, halfH - 0.07, 0.10, { castShadow: false });
+      addBox(group, width - 0.10, 0.03, 0.025, accentMat, 0, -halfH + 0.07, 0.10, { castShadow: false });
+      addBox(group, 0.03, height - 0.10, 0.025, accentMat, halfW - 0.07, 0, 0.10, { castShadow: false });
+      addBox(group, 0.03, height - 0.10, 0.025, accentMat, -halfW + 0.07, 0, 0.10, { castShadow: false });
       break;
 
     case 'crimson-velvet':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
           const heartGroup = new THREE.Group();
-          heartGroup.position.set(sx * (halfW - 0.11), sy * (halfH - 0.11), 0.13);
-          heartGroup.scale.set(0.06, 0.06, 0.06);
+          heartGroup.position.set(sx * (halfW - 0.13), sy * (halfH - 0.13), 0.14);
+          heartGroup.scale.set(0.075, 0.075, 0.075);
           const c1 = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 8), accentMat); c1.position.set(-0.35, 0.35, 0); heartGroup.add(c1);
           const c2 = new THREE.Mesh(new THREE.SphereGeometry(0.6, 8, 8), accentMat); c2.position.set(0.35, 0.35, 0); heartGroup.add(c2);
           const cone = new THREE.Mesh(new THREE.ConeGeometry(0.78, 1.2, 8), accentMat); cone.rotation.z = Math.PI; cone.position.set(0, -0.2, 0); heartGroup.add(cone);
@@ -545,34 +543,34 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
     case 'rustic-timber':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
-          const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.038, 0.038, 0.05, 8), colorMaterial(0x422d1e, 0.8));
+          const peg = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.06, 8), colorMaterial(0x422d1e, 0.8));
           peg.rotation.x = Math.PI / 2;
-          peg.position.set(sx * (halfW - 0.08), sy * (halfH - 0.08), 0.11);
+          peg.position.set(sx * (halfW - 0.10), sy * (halfH - 0.10), 0.11);
           group.add(peg);
         }
       }
       break;
 
     case 'pearl-silver':
-      for (let i = -4; i <= 4; i++) {
-        const beadTop = new THREE.Mesh(new THREE.SphereGeometry(0.024, 7, 7), accentMat);
-        beadTop.position.set(i * (width / 10), halfH - 0.04, 0.11); group.add(beadTop);
-        const beadBottom = new THREE.Mesh(new THREE.SphereGeometry(0.024, 7, 7), accentMat);
-        beadBottom.position.set(i * (width / 10), -halfH + 0.04, 0.11); group.add(beadBottom);
+      for (let i = -5; i <= 5; i++) {
+        const beadTop = new THREE.Mesh(new THREE.SphereGeometry(0.028, 7, 7), accentMat);
+        beadTop.position.set(i * (width / 12), halfH - 0.05, 0.11); group.add(beadTop);
+        const beadBottom = new THREE.Mesh(new THREE.SphereGeometry(0.028, 7, 7), accentMat);
+        beadBottom.position.set(i * (width / 12), -halfH + 0.05, 0.11); group.add(beadBottom);
       }
       break;
 
     case 'star-celebration':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
-          const starStud = new THREE.Mesh(new THREE.OctahedronGeometry(0.055), accentMat);
-          starStud.position.set(sx * (halfW - 0.10), sy * (halfH - 0.10), 0.13);
+          const starStud = new THREE.Mesh(new THREE.OctahedronGeometry(0.065), accentMat);
+          starStud.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.14);
           group.add(starStud);
         }
       }
       {
-        const topStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.09), accentMat);
-        topStar.position.set(0, halfH + 0.10, 0.08);
+        const topStar = new THREE.Mesh(new THREE.OctahedronGeometry(0.11), accentMat);
+        topStar.position.set(0, halfH + 0.12, 0.08);
         group.add(topStar);
       }
       break;
@@ -580,8 +578,8 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
     case 'rose-quartz':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
-          const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.048, 10, 8), accentMat);
-          pearl.position.set(sx * (halfW - 0.10), sy * (halfH - 0.10), 0.12);
+          const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.055, 10, 8), accentMat);
+          pearl.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.13);
           group.add(pearl);
         }
       }
@@ -590,9 +588,9 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
     case 'gallery-monochrome':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
-          const standoff = new THREE.Mesh(new THREE.CylinderGeometry(0.026, 0.026, 0.05, 12), accentMat);
+          const standoff = new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.05, 12), accentMat);
           standoff.rotation.x = Math.PI / 2;
-          standoff.position.set(sx * (halfW - 0.14), sy * (halfH - 0.14), 0.12);
+          standoff.position.set(sx * (halfW - 0.16), sy * (halfH - 0.16), 0.12);
           group.add(standoff);
         }
       }
@@ -601,10 +599,10 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
     case 'lavender-twilight':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
-          const plate = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.035, 0.02), accentMat);
-          plate.position.set(sx * (halfW - 0.12), sy * (halfH - 0.05), 0.11); group.add(plate);
-          const plateV = new THREE.Mesh(new THREE.BoxGeometry(0.035, 0.18, 0.02), accentMat);
-          plateV.position.set(sx * (halfW - 0.05), sy * (halfH - 0.12), 0.11); group.add(plateV);
+          const plate = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.04, 0.02), accentMat);
+          plate.position.set(sx * (halfW - 0.14), sy * (halfH - 0.06), 0.11); group.add(plate);
+          const plateV = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.20, 0.02), accentMat);
+          plateV.position.set(sx * (halfW - 0.06), sy * (halfH - 0.14), 0.11); group.add(plateV);
         }
       }
       break;
@@ -612,8 +610,8 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
     case 'emerald-copper':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
-          const clasp = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.12, 0.04), accentMat);
-          clasp.position.set(sx * (halfW - 0.08), sy * (halfH - 0.08), 0.11);
+          const clasp = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.04), accentMat);
+          clasp.position.set(sx * (halfW - 0.10), sy * (halfH - 0.10), 0.12);
           group.add(clasp);
         }
       }
@@ -622,17 +620,17 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
     case 'midnight-starlight':
       for (const sx of [-1, 1]) {
         for (const sy of [-1, 1]) {
-          const gem = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), accentMat);
-          gem.position.set(sx * (halfW - 0.10), sy * (halfH - 0.10), 0.125);
+          const gem = new THREE.Mesh(new THREE.SphereGeometry(0.052, 8, 8), accentMat);
+          gem.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.13);
           group.add(gem);
         }
       }
       break;
   }
 
-  // Artwork Plane
-  const artWidth = width - 0.44;
-  const artHeight = height - 0.52;
+  // Large Artwork Plane
+  const artWidth = width - 0.48;
+  const artHeight = height - 0.58;
   const artTexture = makeAbstractArtwork(memory, index);
   const art = new THREE.Mesh(
     new THREE.PlaneGeometry(artWidth, artHeight),
@@ -676,38 +674,38 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.25, height = 2
 
   // Dedicated Sconce & Spotlight
   const sconceGroup = new THREE.Group();
-  sconceGroup.position.set(0, halfH + 0.28, 0.16);
-  const sconceArm = new THREE.Mesh(new THREE.CylinderGeometry(0.016, 0.016, 0.18, 6), colorMaterial(fs.accentColor, 0.3, 0.7));
+  sconceGroup.position.set(0, halfH + 0.32, 0.18);
+  const sconceArm = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.22, 6), colorMaterial(fs.accentColor, 0.3, 0.7));
   sconceArm.rotation.x = Math.PI / 3; sconceGroup.add(sconceArm);
-  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.08, 0.10, 8), colorMaterial(fs.frameColor, 0.4, 0.3));
-  shade.rotation.x = Math.PI / 2; shade.position.set(0, 0.06, 0.08); sconceGroup.add(shade);
-  const bulbGlow = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffeaae }));
-  bulbGlow.position.set(0, 0.06, 0.11); sconceGroup.add(bulbGlow);
+  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.12, 8), colorMaterial(fs.frameColor, 0.4, 0.3));
+  shade.rotation.x = Math.PI / 2; shade.position.set(0, 0.07, 0.09); sconceGroup.add(shade);
+  const bulbGlow = new THREE.Mesh(new THREE.SphereGeometry(0.032, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffeaae }));
+  bulbGlow.position.set(0, 0.07, 0.12); sconceGroup.add(bulbGlow);
   group.add(sconceGroup);
 
-  const frameSpot = new THREE.PointLight(0xffe6b0, isMobileViewport() ? 1.4 : 1.8, 4.2, 2);
-  frameSpot.position.set(0, halfH + 0.22, 0.42);
+  const frameSpot = new THREE.PointLight(0xffe6b0, isMobileViewport() ? 1.6 : 2.2, 4.8, 2);
+  frameSpot.position.set(0, halfH + 0.22, 0.48);
   group.add(frameSpot);
 
   // Plaque Below Frame
-  const plaqueWidth = Math.max(width - 0.05, 1.8);
-  addBox(group, plaqueWidth + 0.06, 0.52, 0.08, colorMaterial(fs.frameColor, 0.5, 0.2), 0, -halfH - 0.38, 0.015, { castShadow: false });
+  const plaqueWidth = Math.max(width - 0.05, 2.1);
+  addBox(group, plaqueWidth + 0.06, 0.54, 0.08, colorMaterial(fs.frameColor, 0.5, 0.2), 0, -halfH - 0.40, 0.015, { castShadow: false });
   const plaqueTex = makePlaqueTexture(memory, index);
-  const plaque = new THREE.Mesh(new THREE.PlaneGeometry(plaqueWidth, 0.44), new THREE.MeshBasicMaterial({ map: plaqueTex }));
-  plaque.position.set(0, -halfH - 0.38, 0.065);
+  const plaque = new THREE.Mesh(new THREE.PlaneGeometry(plaqueWidth, 0.46), new THREE.MeshBasicMaterial({ map: plaqueTex }));
+  plaque.position.set(0, -halfH - 0.40, 0.065);
   group.add(plaque);
 
   frameRecords.push({ memory, index, x, z, rotationY, group, art });
   return group;
 }
 
-function createSpriteLabel(text, accent = '#c9ad7b') {
+function createSpriteLabel(text, accent = '#ffd875') {
   const texture = makeCanvasTexture((ctx, w, h) => {
     ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = 'rgba(19,22,31,.84)'; ctx.beginPath(); ctx.roundRect(12, 18, w - 24, h - 36, 24); ctx.fill();
-    ctx.strokeStyle = 'rgba(243,200,88,.45)'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = 'rgba(28, 18, 26, 0.88)'; ctx.beginPath(); ctx.roundRect(12, 18, w - 24, h - 36, 24); ctx.fill();
+    ctx.strokeStyle = '#ffd875'; ctx.lineWidth = 2.5; ctx.stroke();
     ctx.fillStyle = accent; ctx.beginPath(); ctx.arc(48, h / 2, 7, 0, Math.PI * 2); ctx.fill();
-    ctx.fillStyle = '#f7f0e1'; ctx.font = '600 30px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
+    ctx.fillStyle = '#fff4f6'; ctx.font = 'bold 30px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
     ctx.fillText(text, w / 2 + 12, h / 2 + 10, w - 110);
   }, 512, 112);
   const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: texture, transparent: true, depthTest: false }));
@@ -716,22 +714,24 @@ function createSpriteLabel(text, accent = '#c9ad7b') {
   return sprite;
 }
 
+// Cute & Aesthetic Nanaz Avatars
 function createAvatar(options = {}) {
   const root = new THREE.Group();
   const rig = new THREE.Group(); root.add(rig);
-  const skin = colorMaterial(options.skin || 0xe4bea0, 0.74);
-  const shirt = colorMaterial(options.shirt || state.avatarColor || 0x7d8b78, 0.8);
-  const pants = colorMaterial(options.pants || 0x31394a, 0.82);
-  const hair = colorMaterial(options.hair || 0x3c302b, 0.92);
+  const skin = colorMaterial(options.skin || 0xf8d4c2, 0.70);
+  const shirt = colorMaterial(options.shirt || state.avatarColor || 0x8f6670, 0.75);
+  const pants = colorMaterial(options.pants || 0x31394a, 0.80);
+  const hair = colorMaterial(options.hair || 0x2c201a, 0.90);
   const shoe = colorMaterial(0x3b302d, 0.7);
-  const eye = new THREE.MeshStandardMaterial({ color: 0x392e2a, roughness: 0.7 });
-  const white = new THREE.MeshStandardMaterial({ color: 0xf7eee0, roughness: 0.55 });
+  const eye = new THREE.MeshStandardMaterial({ color: 0x2c1f1b, roughness: 0.6 });
+  const white = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.5 });
+  const blush = colorMaterial(0xff758f, 0.35, 0.2);
 
-  const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.235, 0.27, 0.34, 9), pants);
+  const hips = new THREE.Mesh(new THREE.CylinderGeometry(0.235, 0.27, 0.34, 10), pants);
   hips.position.y = 0.78; hips.castShadow = true; rig.add(hips);
-  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.29, 0.56, 4, 9), shirt);
+  const torso = new THREE.Mesh(new THREE.CapsuleGeometry(0.29, 0.56, 4, 10), shirt);
   torso.position.y = 1.27; torso.castShadow = true; rig.add(torso);
-  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.018, 6, 16), colorMaterial(0xd9c6a7, 0.45));
+  const collar = new THREE.Mesh(new THREE.TorusGeometry(0.14, 0.018, 6, 16), colorMaterial(0xffe5ec, 0.45));
   collar.position.set(0, 1.70, -0.015); collar.rotation.x = Math.PI / 2; rig.add(collar);
 
   if (options.vestColor) {
@@ -740,7 +740,7 @@ function createAvatar(options = {}) {
       const vestPanel = new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.5, 0.035), vestMat);
       vestPanel.position.set(side * 0.09, 1.29, -0.278); vestPanel.castShadow = true; rig.add(vestPanel);
     }
-    const buttonMat = colorMaterial(0xc1a674, 0.25, 0.6);
+    const buttonMat = colorMaterial(0xffd875, 0.25, 0.7);
     for (const y of [1.16, 1.31, 1.46]) {
       const button = new THREE.Mesh(new THREE.SphereGeometry(0.018, 7, 6), buttonMat);
       button.position.set(0, y, -0.302); rig.add(button);
@@ -766,18 +766,22 @@ function createAvatar(options = {}) {
   }
 
   const head = new THREE.Group(); head.position.set(0, 2.08, 0); rig.add(head);
-  const face = new THREE.Mesh(new THREE.SphereGeometry(0.245, 16, 12), skin);
+  const face = new THREE.Mesh(new THREE.SphereGeometry(0.245, 16, 14), skin);
   face.scale.set(0.91, 1.06, 0.92); face.castShadow = true; head.add(face);
   const cap = new THREE.Mesh(new THREE.SphereGeometry(0.257, 14, 10, 0, Math.PI * 2, 0, Math.PI * 0.56), hair);
   cap.position.y = 0.05; cap.castShadow = true; head.add(cap);
 
   if (options.longHair) {
-    const backHair = new THREE.Mesh(new THREE.SphereGeometry(0.245, 12, 10), hair);
-    backHair.scale.set(1.08, 1.28, 0.65); backHair.position.set(0, -0.05, 0.055); backHair.castShadow = true; head.add(backHair);
+    const backHair = new THREE.Mesh(new THREE.SphereGeometry(0.25, 12, 10), hair);
+    backHair.scale.set(1.10, 1.35, 0.70); backHair.position.set(0, -0.06, 0.06); backHair.castShadow = true; head.add(backHair);
     for (const side of [-1, 1]) {
-      const lock = new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.43, 3, 7), hair);
-      lock.position.set(side * 0.19, -0.25, -0.01); lock.castShadow = true; head.add(lock);
+      const lock = new THREE.Mesh(new THREE.CapsuleGeometry(0.08, 0.48, 3, 8), hair);
+      lock.position.set(side * 0.20, -0.26, -0.01); lock.castShadow = true; head.add(lock);
     }
+    // Cute Ribbon on Hair
+    const bowMat = colorMaterial(0xff4d6d, 0.3, 0.4);
+    const bow = new THREE.Mesh(new THREE.TorusGeometry(0.08, 0.03, 6, 12), bowMat);
+    bow.position.set(0, 0.28, 0.12); head.add(bow);
   } else if (options.curls) {
     const curlPoints = [
       [-0.17, 0.10, -0.11], [-0.09, 0.17, -0.16], [0, 0.18, -0.17], [0.09, 0.17, -0.16], [0.17, 0.10, -0.11],
@@ -792,21 +796,108 @@ function createAvatar(options = {}) {
     fringe.position.set(0, 0.1, -0.16); fringe.rotation.x = 0.24; head.add(fringe);
   }
 
+  // Sparkling Eyes & Cute Cheeks
   for (const side of [-1, 1]) {
-    const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.027, 8, 7), white);
+    const eyeWhite = new THREE.Mesh(new THREE.SphereGeometry(0.028, 8, 7), white);
     eyeWhite.position.set(side * 0.082, 0.012, -0.218); head.add(eyeWhite);
-    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.013, 7, 6), eye);
+    const pupil = new THREE.Mesh(new THREE.SphereGeometry(0.014, 7, 6), eye);
     pupil.position.set(side * 0.082, 0.008, -0.24); head.add(pupil);
+    // Cute blush
+    const blushSpot = new THREE.Mesh(new THREE.CircleGeometry(0.038, 10), blush);
+    blushSpot.position.set(side * 0.12, -0.04, -0.225);
+    blushSpot.rotation.y = side * 0.3;
+    head.add(blushSpot);
   }
-  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.027, 7, 6), skin);
+
+  const nose = new THREE.Mesh(new THREE.SphereGeometry(0.025, 7, 6), skin);
   nose.scale.set(0.72, 0.8, 0.75); nose.position.set(0, -0.035, -0.238); head.add(nose);
-  const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.006, 4, 9, Math.PI), eye);
-  mouth.position.set(0, -0.09, -0.22); mouth.rotation.z = Math.PI; head.add(mouth);
+  const mouth = new THREE.Mesh(new THREE.TorusGeometry(0.032, 0.006, 4, 9, Math.PI), colorMaterial(0xd85b74, 0.4));
+  mouth.position.set(0, -0.085, -0.22); mouth.rotation.z = Math.PI; head.add(mouth);
 
   const label = createSpriteLabel(options.name || ''); label.position.y = 2.79; rig.add(label);
   root.userData = { rig, leftLeg, rightLeg, leftArm, rightArm, head, label, shirtMaterial: shirt, phase: Math.random() * 6.28 };
   root.traverse((obj) => { if (obj.isMesh) { obj.castShadow = true; if (obj.geometry.type !== 'PlaneGeometry') obj.receiveShadow = true; } });
   return root;
+}
+
+// Gallery Walkway Elements: Rose Petals, Runner Carpet, Floral Arches, Candles
+function createGalleryWalkway() {
+  const runnerMat = colorMaterial(0x821c2d, 0.95);
+  const runnerGoldEdge = colorMaterial(0xffd875, 0.3, 0.8);
+
+  // Velvet aisle runner carpet
+  addBox(scene, 3.8, 0.025, 21.8, runnerMat, 0, 0.005, -11.0, { receiveShadow: true });
+  addBox(scene, 0.08, 0.03, 21.8, runnerGoldEdge, -1.9, 0.01, -11.0, { castShadow: false });
+  addBox(scene, 0.08, 0.03, 21.8, runnerGoldEdge, 1.9, 0.01, -11.0, { castShadow: false });
+
+  // Scattered Rose Petals on the aisle
+  const petalMat = colorMaterial(0xff2a5c, 0.4, 0.2);
+  for (let i = 0; i < 45; i++) {
+    const petal = new THREE.Mesh(new THREE.CircleGeometry(0.08 + Math.random() * 0.04, 6), petalMat);
+    petal.rotation.x = -Math.PI / 2;
+    petal.rotation.z = Math.random() * Math.PI * 2;
+    petal.position.set((Math.random() - 0.5) * 3.2, 0.022, -1.5 - Math.random() * 19.0);
+    scene.add(petal);
+  }
+
+  // Romantic Tea-light Candles lining both sides of the runner
+  const candleWax = colorMaterial(0xfffaf0, 0.3);
+  const candleFlame = new THREE.MeshBasicMaterial({ color: 0xffaa33 });
+  for (let z = -1.8; z >= -20.5; z -= 3.2) {
+    for (const sx of [-1.75, 1.75]) {
+      const candle = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 0.12, 8), candleWax);
+      candle.position.set(sx, 0.08, z);
+      scene.add(candle);
+
+      const flame = new THREE.Mesh(new THREE.ConeGeometry(0.025, 0.06, 6), candleFlame);
+      flame.position.set(sx, 0.17, z);
+      scene.add(flame);
+
+      const light = new THREE.PointLight(0xffb84d, 1.4, 3.6, 2);
+      light.position.set(sx, 0.22, z);
+      scene.add(light);
+      candleFlickers.push({ light, flame, baseIntensity: 1.4, phase: Math.random() * 6.28 });
+    }
+  }
+
+  // 2 Romantic Floral Arches along the gallery
+  for (const archZ of [-5.5, -15.5]) {
+    createFloralArch(0, archZ);
+  }
+}
+
+function createFloralArch(x, z) {
+  const archGroup = new THREE.Group();
+  archGroup.position.set(x, 0, z);
+  scene.add(archGroup);
+
+  const goldArchMat = colorMaterial(0xffd875, 0.25, 0.8);
+  const rosePink = colorMaterial(0xff758f, 0.4, 0.3);
+  const roseWhite = colorMaterial(0xfff0f4, 0.4, 0.3);
+  const leafMat = colorMaterial(0x2f4d38, 0.85);
+
+  // Main Arch Structure (Left Column, Right Column, Top Torus Arch)
+  addBox(archGroup, 0.12, 5.2, 0.12, goldArchMat, -2.4, 2.6, 0);
+  addBox(archGroup, 0.12, 5.2, 0.12, goldArchMat, 2.4, 2.6, 0);
+
+  const archTop = new THREE.Mesh(new THREE.TorusGeometry(2.4, 0.06, 8, 16, Math.PI), goldArchMat);
+  archTop.position.set(0, 5.2, 0);
+  archGroup.add(archTop);
+
+  // Roses & leaves along the arch curve
+  for (let i = 0; i <= 16; i++) {
+    const angle = (i / 16) * Math.PI;
+    const rx = Math.cos(angle) * 2.4;
+    const ry = 5.2 + Math.sin(angle) * 1.2;
+    const flower = new THREE.Mesh(new THREE.SphereGeometry(0.12, 8, 8), i % 2 ? rosePink : roseWhite);
+    flower.position.set(rx, ry, (Math.random() - 0.5) * 0.15);
+    archGroup.add(flower);
+
+    const leaf = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.14, 0.02), leafMat);
+    leaf.rotation.z = angle;
+    leaf.position.set(rx + (Math.random() - 0.5) * 0.1, ry, 0.08);
+    archGroup.add(leaf);
+  }
 }
 
 function addMemoryFrames() {
@@ -819,7 +910,7 @@ function addMemoryFrames() {
   ];
   memories.forEach((memory, index) => {
     const spot = layout[index] || layout[layout.length - 1];
-    createFrame(memory, index, spot.x, 4.25, spot.z, spot.rot, 2.15, 2.9);
+    createFrame(memory, index, spot.x, 4.35, spot.z, spot.rot, 2.65, 3.45);
   });
 }
 
@@ -1209,6 +1300,9 @@ function buildHome() {
   const woodFloor = new THREE.Mesh(new THREE.PlaneGeometry(21.5, 22.2), new THREE.MeshStandardMaterial({ map: woodTexture, roughness: 0.65, metalness: 0.025 }));
   woodFloor.rotation.x = -Math.PI / 2; woodFloor.position.set(0, -0.025, -11.0); woodFloor.receiveShadow = true; scene.add(woodFloor);
 
+  // Gallery Walkway elements (aisle carpet, floral arches, candles, petals)
+  createGalleryWalkway();
+
   const outerStone = colorMaterial(0xc7bda9, 0.86);
   const innerPlaster = colorMaterial(0xe3ddcf, 0.88);
   const sidePlaster = colorMaterial(0xd8d1c3, 0.9);
@@ -1315,9 +1409,9 @@ function createWorld() {
   buildHome();
   addMemoryFrames();
 
-  player = createAvatar({ name: 'تو', shirt: state.avatarColor, pants: 0xe2dbcf, skin: 0xe4b997, hair: 0x2c231f, longHair: true });
+  player = createAvatar({ name: state.toName || 'پرنسس من', shirt: state.avatarColor, pants: 0xfce4ec, skin: 0xfde2d2, hair: 0x241812, longHair: true });
   player.position.copy(playerPosition); player.rotation.y = 0; scene.add(player);
-  companion = createAvatar({ name: state.fromName, shirt: 0xe9e3d8, vestColor: 0x292c34, pants: 0x344052, skin: 0xd9aa88, hair: 0x322a27, curls: true });
+  companion = createAvatar({ name: state.fromName || 'من', shirt: 0xe9e3d8, vestColor: 0x2c1f2e, pants: 0x344052, skin: 0xd9aa88, hair: 0x2e2420, curls: true });
   companion.position.set(-1.15, 0, 15.0); companion.rotation.y = 0; scene.add(companion);
 
   cameraLookTarget.copy(player.position).add(new THREE.Vector3(0, 1.2, 0));
@@ -1390,9 +1484,9 @@ function isNearDoor() {
 
 function updateSceneLocation() {
   const label = $('#scene-location')?.querySelector('span:last-child');
-  if (label) label.textContent = insideHouse ? 'داخل خانه' : 'حیاط خانه';
+  if (label) label.textContent = insideHouse ? 'راهروی رویایی خاطرات' : 'حیاط خانه';
   const subtitle = $('#hud-subtitle');
-  if (subtitle) subtitle.textContent = insideHouse ? `خانه‌ی ${state.toName}` : 'جلوی خانه‌ی خاطره‌ها';
+  if (subtitle) subtitle.textContent = insideHouse ? `راهروی خاطرات ۱ سالگی` : 'جلوی خانه‌ی خاطره‌ها';
 }
 
 function setHouseZone(inside) {
@@ -1400,7 +1494,7 @@ function setHouseZone(inside) {
   insideHouse = inside;
   if (inside) {
     targetDistance = 5.6; targetPitch = 0.20; doorTarget = 1;
-    showToast(`به خانه‌ی خاطرات ${state.toName} خوش آمدی`);
+    showToast(`به راهروی خاطرات ۱ سالگی ${state.toName} خوش آمدی 🌸`);
   } else {
     targetDistance = 7.8; targetPitch = 0.24;
     showToast('به حیاط خانه برگشتی');
@@ -1413,9 +1507,8 @@ function startCinematicTour() {
   if (!started) return;
   isTouring = true;
   $('#cinema-tour-btn')?.classList.add('is-touring');
-  showToast('🎬 تور سینمایی خودکار شروع شد');
+  showToast('🎬 تور سینمایی راهروی خاطرات شروع شد');
 
-  // Guide player inside first if outside
   if (!insideHouse) {
     doorTarget = 1;
     movementTarget = new THREE.Vector3(0, 0, -6.5);
@@ -1429,13 +1522,13 @@ function advanceTourStep() {
   if (!isTouring) return;
   if (tourStep >= frameRecords.length) {
     stopCinematicTour();
-    showToast('✨ تور سینمایی تمام شد! سالگردتون مبارک');
+    showToast('✨ تور سینمایی تمام شد! ۱ سالگیمون مبارک 💍');
     openAnniversaryModal();
     return;
   }
 
   const record = frameRecords[tourStep];
-  const approachDistance = 2.6;
+  const approachDistance = 2.8;
   movementTarget = new THREE.Vector3(
     record.x + Math.sin(record.rotationY) * approachDistance,
     0,
@@ -1490,6 +1583,13 @@ function updateGame(dt, elapsed) {
     });
   }
 
+  if (candleFlickers.length > 0) {
+    candleFlickers.forEach((candle) => {
+      const flick = Math.sin(elapsed * 8.0 + candle.phase) * 0.25;
+      candle.light.intensity = candle.baseIntensity + flick;
+    });
+  }
+
   updateFloatingParticles(dt, elapsed);
 
   if (!started || !player) {
@@ -1522,7 +1622,7 @@ function updateGame(dt, elapsed) {
     const distance = delta.length();
     if (distance < 0.24) {
       movementTarget = null;
-      if (entryQueued) { entryQueued = false; showToast('قدم بزن و قاب‌های اختصاصی را ببین'); }
+      if (entryQueued) { entryQueued = false; showToast('قدم بزن و قاب‌های بزرگ راهرو را ببین'); }
     } else {
       delta.normalize();
       const speed = Math.min(3.6, distance * 2.5);
@@ -1638,8 +1738,8 @@ function updateInteractions() {
     if (dMantel < 3.2) {
       nearestInteractable = { type: 'anniversary-mantle' };
       card.classList.remove('is-hidden');
-      copy.textContent = 'طاقِ تبریک سالگرد؛ برای جشن گرفتن دکمه را بزن';
-      buttonLabel.textContent = '💍 جشنِ سالگرد عشقمون';
+      copy.textContent = 'کتیبه‌ی ۱ سالگی عشقمون؛ برای دیدن جشن دکمه را بزن';
+      buttonLabel.textContent = '💍 جشنِ اولین سالگرد';
       button.disabled = false;
       updateProgress();
       return;
@@ -1649,8 +1749,8 @@ function updateInteractions() {
     if (dBook < 2.4) {
       nearestInteractable = { type: 'love-letter' };
       card.classList.remove('is-hidden');
-      copy.textContent = 'کتابچه‌ی نامه‌ی عاشقانه روی میز؛ برای خواندن دکمه را بزن';
-      buttonLabel.textContent = '💌 خواندن نامه‌ی عاشقانه';
+      copy.textContent = 'کتابچه‌ی نامه‌ی ۱ سالگی؛ برای خواندن دکمه را بزن';
+      buttonLabel.textContent = '💌 خواندن نامه‌ی ۱ سالگی';
       button.disabled = false;
       updateProgress();
       return;
@@ -1660,8 +1760,8 @@ function updateInteractions() {
   if (!insideHouse) {
     if (started && isNearDoor() && !entryQueued) {
       card.classList.remove('is-hidden');
-      copy.textContent = doorProgress > 0.72 ? 'در باز است؛ برای ورود به خانه دکمه را بزن' : 'جلوی در ایستادی؛ برای ورود دکمه را بزن';
-      buttonLabel.textContent = doorProgress > 0.72 ? 'وارد خانه شو' : 'بازکردن در و ورود';
+      copy.textContent = doorProgress > 0.72 ? 'در باز است؛ برای ورود به راهرو دکمه را بزن' : 'جلوی در ایستادی؛ برای ورود دکمه را بزن';
+      buttonLabel.textContent = doorProgress > 0.72 ? 'وارد راهرو شو' : 'بازکردن در و ورود';
       button.disabled = false;
     } else {
       card.classList.add('is-hidden');
@@ -1679,7 +1779,7 @@ function updateInteractions() {
     const distance = Math.sqrt(dx * dx + dz * dz);
     if (distance < bestDistance) { bestDistance = distance; best = record; }
   }
-  nearestMemory = bestDistance < 3.35 ? best : null;
+  nearestMemory = bestDistance < 3.8 ? best : null;
   if (nearestMemory && started && !currentMemory) {
     card.classList.remove('is-hidden');
     copy.textContent = `برای دیدن «${nearestMemory.memory.title}» دکمه را بزن`;
@@ -1776,7 +1876,7 @@ function closeAnniversaryModal() {
 }
 
 function openLoveLetterModal() {
-  $('#loveletter-from-sign').textContent = state.fromName;
+  $('#loveletter-from-sign').textContent = `${state.fromName} برای ${state.toName}`;
   loveletterOverlay.hidden = false;
   playRomanticChime(523.25);
   syncAnimationLoop();
@@ -1793,7 +1893,7 @@ function closeLoveLetterModal() {
 function beginEntry() {
   entryQueued = true;
   doorTarget = 1;
-  showToast('در خانه باز می‌شود...');
+  showToast('در راهرو باز می‌شود...');
 }
 
 function interactNearest() {
@@ -1823,7 +1923,7 @@ function interactNearest() {
   if (!insideHouse) {
     if (isNearDoor()) { beginEntry(); return; }
     movementTarget = new THREE.Vector3(0, 0, 3.0);
-    showToast('به سمت در خانه راه می‌افتی'); return;
+    showToast('به سمت در راهرو راه می‌افتی'); return;
   }
   if (!nearestMemory) {
     let closest = null; let bestDistance = Infinity;
@@ -1864,7 +1964,7 @@ function resetCameraView() {
 
 function startGame() {
   state.fromName = $('#from-name').value.trim() || 'من';
-  state.toName = $('#to-name').value.trim() || 'عزیزم';
+  state.toName = $('#to-name').value.trim() || 'پرنسس من';
   state.dedication = $('#dedication').value.trim() || museumDefaults.dedication;
   if ($('#anniversary-msg')) state.anniversaryMsg = $('#anniversary-msg').value.trim() || museumDefaults.anniversaryText;
   if ($('#initial-love-count')) state.loveCount = Number($('#initial-love-count').value) || museumDefaults.loveCount;
@@ -1894,7 +1994,7 @@ function startGame() {
 
   $('#hud-from').textContent = state.fromName;
   $('#hud-to').textContent = state.toName;
-  $('#hud-subtitle').textContent = `خانه‌ی ${state.toName}`;
+  $('#hud-subtitle').textContent = `راهروی خاطرات ۱ سالگی`;
   updateLoveUI();
 
   insideHouse = false; entryQueued = false; movementTarget = null; doorProgress = 0; doorTarget = 0;
@@ -1912,10 +2012,10 @@ function startGame() {
   updateSceneLocation();
 
   player.userData.label.material.map.dispose();
-  player.userData.label.material.map = createSpriteLabel(state.toName, '#c9ad7b').material.map;
+  player.userData.label.material.map = createSpriteLabel(state.toName, '#ffd875').material.map;
   player.userData.label.material.needsUpdate = true;
   companion.userData.label.material.map.dispose();
-  companion.userData.label.material.map = createSpriteLabel(state.fromName, '#d89a92').material.map;
+  companion.userData.label.material.map = createSpriteLabel(state.fromName, '#ff8fa3').material.map;
   companion.userData.label.material.needsUpdate = true;
   player.userData.shirtMaterial.color.set(state.avatarColor);
 
@@ -1926,7 +2026,7 @@ function startGame() {
   hud.classList.remove('is-hidden');
   canvas.focus({ preventScroll: true });
   setTimeout(() => { intro.hidden = true; }, 850);
-  showToast('از حیاط به سمت درِ خانه برو یا به تندیس قلب سر بزن');
+  showToast('از حیاط به سمت راهروی خاطرات برو یا به تندیس قلب سر بزن 🌸');
 }
 
 function raycastInteractive(event) {

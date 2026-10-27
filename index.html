@@ -4,12 +4,12 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#10131d" />
-    <meta name="description" content="یک خانه‌ی سه‌بعدی رمانتیک برای مرور خاطره‌ها و تبریک سالگرد." />
-    <title>خانه‌ی ما — Our Home</title>
+    <meta name="description" content="یک راهروی رویایی و خانه‌ی سه‌بعدی رمانتیک برای اولین سالگرد و ولنتاین." />
+    <title>خانه‌ی خاطرات ما — Our Home (1st Anniversary)</title>
   </head>
   <body>
     <main id="app">
-      <canvas id="world" aria-label="خانه‌ی سه‌بعدی خاطرات"></canvas>
+      <canvas id="world" aria-label="راهروی سه‌بعدی خاطرات"></canvas>
 
       <div id="floating-hearts" class="floating-hearts-layer" aria-hidden="true"></div>
 
@@ -19,12 +19,12 @@
             <div class="brand-mark" aria-hidden="true">
               <svg viewBox="0 0 42 42" fill="none"><path d="M8 34V17.5L21 8l13 9.5V34H8Z" stroke="currentColor" stroke-width="1.4"/><path d="M15 34V22h12v12M4 17l17-12 17 12" stroke="currentColor" stroke-width="1.4"/><circle cx="21" cy="16" r="2" fill="currentColor"/></svg>
             </div>
-            <span class="eyebrow">یک خانه‌ی رمانتیک، برای تمام خاطره‌هایمان</span>
+            <span class="eyebrow">جشن ۱ سالگی عشقمون · ۳۶۵ روز خاطره‌ی قشنگ</span>
           </div>
           <div class="intro-copy">
-            <p class="kicker">OUR HOME · ANNIVERSARY & VALENTINE</p>
+            <p class="kicker">OUR 1ST ANNIVERSARY & VALENTINE</p>
             <h1 id="intro-title">خانه‌ی <em>ما</em></h1>
-            <p class="intro-description">از حیاط و زیر ریسه‌های نور وارد خانه شو؛ میان ۱۲ قاب عکس با طراحی اختصاصی قدم بزنید، به موسیقی پیانو گوش دهید و سالگرد زیبایمان را جشن بگیرید.</p>
+            <p class="intro-description">از حیاط و فرش گلبرگ‌های رز وارد راهروی رویایی شو؛ میان ۱۲ قاب عکس بزرگ و باشکوه قدم بزنید، به موسیقی دلنشین پیانو گوش دهید و اولین سالگرد با هم بودنتان را جشن بگیرید.</p>
           </div>
 
           <form class="gift-form" id="setup-form">
@@ -35,16 +35,16 @@
               </label>
               <label class="field">
                 <span>برایِ</span>
-                <input id="to-name" maxlength="24" autocomplete="off" placeholder="مثلاً: عزیزم" value="عزیزم" />
+                <input id="to-name" maxlength="24" autocomplete="off" placeholder="مثلاً: پرنسس من" value="پرنسس من" />
               </label>
             </div>
             <label class="field dedication-field">
               <span>پیام پلاک سردر خانه</span>
-              <input id="dedication" maxlength="90" autocomplete="off" value="تمام لحظه‌های کوچکمان، ارزش قاب گرفتن دارند." />
+              <input id="dedication" maxlength="90" autocomplete="off" value="اولین سالگرد یکی شدنمون مبارک؛ تمام لحظه‌های با تو بودن، ارزش قاب گرفتن دارند." />
             </label>
             <label class="field dedication-field">
-              <span>پیام تبریک سالگرد</span>
-              <input id="anniversary-msg" maxlength="120" autocomplete="off" value="سالگرد یکی شدنمون مبارک عشقم! مرسی که زیباترین بخش زندگی منی ❤️💍" />
+              <span>پیام تبریک اولین سالگرد</span>
+              <input id="anniversary-msg" maxlength="120" autocomplete="off" value="اولین سالگرد عشقمون مبارک قشنگم! ۳۶۵ روزه که با اومدنت به زندگیم همه‌چیز زیباتر شده ❤️💍✨" />
             </label>
             <div class="name-row love-row">
               <label class="field">
@@ -57,30 +57,30 @@
                   <small>قابل انتخاب</small>
                 </div>
                 <div class="swatches" role="group" aria-label="رنگ لباس آواتار">
-                  <button class="swatch is-selected" type="button" data-color="#30313a" aria-label="ذغالی" style="--swatch:#30313a"></button>
+                  <button class="swatch is-selected" type="button" data-color="#8f6670" aria-label="رزگلد" style="--swatch:#8f6670"></button>
+                  <button class="swatch" type="button" data-color="#30313a" aria-label="ذغالی" style="--swatch:#30313a"></button>
                   <button class="swatch" type="button" data-color="#7d8b78" aria-label="سبز زیتونی" style="--swatch:#7d8b78"></button>
-                  <button class="swatch" type="button" data-color="#8f6670" aria-label="رزگلد" style="--swatch:#8f6670"></button>
                   <button class="swatch" type="button" data-color="#566a83" aria-label="آبی نفتی" style="--swatch:#566a83"></button>
                   <button class="swatch" type="button" data-color="#b58c57" aria-label="طلایی" style="--swatch:#b58c57"></button>
                 </div>
               </div>
             </div>
             <button class="start-button" type="submit">
-              <span>از حیاط وارد شو</span>
+              <span>از حیاط وارد راهروی عشق شو</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
-            <div class="form-footnote"><span class="tiny-lock" aria-hidden="true">✦</span> همراه با موسیقی ملایم پیانو، قاب‌های اختصاصی و تور سینمایی.</div>
+            <div class="form-footnote"><span class="tiny-lock" aria-hidden="true">✦</span> راهروی اختصاصی با طاق گل، قاب‌های بزرگ، شمع و موسیقی پیانو.</div>
           </form>
-          <div class="intro-footer"><span>یک تجربه‌ی شخصی، آرام و عاشقانه</span><span class="footer-dot"></span><span>با عشق و نور</span></div>
+          <div class="intro-footer"><span>یک تجربه‌ی شخصی، آرام، شیک و ناناز</span><span class="footer-dot"></span><span>با تمام عشق برای پرنسس من</span></div>
         </div>
 
         <div class="intro-gallery" aria-hidden="true">
           <div class="gallery-glow"></div>
           <div class="intro-gallery-caption">
-            <span class="caption-kicker">HAPPY ANNIVERSARY & VALENTINE</span>
-            <span class="caption-title">The door opens<br />to our memories.</span>
+            <span class="caption-kicker">1ST YEAR ANNIVERSARY & VALENTINE</span>
+            <span class="caption-title">365 Days of Love<br />& Beautiful Memories.</span>
             <span class="caption-line"></span>
-            <span class="caption-subtitle">از حیاط وارد خانه شو، قاب‌ها را ببین و به تندیس عشق سر بزن.</span>
+            <span class="caption-subtitle">از حیاط وارد راهرو شو، عکس‌های بزرگ را ببین و به تندیس قلب سر بزن.</span>
           </div>
           <div class="archway">
             <div class="arch-inner">
@@ -88,13 +88,13 @@
               <div class="door-panel door-right"><span></span><span></span></div>
               <div class="door-light"></div>
             </div>
-            <div class="arch-plaque">OUR HOME · ANNIVERSARY</div>
+            <div class="arch-plaque">OUR 1ST ANNIVERSARY</div>
             <div class="arch-step step-one"></div><div class="arch-step step-two"></div>
           </div>
-          <div class="intro-frame frame-one"><span class="placeholder-sun"></span><span class="placeholder-mountain"></span><i>قاب اختصاصی ۰۱</i></div>
-          <div class="intro-frame frame-two"><span class="frame-abstract">♡</span><i>قاب اختصاصی ۰۲</i></div>
+          <div class="intro-frame frame-one"><span class="placeholder-sun"></span><span class="placeholder-mountain"></span><i>۱ سال عاشقی</i></div>
+          <div class="intro-frame frame-two"><span class="frame-abstract">♡</span><i>۳۶۵ روز خاطره</i></div>
           <div class="floor-glow"></div>
-          <div class="gallery-side-note">EVERY MEMORY HAS ITS OWN FRAME</div>
+          <div class="gallery-side-note">HAPPY 1ST ANNIVERSARY MY LOVE</div>
           <div class="corner-index">01 — 12</div>
         </div>
       </section>
@@ -103,12 +103,12 @@
         <header class="hud-header">
           <div class="hud-brand">
             <div class="mini-mark" aria-hidden="true">✦</div>
-            <div><strong>OUR HOME</strong><small id="hud-subtitle">خانه‌ی خاطرات شما</small></div>
+            <div><strong>OUR 1ST ANNIVERSARY</strong><small id="hud-subtitle">راهروی رویایی خاطرات ما</small></div>
           </div>
           <div class="hud-center-pills">
-            <button class="anniversary-chip" id="anniversary-btn" type="button" title="دیدن پیام تبریک سالگرد">
+            <button class="anniversary-chip" id="anniversary-btn" type="button" title="دیدن جشن اولین سالگرد">
               <span class="anniversary-ring-icon">💍</span>
-              <span class="anniversary-text">سالگردمون مبارک</span>
+              <span class="anniversary-text">۱ سال عاشقیمون مبارک</span>
               <span class="sparkle-dot">✨</span>
             </button>
             <button class="love-counter-chip" id="love-counter-btn" type="button" title="بزن تا بگی دوستت دارم!">
@@ -116,7 +116,7 @@
               <span class="love-count-label"><b id="hud-love-count">۱۰,۲۴۰</b> بار دوستت دارم</span>
               <span class="love-add-hint">+۱</span>
             </button>
-            <div class="dedication-chip"><span class="chip-dot"></span><span id="hud-from">من</span><b>♡</b><span id="hud-to">عزیزم</span></div>
+            <div class="dedication-chip"><span class="chip-dot"></span><span id="hud-from">من</span><b>♡</b><span id="hud-to">پرنسس من</span></div>
           </div>
           <div class="hud-actions">
             <button class="icon-button" id="music-toggle-btn" type="button" aria-label="موسیقی پس‌زمینه" title="موسیقی پس‌زمینه پیانو">
@@ -161,54 +161,75 @@
         <div class="toast" id="toast" role="status"></div>
       </section>
 
-      <!-- Memory details modal -->
+      <!-- Memory details modal (Extra Large & Cute Nanaz Theme) -->
       <section class="memory-overlay" id="memory-overlay" aria-modal="true" role="dialog" aria-labelledby="memory-title" hidden>
         <div class="memory-backdrop" id="memory-backdrop"></div>
-        <article class="memory-card" id="memory-card-element">
+        <article class="memory-card nanaz-theme" id="memory-card-element">
           <button class="close-button" id="close-memory" type="button" aria-label="بستن">×</button>
+          
           <div class="memory-image-wrap">
-            <div class="memory-frame-badge" id="memory-frame-badge"><span class="badge-icon">🖼️</span> <span id="memory-frame-stylename">قاب اختصاصی</span></div>
+            <div class="memory-ribbon-tag">🎀 خاطره‌ی دونفره‌ی ما</div>
+            <div class="memory-frame-badge" id="memory-frame-badge">
+              <span class="badge-icon">🖼️</span> <span id="memory-frame-stylename">قاب اختصاصی</span>
+            </div>
+            
             <div class="memory-art-placeholder" id="memory-art-placeholder">
               <img id="memory-photo" alt="عکس خاطره" hidden />
               <span class="art-sun"></span><span class="art-hill art-hill-a"></span><span class="art-hill art-hill-b"></span>
-              <div class="art-placeholder-label"><span class="camera-icon">▧</span><b>قابِ اختصاصی خاطره</b><small>عکس در حال نمایش</small></div>
+              <div class="art-placeholder-label"><span class="camera-icon">▧</span><b>عکس در حال بارگذاری</b><small>قاب زیبای دونفره</small></div>
               <span class="art-corner-mark">MEMORY / 01</span>
             </div>
-            <div class="image-caption" id="memory-image-caption">یک قابِ ویژه، برای یک خاطره‌ی تکرارنشدنی</div>
+            <div class="image-caption" id="memory-image-caption">✨ یک قابِ تکرارنشدنی از زیباترین لحظه‌مان ✨</div>
           </div>
+
           <div class="memory-copy">
-            <div class="memory-meta"><span class="meta-line"></span><span id="memory-date">خاطره‌ی ۰۱</span></div>
+            <div class="memory-meta">
+              <span class="anniv-pill-mini">💍 ۱ سال باهم</span>
+              <span class="meta-line"></span>
+              <span id="memory-date">خاطره‌ی ۰۱</span>
+            </div>
             <h2 id="memory-title">عنوان خاطره</h2>
             <p class="memory-caption" id="memory-caption"></p>
+            
             <div class="memory-actions-row">
-              <button class="inline-love-btn" id="modal-love-btn" type="button">
-                <span>❤️</span> <span id="modal-love-text">دوستت دارم (۱۰,۲۴۰ بار)</span>
+              <button class="inline-love-btn nanaz-love-btn" id="modal-love-btn" type="button">
+                <span class="heart-pulse">❤️</span> <span id="modal-love-text">دوستت دارم (۱۰,۲۴۰ بار)</span>
               </button>
-              <div class="memory-signoff"><span class="signoff-heart">♡</span><span>با مهر، <b id="memory-author">من</b></span></div>
+              <div class="memory-signoff"><span class="signoff-heart">♡</span><span>برای همیشه، <b id="memory-author">من</b></span></div>
             </div>
-            <button class="next-memory-button" id="next-memory" type="button">رفتن به قاب بعدی <span>←</span></button>
+            <button class="next-memory-button nanaz-next-btn" id="next-memory" type="button">رفتن به قاب بعدی <span>←</span></button>
           </div>
         </article>
       </section>
 
-      <!-- Anniversary special modal -->
+      <!-- 1st Anniversary Special Modal (Super Cute & Aesthetic) -->
       <section class="anniversary-overlay" id="anniversary-overlay" aria-modal="true" role="dialog" aria-labelledby="anniversary-modal-title" hidden>
         <div class="anniversary-backdrop" id="anniversary-backdrop"></div>
-        <article class="anniversary-card">
+        <article class="anniversary-card nanaz-anniv-card">
           <button class="close-button" id="close-anniversary" type="button" aria-label="بستن">×</button>
+          
           <div class="anniversary-header-ornament">
+            <div class="anniv-crown-badge">👑 ۱ سال عاشقی 👑</div>
             <span class="anniversary-ring-large">💍</span>
-            <span class="anniversary-stars">✨ ✨ ✨</span>
+            <div class="anniversary-stars">✨ 💖 🌸 💖 ✨</div>
           </div>
-          <span class="kicker">HAPPY ANNIVERSARY & VALENTINE</span>
-          <h2 id="anniversary-modal-title">سالگرد عشقمون مبارک!</h2>
-          <div class="anniversary-couple-badge">
-            <span id="anniv-from">من</span> <span class="heart-pulse">❤️</span> <span id="anniv-to">عزیزم</span>
+          
+          <span class="kicker">HAPPY 1ST YEAR ANNIVERSARY & VALENTINE</span>
+          <h2 id="anniversary-modal-title">اولین سالگرد یکی شدنمون مبارک!</h2>
+          
+          <div class="anniversary-couple-badge nanaz-couple-badge">
+            <span id="anniv-from">من</span> <span class="heart-pulse">❤️</span> <span id="anniv-to">پرنسس من</span>
           </div>
+          
           <p class="anniversary-message" id="anniversary-card-msg">
-            سالگرد یکی شدنمون مبارک عشقم! مرسی که زیباترین بخش زندگی منی.
+            یک سال پیش در چنین روزی قشنگ‌ترین فصل زندگی من شروع شد. ۳۶۵ روزه که با خنده‌هات، مهربونی‌هات و بودنت دنیام رنگی شده. مرسی که هستی عزیز دلم، تا ابد عاشقتم! ❤️💍
           </p>
-          <div class="anniversary-stats-grid">
+          
+          <div class="anniversary-stats-grid nanaz-stats-grid">
+            <div class="anniv-stat-item">
+              <span class="stat-number">۳۶۵</span>
+              <span class="stat-label">روز عاشقی و لبخند</span>
+            </div>
             <div class="anniv-stat-item">
               <span class="stat-number" id="anniv-love-stat">۱۰,۲۴۰</span>
               <span class="stat-label">بار گفتم دوستت دارم</span>
@@ -219,36 +240,40 @@
             </div>
             <div class="anniv-stat-item">
               <span class="stat-number">∞</span>
-              <span class="stat-label">عشق و روزهای قشنگ پیشِ رو</span>
+              <span class="stat-label">عشق تا بی‌نهایت</span>
             </div>
           </div>
+          
           <div class="anniversary-cta-row">
-            <button class="anniversary-love-action" id="anniv-heart-action" type="button">
-              <span>❤️</span> <span>یک «دوستت دارم» دیگر به قلبش بفرست</span>
+            <button class="anniversary-love-action nanaz-love-action" id="anniv-heart-action" type="button">
+              <span>❤️</span> <span>یک «دوستت دارم» دیگر به قلب پرنسسم بفرست</span>
             </button>
             <button class="start-button anniv-close-action" id="anniv-close-action" type="button">
-              <span>ادامه‌ی گشت‌وگذار در خانه</span> <span>✓</span>
+              <span>ادامه‌ی گشت‌وگذار در راهروی عشق</span> <span>✓</span>
             </button>
           </div>
         </article>
       </section>
 
-      <!-- Love Letter / Memory Book Modal -->
+      <!-- Love Letter / Memory Book Modal (Cute & Romantic) -->
       <section class="loveletter-overlay" id="loveletter-overlay" aria-modal="true" role="dialog" aria-labelledby="loveletter-title" hidden>
         <div class="loveletter-backdrop" id="loveletter-backdrop"></div>
-        <article class="loveletter-card">
+        <article class="loveletter-card nanaz-letter-card">
           <button class="close-button" id="close-loveletter" type="button" aria-label="بستن">×</button>
           <div class="loveletter-seal">💌</div>
-          <span class="kicker">OUR LOVE LETTER</span>
-          <h2 id="loveletter-title">نامه‌ای از اعماق قلب</h2>
+          <div class="nanaz-tag">🌸 نامه‌ای به مناسبت ۱ سالگی عشقمون 🌸</div>
+          <h2 id="loveletter-title">برای پرنسسِ قشنگم</h2>
+          
           <div class="loveletter-body" id="loveletter-body">
-            <p>عزیزترین من،</p>
-            <p>در این خانه‌ی کوچک، هر گوشه و هر قابی شاهدی است بر روزهایی که با خنده، عشق و کنار هم بودن رقم خوردند. تمام این ۱۲ قاب و تک‌تک لحظه‌های ریز و درشتی که با هم گذراندیم، باارزش‌ترین دارایی من در این جهانند.</p>
-            <p>سالگردمان و ولنتاین مبارک؛ تا همیشه دوستت دارم و کنارت خواهم بود. ❤️</p>
+            <p>سلام مهربون‌ترین دختر دنیا،</p>
+            <p>درست یک سال پیش، تو وارد زندگیم شدی و از همون روز اول، همه‌چیز رنگ و بوی دیگه‌ای گرفت. تک‌تک این ۱۲ قابی که توی این راهرو می‌بینی، گوشه‌ای از زیباترین لحظه‌هایی هستن که با هم ساختیم.</p>
+            <p>از خنده‌هامون توی ماشین و قرارهای دونفره‌مون گرفته تا آرامشِ بودنت کنارم، همه‌شون باارزش‌ترین گنجینه‌ی زندگی منن.</p>
+            <p>اولین سالگردمون و ولنتاین مبارک عشقم؛ قول میدم هر روز بیشتر از دیروز دوستت داشته باشم و کنارت باشم. ❤️💍</p>
           </div>
+          
           <div class="loveletter-signature">
-            <span>برای همیشه،</span>
-            <strong id="loveletter-from-sign">من</strong>
+            <span>با تمام قلب و وجودم،</span>
+            <strong id="loveletter-from-sign">همراه و عاشق همیشگی تو</strong>
           </div>
           <button class="start-button loveletter-close-btn" id="loveletter-close-btn" type="button">
             <span>بستن نامه و ادامه‌ی گردش</span> <span>♡</span>
@@ -262,14 +287,14 @@
         <article class="help-card">
           <button class="close-button" id="close-help" type="button" aria-label="بستن">×</button>
           <span class="kicker">A SMALL GUIDE</span>
-          <h2>چطور در خانه بگردی؟</h2>
-          <div class="guide-row"><span class="guide-key">W A S D</span><span>حرکت روان و پیوسته در خانه و حیاط</span></div>
+          <h2>چطور در راهروی عشق بگردی؟</h2>
+          <div class="guide-row"><span class="guide-key">W A S D</span><span>حرکت روان و پیوسته در راهرو و حیاط</span></div>
           <div class="guide-row"><span class="guide-key">ماوس / لمس</span><span>چرخش دوربین ۳۶۰ درجه و زوم با اسکرول یا دو انگشت</span></div>
-          <div class="guide-row"><span class="guide-key">دکمه / E</span><span>تعامل با قاب‌ها، در و تندیس‌ها</span></div>
-          <div class="guide-row"><span class="guide-key">🎵 موسیقی</span><span>پخش موسیقی ملایم پیانو در پس‌زمینه</span></div>
-          <div class="guide-row"><span class="guide-key">🎬 تور سینمایی</span><span>گردش خودکار دوربین میان قاب‌های خانه</span></div>
+          <div class="guide-row"><span class="guide-key">دکمه / E</span><span>تعامل با قاب‌های بزرگ، در، شومینه و تندیس‌ها</span></div>
+          <div class="guide-row"><span class="guide-key">🎵 موسیقی</span><span>پخش موسیقی پیانوی عاشقانه در پس‌زمینه</span></div>
+          <div class="guide-row"><span class="guide-key">🎬 تور سینمایی</span><span>گردش خودکار دوربین میان تمام قاب‌های راهرو</span></div>
           <div class="guide-row"><span class="guide-key">تندیس قلب</span><span>کلیک کن تا بگی دوستت دارم!</span></div>
-          <p class="guide-note">روی گوشی با جوی‌استیک حرکت کن و صفحه را با لمس بکش تا دوربین بچرخد. با دو انگشت می‌توانید روی صحنه زوم کنید. دوربین دارای شتاب و چرخش سینمایی روان و بدون لگ است.</p>
+          <p class="guide-note">عکس‌ها در این راهرو با ابعاد بزرگ و نورپردازی اختصاصی تعبیه شده‌اند. برای مشاهده عکس‌ها در ابعاد بزرگتر روی آن‌ها کلیک کنید.</p>
           <button class="start-button help-close-action" id="help-close-action" type="button"><span>متوجه شدم</span><span>✓</span></button>
         </article>
       </section>
