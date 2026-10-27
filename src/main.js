@@ -142,6 +142,56 @@ function playFireworkSound() {
   } catch (e) {}
 }
 
+function playGrandPianoMelody() {
+  try {
+    initAudio();
+    const chords = [
+      [329.63, 392.00, 493.88, 659.25], // E minor / G
+      [440.00, 523.25, 659.25, 880.00], // A minor
+      [392.00, 493.88, 587.33, 783.99], // G major
+      [523.25, 659.25, 783.99, 1046.50] // C / Anniversary resolution
+    ];
+    chords.forEach((chordGroup, cIdx) => {
+      chordGroup.forEach((freq, nIdx) => {
+        setTimeout(() => {
+          if (!audioCtx) return;
+          const osc = audioCtx.createOscillator();
+          const gain = audioCtx.createGain();
+          osc.type = 'triangle';
+          osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+          gain.gain.setValueAtTime(0.22, audioCtx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 1.2);
+          osc.connect(gain);
+          gain.connect(audioCtx.destination);
+          osc.start();
+          osc.stop(audioCtx.currentTime + 1.25);
+        }, (cIdx * 450) + (nIdx * 90));
+      });
+    });
+  } catch (e) {}
+}
+
+function playWishingWellSplash() {
+  try {
+    initAudio();
+    [783.99, 1046.50, 1318.51, 1567.98].forEach((freq, idx) => {
+      setTimeout(() => {
+        if (!audioCtx) return;
+        const osc = audioCtx.createOscillator();
+        const gain = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(freq, audioCtx.currentTime);
+        gain.gain.setValueAtTime(0.18, audioCtx.currentTime);
+        gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + 0.6);
+        osc.connect(gain);
+        gain.connect(audioCtx.destination);
+        osc.start();
+        osc.stop(audioCtx.currentTime + 0.65);
+      }, idx * 80);
+    });
+  } catch (e) {}
+}
+
 // Procedural Romantic Piano Melody Generator
 const romanticProgression = [
   [261.63, 329.63, 392.00, 523.25, 659.25],
@@ -1486,29 +1536,339 @@ function addMemoryFrames() {
   });
 }
 
-function makeWoodTexture() {
+function makeRoyalMarbleFloorTexture() {
   const image = document.createElement('canvas'); image.width = 512; image.height = 512;
   const ctx = image.getContext('2d');
-  const plankColors = ['#806045', '#8b694b', '#76583f', '#92704e', '#7e5d43', '#896849', '#74553e', '#8b694b'];
-  for (let row = 0; row < 8; row++) {
-    const y = row * 64; const offset = row % 2 ? 96 : 0;
-    ctx.fillStyle = plankColors[row]; ctx.fillRect(0, y, 512, 62);
-    ctx.fillStyle = '#4d3929'; ctx.fillRect(0, y + 62, 512, 2);
-    for (let x = -offset; x < 512; x += 192) {
-      ctx.fillStyle = '#513e2e'; ctx.fillRect(x, y, 2, 62);
-      ctx.fillStyle = '#a17d59'; ctx.fillRect(x + 2, y + 2, 1, 58);
-    }
-    for (let line = 0; line < 5; line++) {
-      const sy = y + 7 + line * 11;
-      ctx.strokeStyle = line % 2 ? '#b69168' : '#493729'; ctx.globalAlpha = 0.16; ctx.lineWidth = 1;
-      ctx.beginPath(); ctx.moveTo(4, sy); ctx.bezierCurveTo(120, sy - 3, 260, sy + 2, 508, sy - 1); ctx.stroke();
+  ctx.fillStyle = '#faf6f0';
+  ctx.fillRect(0, 0, 512, 512);
+
+  const tileSize = 128;
+  for (let y = 0; y < 4; y++) {
+    for (let x = 0; x < 4; x++) {
+      const isAlt = (x + y) % 2 === 1;
+      const px = x * tileSize;
+      const py = y * tileSize;
+
+      const grad = ctx.createLinearGradient(px, py, px + tileSize, py + tileSize);
+      if (isAlt) {
+        grad.addColorStop(0, '#f2e4e8');
+        grad.addColorStop(0.5, '#e8d5db');
+        grad.addColorStop(1, '#f7eaee');
+      } else {
+        grad.addColorStop(0, '#ffffff');
+        grad.addColorStop(0.5, '#f5f0e8');
+        grad.addColorStop(1, '#faf7f2');
+      }
+      ctx.fillStyle = grad;
+      ctx.fillRect(px + 2, py + 2, tileSize - 4, tileSize - 4);
+
+      // Organic marble veining
+      ctx.strokeStyle = isAlt ? 'rgba(180, 120, 140, 0.22)' : 'rgba(210, 195, 175, 0.25)';
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(px + 10, py + tileSize - 10);
+      ctx.bezierCurveTo(px + tileSize * 0.4, py + tileSize * 0.6, px + tileSize * 0.6, py + tileSize * 0.4, px + tileSize - 15, py + 12);
+      ctx.stroke();
+
+      // Gold tile inlay border
+      ctx.strokeStyle = 'rgba(255, 215, 115, 0.75)';
+      ctx.lineWidth = 2.0;
+      ctx.strokeRect(px + 4, py + 4, tileSize - 8, tileSize - 8);
+
+      // Corner diamond rosettes
+      ctx.fillStyle = '#ffd875';
+      ctx.fillRect(px + tileSize / 2 - 3, py + tileSize / 2 - 3, 6, 6);
     }
   }
-  ctx.globalAlpha = 1;
-  const texture = new THREE.CanvasTexture(image); texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; texture.repeat.set(3.4, 18.0);
+
+  const texture = new THREE.CanvasTexture(image);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4.0, 16.0);
   texture.anisotropy = renderer ? Math.min(4, renderer.capabilities.getMaxAnisotropy()) : 1;
   return texture;
+}
+
+function createRibbedVaultedCeiling(corridorLength, corridorCenterZ) {
+  const goldRibMat = colorMaterial(0xffd875, 0.22, 0.85);
+  const rosetteGold = colorMaterial(0xffd875, 0.18, 0.9);
+
+  const archZs = [-3.5, -13.0, -22.5, -32.0, -41.5, -51.0, -60.5];
+  archZs.forEach((z) => {
+    const vaultGroup = new THREE.Group();
+    vaultGroup.position.set(0, 0, z);
+    scene.add(vaultGroup);
+
+    // Arch Rib Curve across ceiling
+    const rib = new THREE.Mesh(new THREE.TorusGeometry(10.4, 0.12, 8, 24, Math.PI), goldRibMat);
+    rib.position.set(0, 7.25, 0);
+    rib.rotation.z = Math.PI;
+    vaultGroup.add(rib);
+
+    // Central Gilded Ceiling Boss / Rosette
+    const boss = new THREE.Mesh(new THREE.CylinderGeometry(0.55, 0.55, 0.14, 16), rosetteGold);
+    boss.position.set(0, 7.30, 0);
+    vaultGroup.add(boss);
+
+    const jewel = new THREE.Mesh(new THREE.OctahedronGeometry(0.18), new THREE.MeshBasicMaterial({ color: 0xffd8a8 }));
+    jewel.position.set(0, 7.15, 0);
+    vaultGroup.add(jewel);
+  });
+}
+
+function createStainedGlassWindows() {
+  const windowTex = makeCanvasTexture((ctx, w, h) => {
+    ctx.fillStyle = '#1c152a';
+    ctx.fillRect(0, 0, w, h);
+    const grad = ctx.createLinearGradient(0, 0, 0, h);
+    grad.addColorStop(0, '#ff9ebb');
+    grad.addColorStop(0.3, '#c084fc');
+    grad.addColorStop(0.7, '#60a5fa');
+    grad.addColorStop(1, '#ffd875');
+    ctx.fillStyle = grad;
+    ctx.fillRect(12, 12, w - 24, h - 24);
+
+    ctx.strokeStyle = '#241b2e';
+    ctx.lineWidth = 10;
+    ctx.strokeRect(12, 12, w - 24, h - 24);
+
+    ctx.beginPath();
+    ctx.arc(w / 2, h * 0.35, w * 0.35, Math.PI, 0);
+    ctx.stroke();
+
+    ctx.fillStyle = 'rgba(255, 60, 110, 0.75)';
+    ctx.beginPath();
+    const cx = w / 2, cy = h * 0.48;
+    ctx.moveTo(cx, cy + 30);
+    ctx.bezierCurveTo(cx - 50, cy - 30, cx - 60, cy + 40, cx, cy + 90);
+    ctx.bezierCurveTo(cx + 60, cy + 40, cx + 50, cy - 30, cx, cy + 30);
+    ctx.fill();
+    ctx.stroke();
+  }, 256, 512);
+
+  const winMat = new THREE.MeshBasicMaterial({ map: windowTex });
+  const frameGold = colorMaterial(0xffd875, 0.25, 0.85);
+
+  const winZs = [-8.0, -19.5, -31.0, -42.5, -54.0];
+  winZs.forEach((z) => {
+    for (const side of [-10.42, 10.42]) {
+      const winGroup = new THREE.Group();
+      winGroup.position.set(side, 4.4, z);
+      winGroup.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2;
+      scene.add(winGroup);
+
+      addBox(winGroup, 2.8, 3.8, 0.08, frameGold, 0, 0, 0, { castShadow: false });
+      const glass = new THREE.Mesh(new THREE.PlaneGeometry(2.5, 3.5), winMat);
+      glass.position.set(0, 0, 0.05);
+      winGroup.add(glass);
+    }
+  });
+}
+
+// Royal Concert Grand Piano (Interactive 3D Piano)
+function createGrandPiano(x, y, z) {
+  const pianoGroup = new THREE.Group();
+  pianoGroup.position.set(x, y, z);
+  pianoGroup.rotation.y = -Math.PI * 0.28;
+  scene.add(pianoGroup);
+
+  const pianoBlack = colorMaterial(0x111116, 0.18, 0.3);
+  const soundboardGold = colorMaterial(0xcca352, 0.4, 0.6);
+  const goldTrim = colorMaterial(0xffd875, 0.22, 0.85);
+  const ivoryWhite = colorMaterial(0xfffdfa, 0.2);
+  const keyEbony = colorMaterial(0x18181c, 0.15);
+  const stoolVelvet = colorMaterial(0x821c2d, 0.8);
+
+  // Main Piano Rim / Body (Curved Wing)
+  addBox(pianoGroup, 2.4, 0.42, 2.8, pianoBlack, 0, 1.25, 0, { castShadow: true });
+  
+  // Inner Soundboard
+  addBox(pianoGroup, 2.2, 0.04, 2.5, soundboardGold, 0, 1.32, -0.1, { castShadow: false });
+
+  // Open Wing Lid angled up
+  const lid = new THREE.Mesh(new THREE.BoxGeometry(2.35, 0.04, 2.75), pianoBlack);
+  lid.position.set(0, 1.75, 0);
+  lid.rotation.z = 0.42;
+  pianoGroup.add(lid);
+
+  // Gold Lid Prop Stick
+  const prop = new THREE.Mesh(new THREE.CylinderGeometry(0.02, 0.02, 0.85, 6), goldTrim);
+  prop.position.set(0.85, 1.65, 0.2);
+  prop.rotation.z = -0.3;
+  pianoGroup.add(prop);
+
+  // Keyboard Bed & Keys
+  addBox(pianoGroup, 2.1, 0.12, 0.48, pianoBlack, 0, 1.05, 1.45, { castShadow: true });
+  for (let i = 0; i < 24; i++) {
+    const kx = -0.92 + i * 0.08;
+    addBox(pianoGroup, 0.075, 0.04, 0.38, ivoryWhite, kx, 1.13, 1.48, { castShadow: false });
+    if (i % 7 !== 2 && i % 7 !== 6 && i < 23) {
+      addBox(pianoGroup, 0.045, 0.06, 0.24, keyEbony, kx + 0.04, 1.16, 1.42, { castShadow: false });
+    }
+  }
+
+  // 3 Fluted Legs with Gold Casters
+  for (const [lx, lz] of [[-0.95, -1.0], [0.95, -1.0], [0, 1.1]]) {
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.05, 1.05, 8), pianoBlack);
+    leg.position.set(lx, 0.52, lz);
+    leg.castShadow = true;
+    pianoGroup.add(leg);
+    const caster = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), goldTrim);
+    caster.position.set(lx, 0.05, lz);
+    pianoGroup.add(caster);
+  }
+
+  // Velvet Piano Stool
+  const stoolGroup = new THREE.Group();
+  stoolGroup.position.set(0, 0, 2.1);
+  addBox(stoolGroup, 1.1, 0.14, 0.48, stoolVelvet, 0, 0.62, 0, { castShadow: true });
+  addBox(stoolGroup, 1.14, 0.04, 0.52, goldTrim, 0, 0.54, 0, { castShadow: false });
+  for (const sx of [-0.42, 0.42]) {
+    for (const sz of [-0.16, 0.16]) {
+      const sLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.03, 0.52, 6), pianoBlack);
+      sLeg.position.set(sx, 0.26, sz);
+      stoolGroup.add(sLeg);
+    }
+  }
+  pianoGroup.add(stoolGroup);
+
+  // Sheet Music Stand with Anniversary Waltz Notes
+  addBox(pianoGroup, 0.85, 0.35, 0.02, goldTrim, 0, 1.55, 1.15, { castShadow: false });
+  const sheet = new THREE.Mesh(new THREE.PlaneGeometry(0.72, 0.28), new THREE.MeshBasicMaterial({ color: 0xfffaf0 }));
+  sheet.position.set(0, 1.55, 1.17);
+  pianoGroup.add(sheet);
+
+  // Interactive Target
+  const clickTarget = new THREE.Mesh(new THREE.BoxGeometry(3.2, 2.5, 3.5), new THREE.MeshBasicMaterial({ visible: false }));
+  clickTarget.position.set(0, 1.2, 0.5);
+  clickTarget.userData = { type: 'piano' };
+  pianoGroup.add(clickTarget);
+  interactiveTargets.push(clickTarget);
+
+  return pianoGroup;
+}
+
+// Romantic Garden Wishing Fountain in Courtyard
+function createWishingFountain(x, z) {
+  const fountainGroup = new THREE.Group();
+  fountainGroup.position.set(x, 0, z);
+  scene.add(fountainGroup);
+
+  const marbleMat = colorMaterial(0xe8e2d8, 0.45, 0.1);
+  const waterMat = colorMaterial(0x38c2d6, 0.15, 0.4);
+  const goldMat = colorMaterial(0xffd875, 0.2, 0.85);
+
+  // Octagonal Basin
+  const basin = new THREE.Mesh(new THREE.CylinderGeometry(2.8, 3.1, 0.65, 8), marbleMat);
+  basin.position.y = 0.32;
+  basin.castShadow = true;
+  fountainGroup.add(basin);
+
+  // Water Surface
+  const water = new THREE.Mesh(new THREE.CylinderGeometry(2.65, 2.65, 0.08, 16), waterMat);
+  water.position.y = 0.58;
+  fountainGroup.add(water);
+
+  // Pedestal & 2nd Tier Bowl
+  const ped = new THREE.Mesh(new THREE.CylinderGeometry(0.42, 0.55, 1.35, 12), marbleMat);
+  ped.position.y = 1.15;
+  ped.castShadow = true;
+  fountainGroup.add(ped);
+
+  const topBowl = new THREE.Mesh(new THREE.CylinderGeometry(1.25, 0.35, 0.45, 12), marbleMat);
+  topBowl.position.y = 1.95;
+  fountainGroup.add(topBowl);
+
+  // Golden Double-Heart Fountain Sculpture
+  const heart = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.08, 8, 16), goldMat);
+  heart.position.set(0, 2.55, 0);
+  fountainGroup.add(heart);
+
+  // Surrounding Rose Planters
+  for (let i = 0; i < 8; i++) {
+    const ang = (i / 8) * Math.PI * 2;
+    const px = Math.cos(ang) * 3.6;
+    const pz = Math.sin(ang) * 3.6;
+    createPlanter(x + px, 0, z + pz);
+  }
+
+  // Interactive Target
+  const clickTarget = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 2.5, 8), new THREE.MeshBasicMaterial({ visible: false }));
+  clickTarget.position.set(0, 1.2, 0);
+  clickTarget.userData = { type: 'wishing-fountain' };
+  fountainGroup.add(clickTarget);
+  interactiveTargets.push(clickTarget);
+
+  return fountainGroup;
+}
+
+// Royal Lounge Suite & Velvet Chesterfield Sofa
+function createRoyalLoungeSuite(x, z) {
+  const loungeGroup = new THREE.Group();
+  loungeGroup.position.set(x, 0, z);
+  scene.add(loungeGroup);
+
+  const velvetMat = colorMaterial(0x821c2d, 0.75, 0.1);
+  const goldTrim = colorMaterial(0xffd875, 0.22, 0.85);
+  const marbleMat = colorMaterial(0xfbf7ee, 0.3, 0.1);
+
+  // Velvet Chesterfield Sofa Base & Cushions
+  addBox(loungeGroup, 3.8, 0.42, 1.4, velvetMat, 0, 0.38, 0, { castShadow: true });
+  addBox(loungeGroup, 3.84, 0.06, 1.44, goldTrim, 0, 0.16, 0, { castShadow: false });
+
+  // Tufted Backrest
+  addBox(loungeGroup, 3.8, 0.85, 0.42, velvetMat, 0, 0.95, -0.48, { castShadow: true });
+
+  // Side Armrests
+  for (const sx of [-1.8, 1.8]) {
+    const arm = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.24, 1.35, 12), velvetMat);
+    arm.rotation.x = Math.PI / 2;
+    arm.position.set(sx, 0.82, 0);
+    loungeGroup.add(arm);
+  }
+
+  // Silk Pillows
+  for (const sx of [-1.1, 1.1]) {
+    const pillow = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.18), colorMaterial(0xffa8ba, 0.6));
+    pillow.rotation.z = sx > 0 ? -0.2 : 0.2;
+    pillow.position.set(sx, 0.82, -0.22);
+    loungeGroup.add(pillow);
+  }
+
+  // Marble Coffee Table in front of Sofa
+  const tableGroup = new THREE.Group();
+  tableGroup.position.set(0, 0, 1.5);
+  addBox(tableGroup, 2.2, 0.08, 1.0, marbleMat, 0, 0.45, 0, { castShadow: true });
+  addBox(tableGroup, 2.24, 0.02, 1.04, goldTrim, 0, 0.42, 0, { castShadow: false });
+  for (const sx of [-0.9, 0.9]) {
+    for (const sz of [-0.38, 0.38]) {
+      const tLeg = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.025, 0.42, 6), goldTrim);
+      tLeg.position.set(sx, 0.21, sz);
+      tableGroup.add(tLeg);
+    }
+  }
+
+  // Champagne Flutes & Strawberries on Table
+  for (const fx of [-0.35, 0.35]) {
+    const glass = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.02, 0.18, 8), new THREE.MeshBasicMaterial({ color: 0xfff2aa, transparent: true, opacity: 0.75 }));
+    glass.position.set(fx, 0.58, 0);
+    tableGroup.add(glass);
+  }
+  loungeGroup.add(tableGroup);
+
+  // Interactive Target
+  const clickTarget = new THREE.Mesh(new THREE.BoxGeometry(4.0, 1.8, 2.8), new THREE.MeshBasicMaterial({ visible: false }));
+  clickTarget.position.set(0, 0.8, 0.5);
+  clickTarget.userData = { type: 'sofa' };
+  loungeGroup.add(clickTarget);
+  interactiveTargets.push(clickTarget);
+
+  return loungeGroup;
+}
+
+function makeWoodTexture() {
+  return makeRoyalMarbleFloorTexture();
 }
 
 function makeGrassTexture() {
@@ -2591,6 +2951,15 @@ function buildHome() {
   createTree(-16.5, 11.5, 1.0); createTree(16.5, 11.5, 1.0);
   for (const z of [5.2, 10.2, 15.2, 19.5]) { createPathLight(-4.3, z); createPathLight(4.3, z); }
 
+  // Architectural Gothic/Palace Ribbed Vaults & Stained Glass Windows
+  createRibbedVaultedCeiling(corridorLength, corridorCenterZ);
+  createStainedGlassWindows();
+
+  // Grand Interactive Objects
+  createGrandPiano(5.8, 0, -20.0);
+  createWishingFountain(-8.8, 10.5);
+  createRoyalLoungeSuite(0, -60.8);
+
   createLoveMonument(0, 7.5);
   createFireplaceAndAnniversaryMantle();
   createFairyLights();
@@ -3047,6 +3416,25 @@ function updateGame(dt, elapsed) {
 
   updateCamera(1, dt);
   updateInteractions();
+  updateRadar();
+}
+
+function updateRadar() {
+  const playerPin = $('#radar-player-pin');
+  const companionPin = $('#radar-companion-pin');
+  if (!playerPin || !player) return;
+
+  const minZ = -68.0;
+  const maxZ = 20.0;
+  const totalRange = maxZ - minZ;
+
+  const playerNorm = clamp((maxZ - player.position.z) / totalRange, 0.05, 0.95);
+  playerPin.style.top = `${(playerNorm * 100).toFixed(1)}%`;
+
+  if (companionPin && companion) {
+    const compNorm = clamp((maxZ - companion.position.z) / totalRange, 0.05, 0.95);
+    companionPin.style.top = `${(compNorm * 100).toFixed(1)}%`;
+  }
 }
 
 function render() {
@@ -3069,6 +3457,31 @@ function syncAnimationLoop() {
   }
 }
 
+const anniversaryWishes = [
+  '✨ آرزوت ثبت شد: تا همیشه کنار هم شادترین و خوشبخت‌ترین باشیم! 💖',
+  '🌸 آرزوت ثبت شد: ۳۶۵ روز عشق، مقدمه‌ی یک عمر با هم بودنمونه! 💍',
+  '💖 آرزوت ثبت شد: خنده‌های قشنگت تا همیشه آرامش قلبم باشه! ✨',
+  '👑 آرزوت ثبت شد: پرنسس قشنگم، همیشه مثل ماه بدرخشی! 🌸'
+];
+
+function makeWishingWellWish() {
+  playWishingWellSplash();
+  const wish = anniversaryWishes[Math.floor(Math.random() * anniversaryWishes.length)];
+  showToast(wish);
+  createFloatingHeartAtPosition(-8.8, 1.2, 10.5);
+  setTimeout(() => createFloatingHeartAtPosition(-8.8, 1.6, 10.5), 180);
+}
+
+function playGrandPiano() {
+  playGrandPianoMelody();
+  showToast('🎹 در حال نواختن ملودی رویایی سالگرد عشقمون... 💖✨');
+  for (let i = 0; i < 8; i++) {
+    setTimeout(() => {
+      createFloatingHeartAtPosition(5.8 + (Math.random() - 0.5) * 1.5, 1.8, -20.0 + (Math.random() - 0.5) * 1.2);
+    }, i * 220);
+  }
+}
+
 function updateInteractions() {
   if (!player) return;
   const card = $('#interaction-card');
@@ -3078,20 +3491,55 @@ function updateInteractions() {
   nearestMemory = null;
   nearestInteractable = null;
 
-  if (!insideHouse && loveMonument) {
-    const dMon = Math.hypot(player.position.x - loveMonument.x, player.position.z - loveMonument.z);
-    if (dMon < 2.8) {
-      nearestInteractable = { type: 'love-monument' };
+  if (!insideHouse) {
+    const dFountain = Math.hypot(player.position.x - (-8.8), player.position.z - 10.5);
+    if (dFountain < 3.2) {
+      nearestInteractable = { type: 'wishing-fountain' };
       card.classList.remove('is-hidden');
-      copy.textContent = 'نزدیک تندیس عشق هستی؛ برای ثبتِ «دوستت دارم» دکمه را بزن';
-      buttonLabel.textContent = '❤️ ثبتِ دوستت دارم';
+      copy.textContent = 'نزدیک فواره‌ی آرزو هستی؛ برای انداختن سکه و ثبت آرزو دکمه را بزن 🪙✨';
+      buttonLabel.textContent = '🪙 انداختن سکه و ثبت آرزو';
       button.disabled = false;
       updateProgress();
       return;
     }
+
+    if (loveMonument) {
+      const dMon = Math.hypot(player.position.x - loveMonument.x, player.position.z - loveMonument.z);
+      if (dMon < 2.8) {
+        nearestInteractable = { type: 'love-monument' };
+        card.classList.remove('is-hidden');
+        copy.textContent = 'نزدیک تندیس عشق هستی؛ برای ثبتِ «دوستت دارم» دکمه را بزن';
+        buttonLabel.textContent = '❤️ ثبتِ دوستت دارم';
+        button.disabled = false;
+        updateProgress();
+        return;
+      }
+    }
   }
 
   if (insideHouse) {
+    const dPiano = Math.hypot(player.position.x - 5.8, player.position.z - (-20.0));
+    if (dPiano < 3.2) {
+      nearestInteractable = { type: 'piano' };
+      card.classList.remove('is-hidden');
+      copy.textContent = 'نزدیک پیانوی رویایی هستی؛ برای نواختن ملودی عاشقانه دکمه را بزن 🎹✨';
+      buttonLabel.textContent = '🎹 نواختن پیانوی عاشقانه';
+      button.disabled = false;
+      updateProgress();
+      return;
+    }
+
+    const dSofa = Math.hypot(player.position.x - 0, player.position.z - (-60.8));
+    if (dSofa < 3.0) {
+      nearestInteractable = { type: 'sofa' };
+      card.classList.remove('is-hidden');
+      copy.textContent = 'نزدیک مبل راحتی و شومینه هستی؛ برای نشستن دونفره دکمه را بزن 🛋️';
+      buttonLabel.textContent = '🛋️ نشستن دونفره کنار شومینه';
+      button.disabled = false;
+      updateProgress();
+      return;
+    }
+
     const dLetter = Math.hypot(player.position.x - 0, player.position.z - (-62.5));
     if (dLetter < 4.5) {
       nearestInteractable = { type: 'love-letter' };
@@ -3262,6 +3710,18 @@ function beginEntry() {
 function interactNearest() {
   if (!started || currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden || !loveletterOverlay.hidden) return;
 
+  if (nearestInteractable?.type === 'wishing-fountain') {
+    makeWishingWellWish();
+    return;
+  }
+  if (nearestInteractable?.type === 'piano') {
+    playGrandPiano();
+    return;
+  }
+  if (nearestInteractable?.type === 'sofa') {
+    setCouplePose('sitting');
+    return;
+  }
   if (nearestInteractable?.type === 'love-monument') {
     addLoveCount();
     return;

@@ -141,6 +141,23 @@
 
         <div class="tour-progress"><span class="progress-label">خاطرات دیده‌شده</span><span class="progress-track"><i id="progress-bar"></i></span><span id="progress-count">۰ / ۱۲</span></div>
         <div class="scene-location" id="scene-location"><span class="location-pip"></span><span>حیاط خانه</span></div>
+
+        <!-- Interactive Corridor Radar / Mini-Map -->
+        <div class="mini-radar" id="mini-radar" title="نقشه‌ی راهروی خاطرات و نقاط تعاملی">
+          <div class="radar-header">
+            <span class="radar-live-dot"></span>
+            <span class="radar-title">نقشه‌ی راهرو</span>
+          </div>
+          <div class="radar-track" id="radar-track">
+            <div class="radar-track-line"></div>
+            <div class="radar-pin radar-player-pin" id="radar-player-pin" title="پرنسس من">👸</div>
+            <div class="radar-pin radar-companion-pin" id="radar-companion-pin" title="من">🤵</div>
+            <div class="radar-poi poi-fountain" style="top: 8%" title="فواره آرزو">⛲</div>
+            <div class="radar-poi poi-door" style="top: 20%" title="در ورودی">🚪</div>
+            <div class="radar-poi poi-piano" style="top: 48%" title="پیانوی عشق">🎹</div>
+            <div class="radar-poi poi-sofa" style="top: 92%" title="شومینه و مبل">🛋️</div>
+          </div>
+        </div>
         
         <div class="interaction-card is-hidden" id="interaction-card">
           <span class="interaction-icon">↵</span><span id="interaction-copy">به در خانه نزدیک شو و E بزن</span>
