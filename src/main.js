@@ -20,7 +20,7 @@ const touchKnobInner = $('#dynamic-touch-indicator .touch-knob-inner');
 const mobileTapMarker = $('#mobile-tap-marker');
 const touchHintPill = $('#touch-hint-pill');
 
-const storageKey = 'our-museum-gift-v6';
+const storageKey = 'our-museum-gift-v7';
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem(storageKey) || '{}') || {}; } catch { saved = {}; }
 const state = {
@@ -239,20 +239,23 @@ let currentMemory = null;
 let nearestMemory = null;
 let nearestInteractable = null;
 
-// Optimized Third-Person Camera State
+// Miniature Chibi Scale Factor
+const MINI_SCALE = 0.68;
+
+// Optimized Third-Person Camera State (Tailored for Miniature Character)
 let cameraYaw = 0;
 let targetYaw = 0;
 let yawVelocity = 0;
 
-let cameraPitch = 0.16;
-let targetPitch = 0.16;
+let cameraPitch = 0.15;
+let targetPitch = 0.15;
 let pitchVelocity = 0;
 
-let cameraDistance = 6.4;
-let targetDistance = 6.4;
+let cameraDistance = 5.2;
+let targetDistance = 5.2;
 
-const cameraLookTarget = new THREE.Vector3(0, 1.35, 14);
-const desiredCameraLook = new THREE.Vector3(0, 1.35, 14);
+const cameraLookTarget = new THREE.Vector3(0, 0.95, 14);
+const desiredCameraLook = new THREE.Vector3(0, 0.95, 14);
 
 // Player physics state
 const playerPosition = new THREE.Vector3(0, 0, 14);
@@ -448,19 +451,50 @@ function makeAbstractArtwork(memory, index) {
 
 function makePlaqueTexture(memory, index) {
   const fs = memory.frameStyle || {};
-  const bg = fs.plaqueBg || '#1c2130';
+  const bg = fs.plaqueBg || '#221822';
   const border = fs.plaqueBorder || '#ffd875';
   return makeCanvasTexture((ctx, w, h) => {
     ctx.fillStyle = bg; ctx.fillRect(0, 0, w, h);
     ctx.strokeStyle = border; ctx.lineWidth = 2.5; ctx.strokeRect(9, 9, w - 18, h - 18);
-    ctx.fillStyle = border; ctx.font = 'bold 12px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
-    ctx.fillText(`خاطره‌ی ${String(index + 1).padStart(2, '۰')} · ${fs.styleName ? fs.styleName.split(' ')[0] : 'یادگاری'}`, w / 2, 32);
+    ctx.fillStyle = '#ff8fa3'; ctx.font = 'bold 13px Tahoma, Arial, sans-serif'; ctx.textAlign = 'center'; ctx.direction = 'rtl';
+    ctx.fillText(`خاطره‌ی عاشقیمون · ${toPersianDigits(index + 1)}`, w / 2, 32);
     ctx.fillStyle = '#fff8eb'; ctx.font = 'bold 24px Tahoma, Arial, sans-serif';
     ctx.fillText(memory.title, w / 2, 70);
   }, 512, 112);
 }
 
-// Grand High-Impact 3D Frames (Larger & Prominent)
+// Procedural Nanaz Pastel Wall Texture with Victorian Floral Damask & Gold Paneling
+function makeNanazWallTexture() {
+  return makeCanvasTexture((ctx, w, h) => {
+    // Elegant warm rose-tinted wallpaper
+    const bgGrad = ctx.createLinearGradient(0, 0, w, h);
+    bgGrad.addColorStop(0, '#2d1c28');
+    bgGrad.addColorStop(0.5, '#382232');
+    bgGrad.addColorStop(1, '#2a1a24');
+    ctx.fillStyle = bgGrad;
+    ctx.fillRect(0, 0, w, h);
+
+    // Subtle pinstripes & damask swirls
+    ctx.strokeStyle = 'rgba(255, 216, 117, 0.08)';
+    ctx.lineWidth = 1;
+    for (let x = 0; x < w; x += 32) {
+      ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, h); ctx.stroke();
+    }
+
+    // Gold decorative boiserie moulding frame
+    ctx.strokeStyle = 'rgba(255, 216, 117, 0.22)';
+    ctx.lineWidth = 3;
+    ctx.strokeRect(16, 16, w - 32, h - 32);
+
+    // Cute corner swirls
+    ctx.fillStyle = 'rgba(255, 143, 163, 0.18)';
+    for (const [cx, cy] of [[32, 32], [w - 32, 32], [32, h - 32], [w - 32, h - 32]]) {
+      ctx.beginPath(); ctx.arc(cx, cy, 12, 0, Math.PI * 2); ctx.fill();
+    }
+  }, 512, 512);
+}
+
+// Ultra-Nanaz 3D Frames (Multi-layered moulding, Ribbon Bow crest, Heart rosettes & Soft Halo)
 function createFrame(memory, index, x, y, z, rotationY, width = 2.85, height = 3.65) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
@@ -468,78 +502,70 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.85, height = 3
   scene.add(group);
 
   const fs = memory.frameStyle || {
-    frameColor: 0xb69b6b,
-    matColor: 0xf2ede2,
-    accentColor: 0xd4af37,
-    roughness: 0.35,
-    metalness: 0.5,
+    frameColor: 0xd88a8a,
+    matColor: 0xfff6f2,
+    accentColor: 0xffd875,
+    roughness: 0.25,
+    metalness: 0.65,
   };
 
-  const frameMat = colorMaterial(fs.frameColor, fs.roughness ?? 0.3, fs.metalness ?? 0.4);
-  const matMat = colorMaterial(fs.matColor, 0.85, 0.02);
-  const accentMat = colorMaterial(fs.accentColor, 0.22, 0.78);
-  const darkBack = colorMaterial(0x0c0e12, 0.4);
+  const goldMat = colorMaterial(0xffd875, 0.2, 0.85);
+  const roseGoldMat = colorMaterial(0xe88a9c, 0.25, 0.7);
+  const matMat = colorMaterial(fs.matColor || 0xfff8f4, 0.85, 0.02);
+  const darkBack = colorMaterial(0x16121a, 0.5);
+  const rubyMat = new THREE.MeshBasicMaterial({ color: 0xff2a5c });
+  const pearlMat = new THREE.MeshBasicMaterial({ color: 0xfff6ee });
+
+  // Soft Ambient Glow Halo behind frame
+  const haloMat = new THREE.MeshBasicMaterial({ color: 0xffccd5, transparent: true, opacity: 0.28 });
+  const haloMesh = new THREE.Mesh(new THREE.PlaneGeometry(width + 0.55, height + 0.55), haloMat);
+  haloMesh.position.set(0, 0, -0.04);
+  group.add(haloMesh);
 
   // Backing & Shadow
   addBox(group, width + 0.18, height + 0.18, 0.12, darkBack, 0, 0, -0.02, { castShadow: true, receiveShadow: false });
 
-  // Main Frame Moulding
-  addBox(group, width, height, 0.11, frameMat, 0, 0, 0.04);
+  // Main Outer Bevel Moulding
+  addBox(group, width, height, 0.11, goldMat, 0, 0, 0.04);
+
+  // Inner Rose Gold Moulding
+  addBox(group, width - 0.16, height - 0.16, 0.08, roseGoldMat, 0, 0, 0.07);
 
   // Inner Mat
-  const matMargin = 0.26;
-  addBox(group, width - matMargin, height - matMargin, 0.06, matMat, 0, 0, 0.08, { castShadow: false });
+  const matMargin = 0.28;
+  addBox(group, width - matMargin, height - matMargin, 0.05, matMat, 0, 0, 0.09, { castShadow: false });
 
-  // Custom Architectural Features
+  // Custom Cute Ribbon Bow on Top Crest of Every Frame
   const halfW = width / 2;
   const halfH = height / 2;
 
-  switch (fs.type) {
-    case 'rose-gold-romance':
-      for (const sx of [-1, 1]) {
-        for (const sy of [-1, 1]) {
-          const rose = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 0.05, 8), accentMat);
-          rose.rotation.x = Math.PI / 2;
-          rose.position.set(sx * (halfW - 0.14), sy * (halfH - 0.14), 0.14);
-          group.add(rose);
-          const center = new THREE.Mesh(new THREE.SphereGeometry(0.04, 8, 8), colorMaterial(0xfff0f2, 0.2, 0.8));
-          center.position.set(sx * (halfW - 0.14), sy * (halfH - 0.14), 0.17);
-          group.add(center);
-        }
-      }
-      addBox(group, width - 0.36, height - 0.36, 0.025, accentMat, 0, 0, 0.11, { castShadow: false });
-      break;
+  const bowGroup = new THREE.Group();
+  bowGroup.position.set(0, halfH + 0.14, 0.11);
+  const bowCenter = new THREE.Mesh(new THREE.SphereGeometry(0.065, 8, 8), rubyMat);
+  bowGroup.add(bowCenter);
+  for (const sx of [-1, 1]) {
+    const loop = new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.035, 6, 12), roseGoldMat);
+    loop.position.set(sx * 0.11, 0.02, 0);
+    loop.rotation.y = sx * 0.3;
+    bowGroup.add(loop);
+    const streamer = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.28, 0.02), roseGoldMat);
+    streamer.position.set(sx * 0.08, -0.16, 0.01);
+    streamer.rotation.z = sx * -0.25;
+    bowGroup.add(streamer);
+  }
+  group.add(bowGroup);
 
-    case 'baroque-gold':
-      {
-        const crown = new THREE.Mesh(new THREE.ConeGeometry(0.22, 0.32, 5), accentMat);
-        crown.position.set(0, halfH + 0.16, 0.06);
-        group.add(crown);
-        for (const sx of [-0.26, 0.26]) {
-          const miniPinnacle = new THREE.Mesh(new THREE.SphereGeometry(0.06, 8, 8), accentMat);
-          miniPinnacle.position.set(sx, halfH + 0.10, 0.06);
-          group.add(miniPinnacle);
-        }
-        for (const sx of [-1, 1]) {
-          for (const sy of [-1, 1]) {
-            const bracket = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.18, 0.04), accentMat);
-            bracket.rotation.z = Math.PI / 4;
-            bracket.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.12);
-            group.add(bracket);
-          }
-        }
-      }
-      break;
+  // Corner Heart & Pearl Studs
+  for (const sx of [-1, 1]) {
+    for (const sy of [-1, 1]) {
+      const rosette = new THREE.Mesh(new THREE.SphereGeometry(0.055, 8, 8), rubyMat);
+      rosette.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.12);
+      group.add(rosette);
 
-    default:
-      for (const sx of [-1, 1]) {
-        for (const sy of [-1, 1]) {
-          const rosette = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 8), accentMat);
-          rosette.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.12);
-          group.add(rosette);
-        }
-      }
-      break;
+      const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.028, 6, 6), pearlMat);
+      pearl.position.set(sx * (halfW - 0.12), sy * (halfH - 0.12), 0.15);
+      group.add(pearl);
+    }
   }
 
   // Large Artwork Plane
@@ -588,10 +614,10 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.85, height = 3
 
   // Dedicated Sconce with glowing bulb
   const sconceGroup = new THREE.Group();
-  sconceGroup.position.set(0, halfH + 0.32, 0.18);
-  const sconceArm = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.22, 6), colorMaterial(fs.accentColor, 0.3, 0.7));
+  sconceGroup.position.set(0, halfH + 0.38, 0.18);
+  const sconceArm = new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.018, 0.22, 6), roseGoldMat);
   sconceArm.rotation.x = Math.PI / 3; sconceGroup.add(sconceArm);
-  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.12, 8), colorMaterial(fs.frameColor, 0.4, 0.3));
+  const shade = new THREE.Mesh(new THREE.ConeGeometry(0.09, 0.12, 8), goldMat);
   shade.rotation.x = Math.PI / 2; shade.position.set(0, 0.07, 0.09); sconceGroup.add(shade);
   const bulbGlow = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 8), new THREE.MeshBasicMaterial({ color: 0xffeaae }));
   bulbGlow.position.set(0, 0.07, 0.12); sconceGroup.add(bulbGlow);
@@ -599,7 +625,7 @@ function createFrame(memory, index, x, y, z, rotationY, width = 2.85, height = 3
 
   // Plaque Below Frame
   const plaqueWidth = Math.max(width - 0.05, 2.3);
-  addBox(group, plaqueWidth + 0.06, 0.54, 0.08, colorMaterial(fs.frameColor, 0.5, 0.2), 0, -halfH - 0.40, 0.015, { castShadow: false });
+  addBox(group, plaqueWidth + 0.06, 0.54, 0.08, roseGoldMat, 0, -halfH - 0.40, 0.015, { castShadow: false });
   const plaqueTex = makePlaqueTexture(memory, index);
   const plaque = new THREE.Mesh(new THREE.PlaneGeometry(plaqueWidth, 0.46), new THREE.MeshBasicMaterial({ map: plaqueTex }));
   plaque.position.set(0, -halfH - 0.40, 0.065);
@@ -624,7 +650,7 @@ function createSpriteLabel(text, accent = '#ffd875') {
   return sprite;
 }
 
-// Gorgeous High-Quality Princess Character in Pink Royal Ballgown
+// Gorgeous Miniature Chibi Princess Avatar in Pink Royal Ballgown
 function createPrincessAvatar(options = {}) {
   const root = new THREE.Group();
   const rig = new THREE.Group(); root.add(rig);
@@ -678,7 +704,7 @@ function createPrincessAvatar(options = {}) {
   for (const sx of [-1, 1]) {
     const bowLoop = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.035, 6, 12), dressPink);
     bowLoop.position.set(sx * 0.10, 0.02, 0);
-    bowLoop.rotation.y = sx * 0.35;
+    bowLoop.rotation.y = sx * 0.3;
     bowGroup.add(bowLoop);
     const streamer = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.42, 0.02), dressPink);
     streamer.position.set(sx * 0.07, -0.22, 0.02);
@@ -819,6 +845,9 @@ function createPrincessAvatar(options = {}) {
   playerFollowLight.position.set(0, 2.2, 0.5);
   root.add(playerFollowLight);
 
+  // Apply Miniature Chibi Scale
+  root.scale.set(MINI_SCALE, MINI_SCALE, MINI_SCALE);
+
   root.userData = {
     rig, leftLeg, rightLeg, leftArm, rightArm, head, skirtGroup, bowGroup, label,
     shirtMaterial: dressPink, phase: Math.random() * 6.28
@@ -827,7 +856,7 @@ function createPrincessAvatar(options = {}) {
   return root;
 }
 
-// Handsome Companion Avatar in Dashing Royal Suit
+// Handsome Miniature Companion Avatar in Dashing Royal Suit
 function createCompanionAvatar(options = {}) {
   const root = new THREE.Group();
   const rig = new THREE.Group(); root.add(rig);
@@ -894,6 +923,9 @@ function createCompanionAvatar(options = {}) {
 
   const label = createSpriteLabel(options.name || 'من', '#ff8fa3');
   label.position.y = 2.79; rig.add(label);
+
+  // Apply Miniature Chibi Scale
+  root.scale.set(MINI_SCALE, MINI_SCALE, MINI_SCALE);
 
   root.userData = { rig, leftLeg, rightLeg, leftArm, rightArm, head, label, phase: Math.random() * 6.28 };
   root.traverse((obj) => { if (obj.isMesh) { obj.castShadow = true; if (obj.geometry.type !== 'PlaneGeometry') obj.receiveShadow = true; } });
@@ -1044,7 +1076,7 @@ function createFloralArch(x, z) {
   }
 }
 
-// Memory Frames placed along the long corridor
+// Memory Frames & Decorative Boiserie Wall Paneling placed along the long corridor
 function addMemoryFrames() {
   const frameSpots = [
     // 6 Frames along West (left) Wall (x = -9.2)
@@ -1064,8 +1096,27 @@ function addMemoryFrames() {
     { x: 9.2, z: -55.0, rot: -Math.PI / 2 },
   ];
 
+  const goldMat = colorMaterial(0xffd875, 0.2, 0.85);
+  const panelBackMat = colorMaterial(0x3a2233, 0.65, 0.1);
+
   memories.forEach((memory, index) => {
     const spot = frameSpots[index] || frameSpots[frameSpots.length - 1];
+
+    // Decorative Wall Boiserie Panel behind each frame
+    const boiserie = new THREE.Group();
+    boiserie.position.set(spot.x + (spot.x < 0 ? -0.45 : 0.45), 4.35, spot.z);
+    boiserie.rotation.y = spot.rot;
+    scene.add(boiserie);
+
+    // Outer Gold Paneling Frame
+    addBox(boiserie, 3.8, 5.0, 0.04, goldMat, 0, 0, 0, { castShadow: false });
+    addBox(boiserie, 3.6, 4.8, 0.05, panelBackMat, 0, 0, 0.01, { castShadow: false });
+
+    // Golden Ribbon Bow above wall alcove
+    const wallBow = new THREE.Mesh(new THREE.TorusGeometry(0.18, 0.04, 6, 12), goldMat);
+    wallBow.position.set(0, 2.65, 0.06);
+    boiserie.add(wallBow);
+
     createFrame(memory, index, spot.x, 4.35, spot.z, spot.rot, 2.85, 3.65);
   });
 }
@@ -1434,7 +1485,7 @@ function createLivingRoomFurniture() {
   interactiveTargets.push(bookTarget);
 }
 
-// VERY LONG Grand Architecture
+// VERY LONG Grand Architecture with Nanaz Walls & Mouldings
 function buildHome() {
   const corridorLength = 68.0;
   const corridorCenterZ = -corridorLength / 2;
@@ -1468,13 +1519,39 @@ function buildHome() {
   const featureWall = colorMaterial(0x2d342f, 0.86);
   const roofMat = colorMaterial(0x222923, 0.74);
   const walnut = colorMaterial(0x44352c, 0.48, 0.08);
-  const brass = colorMaterial(0x9d8157, 0.3, 0.55);
+  const brass = colorMaterial(0xffd875, 0.25, 0.8);
   const ceiling = colorMaterial(0xe1d9c9, 0.86);
+
+  // Nanaz Wall Pattern Material for Interior Corridor
+  const nanazWallTex = makeNanazWallTexture();
+  nanazWallTex.wrapS = THREE.RepeatWrapping;
+  nanazWallTex.wrapT = THREE.RepeatWrapping;
+  nanazWallTex.repeat.set(12.0, 1.5);
+  const nanazWallMat = new THREE.MeshStandardMaterial({ map: nanazWallTex, roughness: 0.6, metalness: 0.1 });
 
   // Walls for the long corridor
   addBox(scene, 21.8, 7.45, 0.62, featureWall, 0, 3.72, -corridorLength - 0.25);
   addBox(scene, 0.62, 7.45, corridorLength + 0.8, sidePlaster, -10.78, 3.72, corridorCenterZ);
   addBox(scene, 0.62, 7.45, corridorLength + 0.8, sidePlaster, 10.78, 3.72, corridorCenterZ);
+
+  // Interior Nanaz Wall Linings
+  addBox(scene, 0.06, 7.25, corridorLength + 0.6, nanazWallMat, -10.42, 3.65, corridorCenterZ, { castShadow: false });
+  addBox(scene, 0.06, 7.25, corridorLength + 0.6, nanazWallMat, 10.42, 3.65, corridorCenterZ, { castShadow: false });
+
+  // Wainscoting Chair Rail & Crown Picture Rail Mouldings with Gold Liners
+  for (const side of [-10.40, 10.40]) {
+    // Baseboard moulding
+    addBox(scene, 0.12, 0.32, corridorLength + 0.6, walnut, side, 0.16, corridorCenterZ, { castShadow: false });
+    addBox(scene, 0.14, 0.04, corridorLength + 0.6, brass, side, 0.34, corridorCenterZ, { castShadow: false });
+
+    // Chair rail moulding at y = 2.1m
+    addBox(scene, 0.12, 0.14, corridorLength + 0.6, walnut, side, 2.10, corridorCenterZ, { castShadow: false });
+    addBox(scene, 0.14, 0.04, corridorLength + 0.6, brass, side, 2.18, corridorCenterZ, { castShadow: false });
+
+    // Crown picture rail moulding at y = 6.6m
+    addBox(scene, 0.14, 0.18, corridorLength + 0.6, walnut, side, 6.60, corridorCenterZ, { castShadow: false });
+    addBox(scene, 0.16, 0.05, corridorLength + 0.6, brass, side, 6.50, corridorCenterZ, { castShadow: false });
+  }
 
   addBox(scene, 8.45, 7.25, 0.72, outerStone, -6.775, 3.62, 0.0);
   addBox(scene, 8.45, 7.25, 0.72, outerStone, 6.775, 3.62, 0.0);
@@ -1577,13 +1654,13 @@ function createWorld() {
   scene = new THREE.Scene();
   scene.background = new THREE.Color(0x131526);
   camera = new THREE.PerspectiveCamera(48, window.innerWidth / window.innerHeight, 0.1, 140);
-  camera.position.set(0, 3.8, 21.0);
+  camera.position.set(0, 3.2, 19.0);
   if (!createRenderer()) return;
 
   buildHome();
   addMemoryFrames();
 
-  // Create High-Quality Princess Avatar (Girlfriend in pink ballgown with golden tiara)
+  // Create High-Quality Miniature Chibi Princess Avatar (Girlfriend in pink ballgown with golden tiara)
   player = createPrincessAvatar({
     name: state.toName || 'پرنسس من',
     shirt: state.avatarColor || '#ff758f',
@@ -1592,16 +1669,16 @@ function createWorld() {
   });
   player.position.copy(playerPosition); player.rotation.y = 0; scene.add(player);
 
-  // Companion Avatar (Boyfriend in Dashing Suit)
+  // Miniature Companion Avatar (Boyfriend in Dashing Suit)
   companion = createCompanionAvatar({
     name: state.fromName || 'من',
     shirt: 0x24222b,
     skin: 0xd9aa88,
     hair: 0x2e2420,
   });
-  companion.position.set(-1.15, 0, 15.0); companion.rotation.y = 0; scene.add(companion);
+  companion.position.set(-0.95, 0, 15.0); companion.rotation.y = 0; scene.add(companion);
 
-  cameraLookTarget.copy(player.position).add(new THREE.Vector3(0, 1.35, 0));
+  cameraLookTarget.copy(player.position).add(new THREE.Vector3(0, 0.95, 0));
   updateCamera(1, 0.016);
 
   clock = new THREE.Clock();
@@ -1618,9 +1695,9 @@ function updateCamera(smoothFactor = 1, dt = 0.016) {
   cameraPitch = lerp(cameraPitch, targetPitch, rotDamp);
   cameraDistance = lerp(cameraDistance, targetDistance, 1 - Math.exp(-dt * 14.0));
 
-  // Dynamic look target: slightly over character center
-  const leadOffset = new THREE.Vector3(playerVelocity.x * 0.18, 0, playerVelocity.z * 0.18);
-  const lookDesiredY = insideHouse ? 1.38 : 1.25;
+  // Dynamic look target: centered on miniature character
+  const leadOffset = new THREE.Vector3(playerVelocity.x * 0.15, 0, playerVelocity.z * 0.15);
+  const lookDesiredY = insideHouse ? 0.95 : 0.85;
   desiredCameraLook.set(
     player.position.x + leadOffset.x,
     player.position.y + lookDesiredY,
@@ -1636,12 +1713,12 @@ function updateCamera(smoothFactor = 1, dt = 0.016) {
 
   const desiredPos = new THREE.Vector3(
     cameraLookTarget.x - sinYaw * cosPitch * cameraDistance,
-    cameraLookTarget.y + sinPitch * cameraDistance + (insideHouse ? 0.35 : 0.65),
+    cameraLookTarget.y + sinPitch * cameraDistance + (insideHouse ? 0.25 : 0.50),
     cameraLookTarget.z + cosYaw * cosPitch * cameraDistance
   );
 
   // Prevent clipping through floor or side walls
-  if (desiredPos.y < 0.85) desiredPos.y = 0.85;
+  if (desiredPos.y < 0.75) desiredPos.y = 0.75;
   if (insideHouse) {
     desiredPos.x = clamp(desiredPos.x, -8.6, 8.6);
     desiredPos.z = clamp(desiredPos.z, -66.8, 1.8);
@@ -1654,25 +1731,25 @@ function updateCamera(smoothFactor = 1, dt = 0.016) {
 function animateAvatar(avatar, time, walking, offset = 0, speed = 1) {
   if (!avatar) return;
   const u = avatar.userData;
-  const phase = time * (walking ? 9.5 * speed : 2.0) + u.phase + offset;
-  const amp = walking ? Math.min(0.55, 0.42 * speed) : 0.02;
+  const phase = time * (walking ? 11.0 * speed : 2.2) + u.phase + offset;
+  const amp = walking ? Math.min(0.55, 0.44 * speed) : 0.02;
 
   if (u.leftLeg) u.leftLeg.rotation.x = Math.sin(phase) * amp;
   if (u.rightLeg) u.rightLeg.rotation.x = -Math.sin(phase) * amp;
   if (u.leftArm) u.leftArm.rotation.x = -Math.sin(phase) * amp * 0.62;
   if (u.rightArm) u.rightArm.rotation.x = Math.sin(phase) * amp * 0.62;
 
-  // Princess gown sway
+  // Princess gown mini sway
   if (u.skirtGroup) {
-    u.skirtGroup.rotation.z = walking ? Math.sin(phase * 0.5) * 0.06 : Math.sin(time * 1.5) * 0.015;
+    u.skirtGroup.rotation.z = walking ? Math.sin(phase * 0.5) * 0.07 : Math.sin(time * 1.5) * 0.015;
     u.skirtGroup.rotation.x = walking ? Math.cos(phase) * 0.05 : 0;
   }
   if (u.bowGroup) {
-    u.bowGroup.rotation.x = walking ? Math.sin(phase * 0.08) : 0;
+    u.bowGroup.rotation.x = walking ? Math.sin(phase) * 0.09 : 0;
   }
 
   u.rig.position.y = walking ? Math.abs(Math.sin(phase * 0.5)) * (0.04 * speed) : Math.sin(time * 1.3 + u.phase) * 0.015;
-  u.head.rotation.z = walking ? Math.sin(phase * 0.35) * 0.018 : Math.sin(time * 1.0 + u.phase) * 0.012;
+  u.head.rotation.z = walking ? Math.sin(phase * 0.35) * 0.02 : Math.sin(time * 1.0 + u.phase) * 0.012;
 }
 
 function updateDoor(dt) {
@@ -1697,10 +1774,10 @@ function setHouseZone(inside) {
   if (insideHouse === inside) return;
   insideHouse = inside;
   if (inside) {
-    targetDistance = 6.4; targetPitch = 0.16; doorTarget = 1;
+    targetDistance = 5.2; targetPitch = 0.15; doorTarget = 1;
     showToast(`به راهروی خاطرات ۱ سالگی ${state.toName} خوش آمدی 🌸`);
   } else {
-    targetDistance = 8.0; targetPitch = 0.22;
+    targetDistance = 7.0; targetPitch = 0.20;
     showToast('به حیاط خانه برگشتی');
   }
   updateSceneLocation();
@@ -1826,7 +1903,7 @@ function updateGame(dt, elapsed) {
     const moveDir = forward.multiplyScalar(-touchVector.y).add(right.multiplyScalar(touchVector.x));
     if (moveDir.lengthSq() > 0.01) {
       moveDir.normalize();
-      const speed = (keys.has('ShiftLeft') ? 5.4 : 3.8) * Math.min(1.0, touchVector.length());
+      const speed = (keys.has('ShiftLeft') ? 5.2 : 3.6) * Math.min(1.0, touchVector.length());
       desiredVelocity.copy(moveDir).multiplyScalar(speed);
       playerTargetRot = Math.atan2(-moveDir.x, -moveDir.z);
     }
@@ -1838,7 +1915,7 @@ function updateGame(dt, elapsed) {
       if (entryQueued) { entryQueued = false; showToast('قدم بزن و قاب‌های بزرگ راهرو را ببین'); }
     } else {
       delta.normalize();
-      const speed = Math.min(3.8, distance * 2.5);
+      const speed = Math.min(3.6, distance * 2.5);
       desiredVelocity.copy(delta).multiplyScalar(speed);
       playerTargetRot = Math.atan2(-delta.x, -delta.z);
     }
@@ -1848,7 +1925,7 @@ function updateGame(dt, elapsed) {
     const direction = forward.multiplyScalar(forwardInput).add(right.multiplyScalar(sideInput));
     if (direction.lengthSq() > 0) {
       direction.normalize();
-      const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 5.4 : 3.6;
+      const speed = keys.has('ShiftLeft') || keys.has('ShiftRight') ? 5.2 : 3.5;
       desiredVelocity.copy(direction).multiplyScalar(speed);
       playerTargetRot = Math.atan2(-direction.x, -direction.z);
     }
@@ -1881,8 +1958,8 @@ function updateGame(dt, elapsed) {
   playerPosition.copy(player.position);
 
   // Companion follows gracefully
-  const side = new THREE.Vector3(Math.cos(cameraYaw), 0, Math.sin(cameraYaw)).multiplyScalar(-1.15);
-  const behind = new THREE.Vector3(Math.sin(cameraYaw), 0, Math.cos(cameraYaw)).multiplyScalar(0.48);
+  const side = new THREE.Vector3(Math.cos(cameraYaw), 0, Math.sin(cameraYaw)).multiplyScalar(-0.95);
+  const behind = new THREE.Vector3(Math.sin(cameraYaw), 0, Math.cos(cameraYaw)).multiplyScalar(0.40);
   const followTarget = player.position.clone().add(side).add(behind);
   if (insideHouse) {
     followTarget.x = clamp(followTarget.x, -9.2, 9.2); followTarget.z = clamp(followTarget.z, -66.8, -0.5);
@@ -1897,8 +1974,8 @@ function updateGame(dt, elapsed) {
     companion.rotation.y = lerpAngle(companion.rotation.y, compTargetRot, 1 - Math.exp(-dt * 12.0));
   }
 
-  animateAvatar(player, elapsed, isMoving, 0, currentSpeed / 3.6);
-  animateAvatar(companion, elapsed, isMoving && companion.position.distanceTo(player.position) > 0.8, 1.4, 1.0);
+  animateAvatar(player, elapsed, isMoving, 0, currentSpeed / 3.2);
+  animateAvatar(companion, elapsed, isMoving && companion.position.distanceTo(player.position) > 0.6, 1.4, 1.0);
 
   updateCamera(1, dt);
   updateInteractions();
@@ -2168,8 +2245,8 @@ function showToast(message) {
 
 function resetCameraView() {
   targetYaw = 0;
-  targetPitch = insideHouse ? 0.16 : 0.22;
-  targetDistance = insideHouse ? 6.4 : 8.0;
+  targetPitch = insideHouse ? 0.15 : 0.20;
+  targetDistance = insideHouse ? 5.2 : 7.0;
   yawVelocity = 0;
   pitchVelocity = 0;
   showToast('زاویه‌ی دوربین تنظیم شد');
@@ -2221,10 +2298,10 @@ function startGame() {
   playerVelocity.set(0, 0, 0);
   playerTargetRot = 0;
 
-  companion.position.set(-1.15, 0, playerPosition.z + 1.0); companion.rotation.y = 0;
+  companion.position.set(-0.95, 0, playerPosition.z + 1.0); companion.rotation.y = 0;
   cameraYaw = 0; targetYaw = 0; yawVelocity = 0;
-  cameraPitch = 0.22; targetPitch = 0.22; pitchVelocity = 0;
-  cameraDistance = 8.0; targetDistance = 8.0;
+  cameraPitch = 0.20; targetPitch = 0.20; pitchVelocity = 0;
+  cameraDistance = 7.0; targetDistance = 7.0;
   updateSceneLocation();
 
   player.userData.label.material.map.dispose();
@@ -2411,7 +2488,7 @@ function setupEvents() {
 
   window.addEventListener('wheel', (e) => {
     if (currentMemory || !helpOverlay.hidden || !anniversaryOverlay.hidden || !loveletterOverlay.hidden) return;
-    targetDistance = clamp(targetDistance + e.deltaY * 0.005, 2.2, 11.5);
+    targetDistance = clamp(targetDistance + e.deltaY * 0.005, 1.8, 11.0);
   }, { passive: true });
 
   window.addEventListener('keydown', (e) => {
@@ -2567,7 +2644,7 @@ function setupEvents() {
         e.touches[0].clientY - e.touches[1].clientY
       );
       const delta = prevPinchDist - dist;
-      targetDistance = clamp(targetDistance + delta * 0.02, 2.2, 11.5);
+      targetDistance = clamp(targetDistance + delta * 0.02, 1.8, 11.0);
       prevPinchDist = dist;
     }
   }, { passive: true });
