@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#10131d" />
+    <meta name="description" content="یک خانه‌ی سه‌بعدی کوچک برای خاطره‌های دونفره." />
+    <title>خانه‌ی ما — Our Home</title>
+  </head>
+  <body>
+    <main id="app">
+      <canvas id="world" aria-label="خانه‌ی سه‌بعدی خاطرات"></canvas>
+
+      <section class="intro-screen" id="intro-screen" aria-labelledby="intro-title">
+        <div class="intro-panel">
+          <div class="intro-topline">
+            <div class="brand-mark" aria-hidden="true">
+              <svg viewBox="0 0 42 42" fill="none"><path d="M8 34V17.5L21 8l13 9.5V34H8Z" stroke="currentColor" stroke-width="1.4"/><path d="M15 34V22h12v12M4 17l17-12 17 12" stroke="currentColor" stroke-width="1.4"/><circle cx="21" cy="16" r="2" fill="currentColor"/></svg>
+            </div>
+            <span class="eyebrow">یک خانه‌ی کوچک، برای تمام خاطره‌ها</span>
+          </div>
+          <div class="intro-copy">
+            <p class="kicker">OUR HOME · NO. 01</p>
+            <h1 id="intro-title">خانه‌ی <em>ما</em></h1>
+            <p class="intro-description">از حیاط وارد خانه شو؛ بعد با هم میان عکس‌ها و لحظه‌هایی قدم بزنید که فقط برای شما دو نفر معنا دارند.</p>
+          </div>
+
+          <form class="gift-form" id="setup-form">
+            <div class="name-row">
+              <label class="field">
+                <span>این هدیه از طرفِ</span>
+                <input id="from-name" maxlength="24" autocomplete="off" placeholder="مثلاً: من" value="من" />
+              </label>
+              <label class="field">
+                <span>برایِ</span>
+                <input id="to-name" maxlength="24" autocomplete="off" placeholder="مثلاً: عزیزم" value="عزیزم" />
+              </label>
+            </div>
+            <label class="field dedication-field">
+              <span>پیام کوتاه روی پلاک خانه</span>
+              <input id="dedication" maxlength="90" autocomplete="off" value="تمام لحظه‌های کوچکمان، ارزش قاب گرفتن دارند." />
+            </label>
+            <div class="customize-row">
+              <div class="customize-label">
+                <span>رنگ لباس آواتار</span>
+                <small>بعداً هم می‌توانی عوضش کنی</small>
+              </div>
+              <div class="swatches" role="group" aria-label="رنگ لباس آواتار">
+                <button class="swatch is-selected" type="button" data-color="#30313a" aria-label="ذغالی" style="--swatch:#30313a"></button>
+                <button class="swatch" type="button" data-color="#7d8b78" aria-label="سبز زیتونی" style="--swatch:#7d8b78"></button>
+                <button class="swatch" type="button" data-color="#8f6670" aria-label="رزگلد" style="--swatch:#8f6670"></button>
+                <button class="swatch" type="button" data-color="#566a83" aria-label="آبی نفتی" style="--swatch:#566a83"></button>
+                <button class="swatch" type="button" data-color="#b58c57" aria-label="طلایی" style="--swatch:#b58c57"></button>
+              </div>
+            </div>
+            <button class="start-button" type="submit">
+              <span>از حیاط وارد شو</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
+            <div class="form-footnote"><span class="tiny-lock" aria-hidden="true">✦</span> عکس‌ها و نوشته‌های خاطره‌ها را هر زمان می‌توانی عوض کنی.</div>
+          </form>
+          <div class="intro-footer"><span>یک تجربه‌ی شخصی و آرام</span><span class="footer-dot"></span><span>برای مرور خاطره‌ها ساخته شده</span></div>
+        </div>
+
+        <div class="intro-gallery" aria-hidden="true">
+          <div class="gallery-glow"></div>
+          <div class="intro-gallery-caption">
+            <span class="caption-kicker">WELCOME HOME</span>
+            <span class="caption-title">The door opens<br />to your memories.</span>
+            <span class="caption-line"></span>
+            <span class="caption-subtitle">از حیاط وارد خانه شو و قاب‌ها را یکی‌یکی ببین.</span>
+          </div>
+          <div class="archway">
+            <div class="arch-inner">
+              <div class="door-panel door-left"><span></span><span></span></div>
+              <div class="door-panel door-right"><span></span><span></span></div>
+              <div class="door-light"></div>
+            </div>
+            <div class="arch-plaque">OUR HOME</div>
+            <div class="arch-step step-one"></div><div class="arch-step step-two"></div>
+          </div>
+          <div class="intro-frame frame-one"><span class="placeholder-sun"></span><span class="placeholder-mountain"></span><i>جای عکس</i></div>
+          <div class="intro-frame frame-two"><span class="frame-abstract">♡</span><i>جای عکس</i></div>
+          <div class="floor-glow"></div>
+          <div class="gallery-side-note">MEMORY IS A PLACE YOU CAN VISIT</div>
+          <div class="corner-index">01 — 08</div>
+        </div>
+      </section>
+
+      <section class="hud is-hidden" id="hud" aria-label="کنترل‌های بازی">
+        <header class="hud-header">
+          <div class="hud-brand">
+            <div class="mini-mark" aria-hidden="true">✦</div>
+            <div><strong>OUR HOME</strong><small id="hud-subtitle">خانه‌ی خاطرات شما</small></div>
+          </div>
+          <div class="dedication-chip"><span class="chip-dot"></span><span id="hud-from">من</span><b>♡</b><span id="hud-to">عزیزم</span></div>
+          <div class="hud-actions">
+            <button class="icon-button" id="help-button" type="button" aria-label="راهنما" title="راهنما">?</button>
+            <button class="icon-button" id="fullscreen-button" type="button" aria-label="تمام‌صفحه" title="تمام‌صفحه"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4H4v4m12-4h4v4M4 16v4h4m12-4v4h-4" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></button>
+          </div>
+        </header>
+
+        <div class="tour-progress"><span class="progress-label">گشت‌وگذار در خانه</span><span class="progress-track"><i id="progress-bar"></i></span><span id="progress-count">۰ / ۱۲</span></div>
+        <div class="scene-location" id="scene-location"><span class="location-pip"></span><span>حیاط خانه</span></div>
+        <div class="interaction-card is-hidden" id="interaction-card">
+          <span class="interaction-icon">↵</span><span id="interaction-copy">به در خانه نزدیک شو و E بزن</span>
+        </div>
+        <div class="bottom-hud">
+          <div class="control-hint"><span class="keycap">W</span><span class="keycap">A</span><span class="keycap">S</span><span class="keycap">D</span><span>حرکت</span><i></i><span class="keycap key-e">E</span><span>تعامل / ورود</span></div>
+          <button class="interact-button" id="interact-button" type="button"><span class="interact-key">E</span><span>تا جلوی خانه حرکت کن</span><span class="interact-arrow">↗</span></button>
+        </div>
+        <div class="touch-controls" id="touch-controls">
+          <div class="touch-pad" id="touch-pad" role="application" aria-label="جوی‌استیک حرکت">
+            <div class="joystick-base">
+              <span class="joy-arrow joy-up">⌃</span><span class="joy-arrow joy-left">‹</span><span class="joy-arrow joy-down">⌄</span><span class="joy-arrow joy-right">›</span>
+              <div class="joystick-knob" id="joystick-knob"><span></span></div>
+            </div>
+            <span class="joystick-caption">حرکت</span>
+          </div>
+          <div class="look-hint">برای چرخش دوربین، صحنه را بکش</div>
+        </div>
+        <div class="toast" id="toast" role="status"></div>
+      </section>
+
+      <section class="memory-overlay" id="memory-overlay" aria-modal="true" role="dialog" aria-labelledby="memory-title" hidden>
+        <div class="memory-backdrop" id="memory-backdrop"></div>
+        <article class="memory-card">
+          <button class="close-button" id="close-memory" type="button" aria-label="بستن">×</button>
+          <div class="memory-image-wrap">
+            <div class="memory-art-placeholder" id="memory-art-placeholder">
+              <img id="memory-photo" alt="عکس خاطره" hidden />
+              <span class="art-sun"></span><span class="art-hill art-hill-a"></span><span class="art-hill art-hill-b"></span>
+              <div class="art-placeholder-label"><span class="camera-icon">▧</span><b>قابِ خالیِ خاطره</b><small>عکس اینجا قرار می‌گیرد</small></div>
+              <span class="art-corner-mark">MEMORY / 01</span>
+            </div>
+            <div class="image-caption">یک قابِ خالی، برای یک خاطره‌ی واقعی</div>
+          </div>
+          <div class="memory-copy">
+            <div class="memory-meta"><span class="meta-line"></span><span id="memory-date">یادگاری شماره‌ی ۰۱</span></div>
+            <h2 id="memory-title">عنوان خاطره</h2>
+            <p class="memory-caption" id="memory-caption"></p>
+            <div class="memory-signoff"><span class="signoff-heart">♡</span><span>با مهر، <b id="memory-author">من</b></span></div>
+            <button class="next-memory-button" id="next-memory" type="button">رفتن به قاب بعدی <span>←</span></button>
+          </div>
+        </article>
+      </section>
+
+      <section class="help-overlay" id="help-overlay" hidden>
+        <div class="help-backdrop" id="help-backdrop"></div>
+        <article class="help-card">
+          <button class="close-button" id="close-help" type="button" aria-label="بستن">×</button>
+          <span class="kicker">A SMALL GUIDE</span>
+          <h2>چطور در خانه بگردی؟</h2>
+          <div class="guide-row"><span class="guide-key">W A S D</span><span>از حیاط تا خانه و داخل اتاق‌ها قدم بزن</span></div>
+          <div class="guide-row"><span class="guide-key">دکمه / E</span><span>اگر دوری، خودت را به در یا نزدیک‌ترین قاب برسان</span></div>
+          <div class="guide-row"><span class="guide-key">ماوس / لمس</span><span>صحنه را بکش تا دوربین بچرخد</span></div>
+          <p class="guide-note">روی گوشی با جوی‌استیک حرکت کن و صحنه را با انگشت بکش تا دوربین بچرخد. دکمه‌ی پایین اگر دور باشی خودکار به سمت در یا نزدیک‌ترین قاب می‌برد؛ نزدیک که شدی دوباره آن را بزن. روی کامپیوتر هم می‌توانی از WASD و E استفاده کنی.</p>
+          <button class="start-button help-close-action" id="help-close-action" type="button"><span>متوجه شدم</span><span>✓</span></button>
+        </article>
+      </section>
+    </main>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
