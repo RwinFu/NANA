@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { memories as memoryList } from './memories.js';
+import { buildCastle } from './castle.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -251,6 +252,9 @@ export function buildWorld(scene) {
     part.position.set(x, y, 0);
     scene.add(part);
   });
+
+  // The house front becomes a princess castle
+  buildCastle(scene, track);
 
   // Door panels (open) and warm light spilling from the door
   const doorFrameMat = new THREE.MeshStandardMaterial({ color: '#7a4a2e', roughness: 0.6 });
