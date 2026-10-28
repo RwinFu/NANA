@@ -25,6 +25,11 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   if (z <= 0.2 && z > -len && y >= 6) return true;
   // Hall end wall
   if (z <= -len + margin) return true;
+  // The big envelope at the end of the hall
+  const env = LAYOUT.envelope;
+  if (Math.abs(x) < env.w / 2 + margin && Math.abs(z - env.z) < 0.1 + margin && y < env.y + env.h + 0.3) {
+    return true;
+  }
   // Garden limits
   if (Math.abs(x) > LAYOUT.gardenHalfWidth) return true;
   if (z > LAYOUT.gardenDepth) return true;

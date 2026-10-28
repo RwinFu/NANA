@@ -10,9 +10,9 @@ export const LAYOUT = {
   doorHeight: 4.4,
   gardenHalfWidth: 22,
   gardenDepth: 26,
-  finaleZ: -33,
-  princessPos: new THREE.Vector3(0, 0, -35.2),
   spawn: new THREE.Vector3(0, 0, 19),
+  // The big envelope standing in front of the heart window at the end of the hall
+  envelope: { x: 0, y: 0.6, z: -38.9, w: 3.4, h: 2.2 },
 };
 
 const FRAME_Z_STEP = 4.6;
@@ -178,15 +178,6 @@ export function buildWorld(scene) {
   rug.position.set(0, 0.02, -19);
   scene.add(rug);
 
-  // Finale pad under the princess
-  const pad = track(
-    new THREE.Mesh(
-      new THREE.CylinderGeometry(1.5, 1.6, 0.12, 48),
-      new THREE.MeshStandardMaterial({ color: '#d9a85c', metalness: 0.7, roughness: 0.3 })
-    )
-  );
-  pad.position.set(LAYOUT.princessPos.x, 0.06, LAYOUT.princessPos.z);
-  scene.add(pad);
 
   // Hall ceiling and walls
   const ceiling = track(
@@ -682,7 +673,6 @@ export function buildWorld(scene) {
     update,
     dispose,
     hallLights,
-    pad,
     heartWindow,
   };
 }

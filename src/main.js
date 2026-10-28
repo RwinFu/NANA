@@ -4,7 +4,8 @@ import * as THREE from 'three';
 import { defaults, letterParagraphs, memories } from './memories.js';
 import { createStore, formatNumber } from './state.js';
 import { buildWorld, LAYOUT } from './world.js';
-import { createPlayer, createPrincess } from './characters.js';
+import { createPrincess } from './characters.js';
+import { createEnvelope } from './envelope.js';
 import { createControls } from './controls.js';
 import { createAudio } from './audio.js';
 import { createFx } from './fx.js';
@@ -20,7 +21,7 @@ const SWATCHES = [
 ];
 const MILESTONE = 1000;
 const INTERACT_RADIUS = 3.6;
-const PRINCESS_RADIUS = 4.4;
+const ENVELOPE_RADIUS = 3.2;
 
 const dom = {
   intro: $('#intro'),
@@ -79,7 +80,7 @@ SWATCHES.forEach(([color, label]) => {
     dom.swatchRow.querySelectorAll('.swatch').forEach((el) => {
       el.setAttribute('aria-pressed', String(el.dataset.color === color));
     });
-    princess?.setDress(color);
+    hero?.setDress(color);
   });
   dom.swatchRow.appendChild(btn);
 });
@@ -117,14 +118,12 @@ if (!renderer) {
 const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 220);
 let world = null;
-let princess = null;
-let player = null;
+let hero = null;
+let envelope = null;
 let controls = null;
 let started = false;
 let transition = null;
 let nearFrame = -1;
-let finaleAutoShown = false;
-let lastTime = performance.now();
 const audio = createAudio();
 const fx = createFx($('#fx'));
 const raycaster = new THREE.Raycaster();
@@ -137,18 +136,20 @@ if (renderer) {
   renderer.toneMappingExposure = 1.05;
 
   world = buildWorld(scene);
-  princess = createPrincess(store.get().avatarColor);
-  princess.root.position.copy(LAYOUT.princessPos);
-  scene.add(princess.root);
+  hero = createPrincess(store.get().avatarColor);
+  scene.add(hero.root);
 
-  player = createPlayer();
-  scene.add(player.root);
+  envelope = createEnvelope(scene, {
+    fromName: store.get().fromName,
+    toName: store.get().toName,
+    paragraph: letterParagraphs[1],
+  });
 
   controls = createControls({
     camera,
     canvas: renderer.domElement,
-    player: player.root,
-    playerModel: player.root,
+    player: hero.root,
+    playerModel: hero.root,
     isBlocked: () => !started || anyDialogOpen(),
     onTapFrame: tapFrame,
   });
@@ -270,16 +271,17 @@ function openFinale() {
   fx.show(7, 0.45);
 }
 $('#finale-love').addEventListener('click', () => {
-  const origin = princess ? princess.root.position.clone().setY(2.4) : null;
+  const origin = hero ? hero.root.position.clone().setY(2.4) : null;
   addLove(origin);
   fx.burst(window.innerWidth / 2, window.innerHeight * 0.45, '#ff8fab', 40);
 });
 $('#finale-photo').addEventListener('click', () => openPostcard());
 
-// Letter
-function buildLetter() {
-  const body = $('#letter-body');
-  body.replaceChildren(
+// Letter (shown after the envelope opens)
+function fillLetter(state) {
+  $('#letter-title').textContent = `برای ${state.toName}`;
+  $('#letter-from-sign').textContent = state.fromName;
+  $('#letter-body').replaceChildren(
     ...letterParagraphs.map((text) => {
       const p = document.createElement('p');
       p.textContent = text;
@@ -287,7 +289,25 @@ function buildLetter() {
     })
   );
 }
-buildLetter();
+fillLetter(store.get());
+
+function openLetter() {
+  audio.chime(523.25);
+  openDialog(dom.letter);
+}
+
+function openEnvelope() {
+  if (!envelope) return;
+  if (envelope.isOpen) {
+    openLetter();
+    return;
+  }
+  if (envelope.isBusy) return;
+  envelope.open(() => {
+    fx.burst(window.innerWidth / 2, window.innerHeight * 0.4, '#ffd98a', 36);
+    openLetter();
+  });
+}
 
 // Postcard
 let postcardUrl = null;
@@ -353,6 +373,11 @@ function tapFrame(ndc) {
   if (hits.length && hits[0].distance < 12) {
     const frame = world.frames.find((f) => f.photo === hits[0].object);
     if (frame) openMemory(frame.index);
+    return;
+  }
+  if (envelope) {
+    const envHits = raycaster.intersectObjects(envelope.hitTargets, false);
+    if (envHits.length && envHits[0].distance < 14) openEnvelope();
   }
 }
 
@@ -370,8 +395,9 @@ function nearestFrame() {
   return best;
 }
 
-function nearPrincess() {
-  return !!controls && controls.isNear(LAYOUT.princessPos.x, LAYOUT.princessPos.z, PRINCESS_RADIUS);
+function nearEnvelope() {
+  const { x, z } = LAYOUT.envelope;
+  return !!controls && controls.isNear(x, z, ENVELOPE_RADIUS);
 }
 
 let promptTarget = null;
@@ -384,9 +410,9 @@ function updatePrompt() {
   if (nearFrame >= 0) {
     promptTarget = { type: 'frame', index: nearFrame };
     dom.promptLabel.textContent = `دیدن خاطره‌ی ${formatNumber(nearFrame + 1)}`;
-  } else if (nearPrincess()) {
-    promptTarget = { type: 'princess' };
-    dom.promptLabel.textContent = 'جشن اولین سالگرد';
+  } else if (nearEnvelope()) {
+    promptTarget = { type: 'envelope' };
+    dom.promptLabel.textContent = envelope?.isOpen ? 'خواندن نامه' : 'باز کردن نامه';
   } else {
     promptTarget = null;
   }
@@ -397,8 +423,8 @@ function interact() {
   if (!promptTarget) return;
   if (promptTarget.type === 'frame') {
     openMemory(promptTarget.index);
-  } else {
-    openFinale();
+  } else if (promptTarget.type === 'envelope') {
+    openEnvelope();
   }
 }
 dom.promptBtn.addEventListener('click', interact);
@@ -418,7 +444,7 @@ window.addEventListener('keydown', (event) => {
 
 dom.love.addEventListener('click', () => {
   const rect = dom.love.getBoundingClientRect();
-  addLove(player ? player.root.position.clone().setY(2.2) : null);
+  addLove(hero ? hero.root.position.clone().setY(2.2) : null);
   fx.burst(rect.left + rect.width / 2, rect.top + rect.height / 2, '#ff8fab', 22);
 });
 
@@ -506,7 +532,12 @@ function start(state) {
   dom.hudSub.textContent = `از طرف ${state.fromName} برای ${state.toName}`;
   renderLove(state.loveCount);
   if (world) world.setDedication(state.dedication);
-  princess?.setDress(state.avatarColor);
+  hero?.setDress(state.avatarColor);
+  fillLetter(state);
+  if (envelope) {
+    const redraw = () => envelope.setNames(state.fromName, state.toName, letterParagraphs[1]);
+    redraw();
+  }
 
   // Glide from the intro view into the follow camera
   transition = { from: camera.position.clone(), elapsed: 0, duration: 1.6 };
@@ -527,7 +558,10 @@ store.subscribe((state) => {
 
 // Plaque text: draw once fonts are ready so Persian renders correctly
 if (world) {
-  const draw = () => world.setDedication(store.get().dedication);
+  const draw = () => {
+    world.setDedication(store.get().dedication);
+    if (envelope) envelope.setNames(store.get().fromName, store.get().toName, letterParagraphs[1]);
+  };
   document.fonts.ready.then(draw);
   document.fonts.load('800 96px "Vazirmatn Variable"').then(draw, draw);
 }
@@ -568,16 +602,12 @@ function frame() {
       camera.position.lerpVectors(transition.from, target, e);
       if (k >= 1) transition = null;
     }
-    if (!finaleAutoShown && controls.position.z < LAYOUT.finaleZ) {
-      finaleAutoShown = true;
-      openFinale();
-    }
   } else {
     introCamera(t);
   }
 
-  player.animate(dt, t, started && controls.moving);
-  princess.animate(t, dt, started && controls.position.z < LAYOUT.finaleZ + 6);
+  hero.animate(dt, t, started && controls.moving);
+  envelope.update(t, dt);
   world.update(t, dt, started ? nearFrame : -1);
   if (started) updatePrompt();
 
