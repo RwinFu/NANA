@@ -10,6 +10,7 @@ import { createControls } from './controls.js';
 import { createAudio } from './audio.js';
 import { createFx } from './fx.js';
 import { createTrail } from './trail.js';
+import { createFootprints } from './footprints.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -121,6 +122,7 @@ const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerH
 let world = null;
 let hero = null;
 let trail = null;
+let footprints = null;
 let envelope = null;
 let controls = null;
 let started = false;
@@ -141,6 +143,7 @@ if (renderer) {
   hero = createCouple(store.get().avatarColor);
   scene.add(hero.root);
   trail = createTrail(scene);
+  footprints = createFootprints(scene);
 
   envelope = createEnvelope(scene, {
     fromName: store.get().fromName,
@@ -611,6 +614,7 @@ function frame() {
 
   hero.animate(dt, t, started && controls.moving);
   trail?.update(dt, hero.root.position, started && controls.moving, camera);
+  footprints?.update(dt, hero, started && controls.moving);
   envelope.update(t, dt);
   world.update(t, dt, started ? nearFrame : -1);
   if (started) updatePrompt();
@@ -626,5 +630,5 @@ if (renderer) {
 
 // Dev-only hook for automated checks
 if (import.meta.env.DEV) {
-  window.__home = { controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), addLove, hero: () => hero };
+  window.__home = { controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), addLove, hero: () => hero, footprints: () => footprints };
 }
