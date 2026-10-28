@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { isCastleSolid } from './castle.js';
 import { LAYOUT } from './world.js';
 
 const PLAYER_RADIUS = 0.3;
@@ -16,6 +17,7 @@ const MOVE_KEYS = {
 // Solid geometry, shared by the player and the camera.
 // Walls are thin boxes; the door is an opening in the facade.
 export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
+  if (isCastleSolid(x, y, z, margin)) return true;
   const hall = LAYOUT.hallHalfWidth;
   const len = LAYOUT.hallLength;
   // House facade with a door opening at x in [-1.5, 1.5]

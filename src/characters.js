@@ -5,10 +5,18 @@ const HAIR = '#3a2220';
 const COAT = '#2d3354';
 const PANTS = '#1b1d2e';
 const SHOE = '#111018';
-const BOY_OFFSET_X = -1.05; // the boy walks beside her on the side of her arm that holds his hand
 const ARM_R = 0.07;
-const PRINCESS_SCALE = 1.08; // she stands a little taller than the boy
+// The princess is a small figure: her whole body is scaled down, so she is shorter than the boy
+// and every part keeps the same proportions.
+const PRINCESS_SCALE = 0.68;
+// The boy walks beside her on her right side (her -x), a little behind, and follows her
+const FOLLOW_SIDE = 0.85;
+const FOLLOW_BACK = 0.12;
+const FOLLOW_RATE = 16; // higher means the boy keeps closer to his spot
+// Distance (in metres) the couple covers in one full stride cycle (two steps)
+const STRIDE = 3.4;
 const HAIR_LIMIT = 1.3; // radians; keeps the hair from folding through the body
+const up = new THREE.Vector3(0, 1, 0);
 
 function part(mesh, parent, x = 0, y = 0, z = 0) {
   mesh.position.set(x, y, z);
@@ -18,9 +26,9 @@ function part(mesh, parent, x = 0, y = 0, z = 0) {
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
-// Eyes with a dark iris, a catch-light, a soft lash line, a brow and a small smile.
+// Front face: eyes with a dark iris and catch-light, a soft lash line, brows and a small smile.
 // Everything sits on the front of the head (+z), so the face stays visible.
-function addFace(head, skinMat, { lashes = true } = {}) {
+function addPrincessFace(head, skinMat) {
   const irisMat = new THREE.MeshStandardMaterial({ color: '#3b2319', roughness: 0.35 });
   const shineMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
   const lashMat = new THREE.MeshStandardMaterial({ color: '#1e1210', roughness: 0.5 });
@@ -31,12 +39,10 @@ function addFace(head, skinMat, { lashes = true } = {}) {
     const eye = part(new THREE.Mesh(new THREE.SphereGeometry(0.03, 14, 12), irisMat), head, x, 0.0, 0.205);
     eye.scale.set(1, 1.25, 0.6);
     part(new THREE.Mesh(new THREE.SphereGeometry(0.009, 8, 6), shineMat), head, x + side * 0.009, 0.012, 0.228);
-    if (lashes) {
-      // upper lash line: a half ring over the top of the eye
-      const lash = part(new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.008, 6, 18, Math.PI * 0.9), lashMat), head, x, 0.0, 0.212);
-      lash.rotation.z = Math.PI * 0.05;
-      lash.scale.set(1, 1.1, 0.6);
-    }
+    // upper lash line: a half ring over the top of the eye
+    const lash = part(new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.008, 6, 18, Math.PI * 0.9), lashMat), head, x, 0.0, 0.212);
+    lash.rotation.z = Math.PI * 0.05;
+    lash.scale.set(1, 1.1, 0.6);
     // soft brow, slightly lifted at the outer end
     const brow = part(new THREE.Mesh(new THREE.CapsuleGeometry(0.007, 0.055, 3, 6), lashMat), head, x, 0.078, 0.2);
     brow.rotation.z = Math.PI / 2 - side * 0.12;
@@ -49,9 +55,25 @@ function addFace(head, skinMat, { lashes = true } = {}) {
   smile.rotation.z = Math.PI;
 }
 
-// A chain of hinged segments that hangs from `anchor` and swings with physics:
-// a spring pulls each joint back to its rest angle, damping stops the wobble, and the
-// head's acceleration pushes the hair so it lags behind every move.
+// Boy's face: the same eyes and brows, with a simple smile
+function addBoyFace(head) {
+  const irisMat = new THREE.MeshStandardMaterial({ color: '#1d1410', roughness: 0.4 });
+  const browMat = new THREE.MeshStandardMaterial({ color: '#1f1412', roughness: 0.6 });
+  const shineMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+  [-1, 1].forEach((side) => {
+    const x = side * 0.08;
+    const eye = part(new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), irisMat), head, x, 0.0, 0.2);
+    eye.scale.set(1, 1.25, 0.6);
+    part(new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 6), shineMat), head, x + side * 0.008, 0.01, 0.222);
+    const brow = part(new THREE.Mesh(new THREE.CapsuleGeometry(0.006, 0.05, 3, 6), browMat), head, x, 0.068, 0.19);
+    brow.rotation.z = Math.PI / 2;
+  });
+  const smile = part(new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.0065, 6, 12, Math.PI), new THREE.MeshStandardMaterial({ color: '#b5485f', roughness: 0.5 })), head, 0, -0.09, 0.2);
+  smile.rotation.z = Math.PI;
+}
+
+// A chain of hinged segments that hangs from `anchor`. Each joint is a spring pulled toward its
+// rest angle, damped, and pushed by the head's acceleration, so the hair lags behind every move.
 function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damping, drive, material }) {
   const base = new THREE.Group();
   base.position.set(anchor.x, anchor.y, anchor.z);
@@ -97,28 +119,11 @@ function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damp
   return { step, angles: () => joints.map((j) => [+j.ax.toFixed(3), +j.az.toFixed(3)]) };
 }
 
-// Boy's face: the same eyes and brows, with a simple smile
-function addBoyFace(head) {
-  const irisMat = new THREE.MeshStandardMaterial({ color: '#1d1410', roughness: 0.4 });
-  const browMat = new THREE.MeshStandardMaterial({ color: '#1f1412', roughness: 0.6 });
-  const shineMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
-  [-1, 1].forEach((side) => {
-    const x = side * 0.08;
-    const eye = part(new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), irisMat), head, x, 0.0, 0.2);
-    eye.scale.set(1, 1.25, 0.6);
-    part(new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 6), shineMat), head, x + side * 0.008, 0.01, 0.222);
-    const brow = part(new THREE.Mesh(new THREE.CapsuleGeometry(0.006, 0.05, 3, 6), browMat), head, x, 0.068, 0.19);
-    brow.rotation.z = Math.PI / 2;
-  });
-  const smile = part(new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.0065, 6, 12, Math.PI), new THREE.MeshStandardMaterial({ color: '#b5485f', roughness: 0.5 })), head, 0, -0.09, 0.2);
-  smile.rotation.z = Math.PI;
-}
-
-// The walking princess (you) and the boy holding her hand.
+// The walking princess (you) and the boy who follows her and holds her hand.
 // Her front is +z; the ponytail hangs at -z.
 export function createCouple(dressColor) {
   const root = new THREE.Group();
-  const body = new THREE.Group(); // bobs while walking, and is a bit taller than the boy
+  const body = new THREE.Group(); // bobs and sways while walking
   body.scale.setScalar(PRINCESS_SCALE);
   root.add(body);
 
@@ -128,7 +133,7 @@ export function createCouple(dressColor) {
   const goldMat = new THREE.MeshStandardMaterial({ color: '#f5c96a', metalness: 0.8, roughness: 0.25 });
   const shoeMat = new THREE.MeshStandardMaterial({ color: '#2a1a24', roughness: 0.5 });
 
-  // Skirt: a lathe with a soft bell shape; it sways a little while walking
+  // Skirt: a lathe with a soft bell shape. Her feet move under it while she walks.
   const skirtProfile = [
     new THREE.Vector2(0.0, 0.0),
     new THREE.Vector2(0.72, 0.0),
@@ -141,7 +146,8 @@ export function createCouple(dressColor) {
   body.add(skirt);
 
   const feet = [];
-  [-0.14, 0.14].forEach((x) => {
+  const shoeRest = [-0.14, 0.14];
+  shoeRest.forEach((x) => {
     const shoe = new THREE.Mesh(new THREE.SphereGeometry(0.09, 10, 8), shoeMat);
     shoe.scale.set(1, 0.55, 1.5);
     part(shoe, body, x, 0.06, 0.12);
@@ -178,11 +184,11 @@ export function createCouple(dressColor) {
   // Hair covers the crown and the back of the head, so the face stays visible
   part(new THREE.Mesh(new THREE.SphereGeometry(0.245, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.36), hairMat), head, 0, 0.03, 0);
   part(new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 12), hairMat), head, 0, -0.12, -0.11).scale.set(1, 1.2, 0.8);
-  addFace(head, skinMat);
+  addPrincessFace(head, skinMat);
   const tiara = part(new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.025, 8, 24, Math.PI), goldMat), head, 0, 0.2, 0.02);
   tiara.rotation.x = -0.2;
 
-  // Ponytail: a physics chain tied with a pink ribbon at the back of the head
+  // Ponytail: a physics chain, tied with a pink ribbon at the back of the head
   const ponytail = createHairChain({
     parent: head,
     anchor: { x: 0, y: 0.08, z: -0.2 },
@@ -211,9 +217,8 @@ export function createCouple(dressColor) {
     }),
   );
 
-  // ----- the boy -----
+  // ----- the boy: his own group, moved to his place beside her each frame -----
   const boy = new THREE.Group();
-  boy.position.set(BOY_OFFSET_X, 0, 0);
   root.add(boy);
   const coatMat = new THREE.MeshStandardMaterial({ color: COAT, roughness: 0.7 });
   const pantsMat = new THREE.MeshStandardMaterial({ color: PANTS, roughness: 0.8 });
@@ -224,16 +229,25 @@ export function createCouple(dressColor) {
   const boyHead = part(new THREE.Mesh(new THREE.SphereGeometry(0.23, 16, 12), skinMat), boyBody, 0, 1.75, 0);
   part(new THREE.Mesh(new THREE.SphereGeometry(0.245, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.45), boyHairMat), boyHead, 0, 0.03, 0);
   addBoyFace(boyHead);
+
+  // Legs: hip, knee and foot, so the knee bends through each step
   const legs = [];
+  const shins = [];
   [-0.13, 0.13].forEach((x) => {
-    const pivot = new THREE.Group();
-    pivot.position.set(x, 0.62, 0);
-    boyBody.add(pivot);
-    part(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.62, 8), pantsMat), pivot, 0, -0.31, 0);
-    part(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.26), new THREE.MeshStandardMaterial({ color: SHOE })), pivot, 0, -0.66, 0.05);
-    legs.push(pivot);
+    const hip = new THREE.Group();
+    hip.position.set(x, 0.62, 0);
+    boyBody.add(hip);
+    part(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.31, 8), pantsMat), hip, 0, -0.155, 0);
+    const knee = new THREE.Group();
+    knee.position.set(0, -0.31, 0);
+    hip.add(knee);
+    part(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.31, 8), pantsMat), knee, 0, -0.155, 0);
+    part(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.26), new THREE.MeshStandardMaterial({ color: SHOE })), knee, 0, -0.335, 0.05);
+    legs.push(hip);
+    shins.push(knee);
   });
-  // Free arm (his right) swings; the inner arm (his left) is stretched to her hand each frame
+
+  // Free arm (his right) swings against his leg; the inner arm (his left) is stretched to her hand
   const freeArm = new THREE.Group();
   freeArm.position.set(-0.34, 1.35, 0);
   boyBody.add(freeArm);
@@ -246,7 +260,6 @@ export function createCouple(dressColor) {
   const innerHand = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), skinMat);
   boy.add(innerHand);
 
-  const up = new THREE.Vector3(0, 1, 0);
   const handWorld = new THREE.Vector3();
   const handLocal = new THREE.Vector3();
   const dir = new THREE.Vector3();
@@ -298,37 +311,89 @@ export function createCouple(dressColor) {
     locks.forEach((lock) => lock.step(dt, accLocal, sway));
   }
 
-  let walkPhase = 0;
-  let walkAmount = 0;
+  // ----- movement state -----
+  const prevRoot = new THREE.Vector3();
+  const rootPos = new THREE.Vector3();
+  const boyTarget = new THREE.Vector3();
+  const boyWorld = new THREE.Vector3();
+  const offset = new THREE.Vector3(-FOLLOW_SIDE, 0, -FOLLOW_BACK);
+  let boyYaw = 0;
+  let rootReady = false;
+  let phase = 0; // stride phase: advances with the distance the couple walks, so feet do not slide
+  let amount = 0; // 0 standing, 1 walking, eased in and out
   let idleTime = 0;
   let waveAmount = 0;
+
+  function lerpAngle(a, b, t) {
+    let diff = b - a;
+    while (diff > Math.PI) diff -= Math.PI * 2;
+    while (diff < -Math.PI) diff += Math.PI * 2;
+    return a + diff * t;
+  }
+
+  // The boy keeps his place beside her and catches up if she moves on
+  function followPrincess(dt) {
+    root.getWorldPosition(rootPos);
+    const yaw = root.rotation.y;
+    if (!rootReady) {
+      prevRoot.copy(rootPos);
+      boyWorld.copy(rootPos).add(offset.clone().applyAxisAngle(up, yaw));
+      boyYaw = yaw;
+      rootReady = true;
+    }
+    boyTarget.copy(rootPos).add(offset.clone().applyAxisAngle(up, yaw));
+    boyWorld.lerp(boyTarget, 1 - Math.exp(-dt * FOLLOW_RATE));
+    boyWorld.y = 0;
+    boyYaw = lerpAngle(boyYaw, yaw, 1 - Math.exp(-dt * FOLLOW_RATE));
+    boy.position.copy(root.worldToLocal(boyWorld.clone()));
+    boy.rotation.y = boyYaw - yaw;
+  }
+
   function animate(dt, t, moving) {
-    walkAmount += ((moving ? 1 : 0) - walkAmount) * Math.min(1, dt * 10);
-    if (moving) walkPhase += dt * 8;
+    const step = Math.min(dt, 0.05);
+    // distance walked since the last frame (ignores large jumps such as teleports)
+    root.getWorldPosition(rootPos);
+    const walked = Math.min(rootPos.distanceTo(prevRoot), 3.6 * step * 1.5);
+    prevRoot.copy(rootPos);
+    if (moving) phase += (walked / STRIDE) * Math.PI * 2;
+    amount += ((moving ? 1 : 0) - amount) * Math.min(1, dt * 8);
+
     // After a few seconds standing still, the boy waves his free hand
     idleTime = moving ? 0 : idleTime + dt;
     waveAmount += ((idleTime > 5 ? 1 : 0) - waveAmount) * Math.min(1, dt * 4);
-    const swing = Math.sin(walkPhase) * walkAmount;
-    const idle = 1 - walkAmount;
+    const idle = 1 - amount;
+    const s = Math.sin(phase);
+    const c = Math.cos(phase);
 
-    // Princess: skirt sways, her arm reaches out toward the boy
-    skirt.rotation.z = swing * 0.05;
-    skirt.rotation.x = Math.abs(swing) * 0.03;
-    arms[0].rotation.x = -swing * 0.3;
+    followPrincess(dt);
+
+    // Princess: body bobs twice per stride and sways; her feet step under the skirt
+    body.position.y = Math.abs(s) * 0.04 * amount + Math.sin(t * 1.6) * 0.01 * idle;
+    body.rotation.z = s * 0.025 * amount;
+    skirt.rotation.z = s * 0.05 * amount;
+    skirt.rotation.x = Math.abs(s) * 0.03 * amount;
+    shoeRest.forEach((x, i) => {
+      const f = phase + i * Math.PI;
+      feet[i].position.set(x, 0.06 + Math.max(0, Math.cos(f)) * 0.07 * amount, 0.12 + Math.sin(f) * 0.14 * amount);
+    });
+    // Her arm on the boy's side stays reaching for his hand; the other arm swings
+    arms[0].rotation.x = Math.sin(phase) * 0.04 * amount;
     arms[0].rotation.z = -0.6;
-    arms[1].rotation.x = swing * 0.3 - 0.15 * idle;
-    body.position.y = Math.abs(Math.sin(walkPhase)) * 0.05 * walkAmount + Math.sin(t * 1.6) * 0.012 * idle;
+    arms[1].rotation.x = -s * 0.35 * amount + 0.15 * idle;
     head.rotation.y = Math.sin(t * 0.7) * 0.08 * idle;
-    updateHair(dt, swing * 0.12 + Math.sin(t * 1.3) * 0.02 * idle);
+    updateHair(dt, s * amount * 0.12 + Math.sin(t * 1.3) * 0.02 * idle);
 
-    // Boy: legs and free arm walk in step with her, body bobs slightly
-    legs[0].rotation.x = swing * 0.9;
-    legs[1].rotation.x = -swing * 0.9;
-    // While he waves, the walking swing fades out and the arm lifts outward and shakes
+    // Boy: legs step in time with hers; knees bend in the forward swing
+    legs.forEach((hip, i) => {
+      const f = phase + i * Math.PI;
+      hip.rotation.x = Math.sin(f) * 0.5 * amount;
+      shins[i].rotation.x = 0.85 * Math.max(0, Math.cos(f)) * amount;
+    });
+    boyBody.position.y = Math.abs(s) * 0.035 * amount + Math.sin(t * 1.4 + 1) * 0.01 * idle;
+    boyBody.rotation.z = s * 0.025 * amount;
     const wave = waveAmount;
-    freeArm.rotation.x = -swing * 0.6 * (1 - wave);
+    freeArm.rotation.x = -s * 0.5 * amount * (1 - wave);
     freeArm.rotation.z = wave * (-2.4 + Math.sin(t * 7) * 0.25);
-    boyBody.position.y = Math.abs(Math.sin(walkPhase)) * 0.05 * walkAmount + Math.sin(t * 1.4 + 1) * 0.01 * idle;
     boyHead.rotation.y = -Math.sin(t * 0.6) * 0.06 * idle;
 
     stretchInnerArm();
@@ -347,8 +412,10 @@ export function createCouple(dressColor) {
       boyTop: +boyBox.max.y.toFixed(3),
       ponytail: ponytail.angles(),
       locks: locks.map((l) => l.angles()),
+      boyWorld: [+boyWorld.x.toFixed(3), +boyWorld.z.toFixed(3)],
+      princessWorld: [+rootPos.x.toFixed(3), +rootPos.z.toFixed(3)],
     };
   }
 
-  return { root, animate, setDress, measure, feet, stride: () => walkPhase };
+  return { root, animate, setDress, measure, feet, stride: () => phase };
 }

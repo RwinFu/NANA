@@ -14,8 +14,8 @@ function soleGeometry() {
   const steps = 28;
   for (let i = 0; i <= steps; i += 1) {
     const t = (i / steps) * Math.PI * 2;
-    const y = 0.16 * Math.cos(t);
-    let x = 0.095 * Math.sin(t);
+    const y = 0.12 * Math.cos(t);
+    let x = 0.072 * Math.sin(t);
     if (y < 0) x *= 0.85;
     if (i === 0) shape.moveTo(x, y);
     else shape.lineTo(x, y);
