@@ -784,6 +784,7 @@ dialog h2 {
 /* Letter */
 
 .letter-sheet {
+  padding-top: 60px;
   background: linear-gradient(180deg, #2a1a33 0%, #160f22 100%);
 }
 
