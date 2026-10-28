@@ -4,11 +4,12 @@ import * as THREE from 'three';
 import { defaults, letterParagraphs, memories } from './memories.js';
 import { createStore, formatNumber } from './state.js';
 import { buildWorld, LAYOUT } from './world.js';
-import { createPrincess } from './characters.js';
+import { createCouple } from './characters.js';
 import { createEnvelope } from './envelope.js';
 import { createControls } from './controls.js';
 import { createAudio } from './audio.js';
 import { createFx } from './fx.js';
+import { createTrail } from './trail.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -119,6 +120,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 220);
 let world = null;
 let hero = null;
+let trail = null;
 let envelope = null;
 let controls = null;
 let started = false;
@@ -136,8 +138,9 @@ if (renderer) {
   renderer.toneMappingExposure = 1.05;
 
   world = buildWorld(scene);
-  hero = createPrincess(store.get().avatarColor);
+  hero = createCouple(store.get().avatarColor);
   scene.add(hero.root);
+  trail = createTrail(scene);
 
   envelope = createEnvelope(scene, {
     fromName: store.get().fromName,
@@ -607,6 +610,7 @@ function frame() {
   }
 
   hero.animate(dt, t, started && controls.moving);
+  trail?.update(dt, hero.root.position, started && controls.moving, camera);
   envelope.update(t, dt);
   world.update(t, dt, started ? nearFrame : -1);
   if (started) updatePrompt();
@@ -622,5 +626,5 @@ if (renderer) {
 
 // Dev-only hook for automated checks
 if (import.meta.env.DEV) {
-  window.__home = { controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), addLove };
+  window.__home = { controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), addLove, hero: () => hero };
 }

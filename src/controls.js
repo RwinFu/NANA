@@ -2,6 +2,8 @@ import * as THREE from 'three';
 import { LAYOUT } from './world.js';
 
 const PLAYER_RADIUS = 0.3;
+// The boy walks beside the princess, so the hall walls keep this extra distance
+const BOY_REACH = 1.5;
 const WALK_SPEED = 3.6;
 const RUN_SPEED = 6.0;
 const MOVE_KEYS = {
@@ -21,7 +23,7 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
     return true;
   }
   // Hall side walls and ceiling
-  if (z <= 0.2 && z > -len - margin && Math.abs(x) > hall - margin && y < 6) return true;
+  if (z <= 0.2 && z > -len - margin && Math.abs(x) > hall - margin - BOY_REACH && y < 6) return true;
   if (z <= 0.2 && z > -len && y >= 6) return true;
   // Hall end wall
   if (z <= -len + margin) return true;
