@@ -40,7 +40,9 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   // Hall side walls and ceiling. The west wall has a doorway into the photo room.
   const R = LAYOUT.room;
   const throughDoor = x < 0 && z <= R.door.z1 - margin && z >= R.door.z0 + margin && y < R.door.top;
-  if (z <= 0.2 && z > -len - margin && Math.abs(x) > hall - margin - BOY_REACH && !throughDoor && y < 6) return true;
+  // This band only applies inside the hall (|x| < hall); the photo room beyond the wall has its own walls below.
+  const inHall = Math.abs(x) < hall + 0.3;
+  if (inHall && z <= 0.2 && z > -len - margin && Math.abs(x) > hall - margin - BOY_REACH && !throughDoor && y < 6) return true;
   if (z <= 0.2 && z > -len && y >= 6) return true;
   // Hall end wall
   if (z <= -len + margin) return true;
@@ -49,13 +51,15 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   if (Math.abs(x) < env.w / 2 + margin && Math.abs(z - env.z) < 0.1 + margin && y < env.y + env.h + 0.3) {
     return true;
   }
-  // The photo room (inside the castle): its walls, and the doorway in the hall's west wall
+  // The photo room: its walls, and the doorway in the hall's west wall
+  const inBox = x >= R.ox0 - margin && x <= R.ox1 + margin && z >= R.oz0 - margin && z <= R.oz1 + margin;
   if (y < R.height) {
-    const inBox = x >= R.ox0 - margin && x <= R.ox1 + margin && z >= R.oz0 - margin && z <= R.oz1 + margin;
     const inside = x >= R.x0 + margin && x <= R.x1 - margin && z >= R.z0 + margin && z <= R.z1 - margin;
     const doorway = x >= R.x1 - margin && z >= R.door.z0 + margin && z <= R.door.z1 - margin;
     if (inBox && !inside && !doorway) return true;
   }
+  // The room's ceiling: the camera must not rise above it and look in from the top
+  if (inBox && y >= R.height - margin && y < R.height + 0.3) return true;
   // Garden limits
   if (Math.abs(x) > LAYOUT.gardenHalfWidth) return true;
   if (z > LAYOUT.gardenDepth) return true;
@@ -71,6 +75,7 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   let pitch = 0.42;
   let distance = baseDistance();
   let targetDistance = distance;
+  let camDist = distance; // the distance the camera is really at, after walls
   let spin = { yaw: 0, pitch: 0 }; // touch flick momentum, in radians per frame
   let lastDragAt = 0;
   let dragKind = 'mouse';
@@ -281,20 +286,34 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
     // Camera follows smoothly and never passes through walls
     distance += (targetDistance - distance) * Math.min(1, dt * 8);
     lookAt.lerp(new THREE.Vector3(pos.x, 1.5 + jumpY * 0.35, pos.z), Math.min(1, dt * 10));
-    placeCamera();
+    placeCamera(dt);
   }
 
-  function placeCamera() {
+  const MIN_CAM_DISTANCE = 1.0;
+  function placeCamera(dt = 0) {
     const cosP = Math.cos(pitch);
-    for (let d = distance; d >= 1.0; d -= 0.4) {
-      const x = lookAt.x + d * cosP * Math.sin(yaw);
-      const y = lookAt.y + d * Math.sin(pitch);
-      const z = lookAt.z + d * cosP * Math.cos(yaw);
-      if (!isSolid(x, y, z, 0.25) || d <= 1.0) {
-        camera.position.set(x, Math.max(0.5, y), z);
+    const dirX = cosP * Math.sin(yaw);
+    const dirY = Math.sin(pitch);
+    const dirZ = cosP * Math.cos(yaw);
+    const blocked = (d) => isSolid(lookAt.x + d * dirX, lookAt.y + d * dirY, lookAt.z + d * dirZ, 0.25);
+    // The ray from the player out to the camera must be clear all the way, so the camera
+    // never lands on the far side of a thin wall. Stop just before the first obstacle.
+    let free = distance;
+    for (let d = MIN_CAM_DISTANCE; d <= distance; d += 0.1) {
+      if (blocked(d)) {
+        free = Math.max(MIN_CAM_DISTANCE, d - 0.1);
         break;
       }
     }
+    // Walls pull the camera in quickly and let it out slowly, so it never snaps around a corner
+    const rate = free < camDist ? 12 : 6;
+    camDist += (free - camDist) * Math.min(1, dt * rate);
+    if (blocked(camDist)) camDist = free;
+    camera.position.set(
+      lookAt.x + camDist * dirX,
+      Math.max(0.5, lookAt.y + camDist * dirY),
+      lookAt.z + camDist * dirZ,
+    );
     camera.lookAt(lookAt.x, lookAt.y + 0.2, lookAt.z);
   }
 
@@ -318,7 +337,8 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
     jumpY = 0;
     jumpVy = 0;
     jumpBuf = 0;
-    placeCamera();
+    camDist = distance;
+    placeCamera(0);
   }
 
   function setJoystick(x, y, active) {

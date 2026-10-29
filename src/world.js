@@ -15,12 +15,12 @@ export const LAYOUT = {
   spawn: new THREE.Vector3(0, 0, 19),
   // The big envelope standing in front of the heart window at the end of the hall
   envelope: { x: 0, y: 0.6, z: -38.9, w: 3.4, h: 2.2 },
-  // The photo room: a chamber inside the castle, west of the gallery hall, entered through a doorway in the hall's west wall.
+  // The photo room: a bigger chamber west of the gallery hall, in the middle of the hall, entered through a doorway in its west wall.
   room: {
     height: 4.6,
-    ox0: -14.3, ox1: -3.85, oz0: -6.5, oz1: -2.0, // outside faces (the hall wall is its east side)
-    x0: -14.0, x1: -4.15, z0: -6.2, z1: -2.3, // inside faces: a long, narrow corridor
-    door: { z0: -4.6, z1: -2.5, top: 4.4 }, // doorway in the hall's west wall (z0 is the far edge)
+    ox0: -16.0, ox1: -3.85, oz0: -23.4, oz1: -16.6, // outside faces (the hall wall is its east side)
+    x0: -15.6, x1: -4.15, z0: -23.0, z1: -17.0, // inside faces: 11.5 m long, 6 m wide
+    door: { z0: -21.3, z1: -18.7, top: 4.4 }, // doorway in the hall's west wall, centred on the hall's middle (z0 is the far edge)
   },
 };
 
@@ -550,21 +550,29 @@ export function buildWorld(scene) {
     });
   }
 
+  // West-wall photos skip the spots beside the photo room's doorway, so the doorway stays clear
+  const westCount = Math.ceil(memoryList.length / 2);
+  const westZ = [];
+  for (let z = FRAME_Z_START + FRAME_Z_STEP; westZ.length < westCount; z -= FRAME_Z_STEP) {
+    const beside = z <= DR.z1 + 1.5 && z >= DR.z0 - 1.5;
+    if (!beside) westZ.push(z);
+  }
+
   const hallFrames = buildFrames(memoryList, 0, (i) => {
     const side = i % 2 === 0 ? -1 : 1; // alternate walls
     const row = Math.floor(i / 2);
     return {
       x: side * (LAYOUT.hallHalfWidth - 0.08),
       y: 2.7,
-      z: FRAME_Z_START - row * FRAME_Z_STEP,
+      z: side < 0 ? westZ[row] : FRAME_Z_START - row * FRAME_Z_STEP,
       rotY: side < 0 ? Math.PI / 2 : -Math.PI / 2,
     };
   }, MAX_FRAME_W, MAX_FRAME_H);
 
   const R = LAYOUT.room;
   const roomFrames = buildFrames(soloMemories, memoryList.length, (i) => {
-    if (i < 5) return { x: [-13.0, -11.1, -9.2, -7.3, -5.4][i], y: 2.1, z: R.z0 + 0.06, rotY: 0 }; // far wall
-    return { x: [-12.4, -10.0, -7.6, -5.2][i - 5], y: 2.1, z: R.z1 - 0.06, rotY: Math.PI }; // near wall
+    if (i < 5) return { x: [-5.9, -7.9, -9.9, -11.9, -13.9][i], y: 2.1, z: R.z0 + 0.06, rotY: 0 }; // far wall
+    return { x: [-6.6, -9.0, -11.4, -13.8][i - 5], y: 2.1, z: R.z1 - 0.06, rotY: Math.PI }; // near wall
   }, 1.6, 1.4);
 
   const frames = [...hallFrames, ...roomFrames];
@@ -702,6 +710,10 @@ export function buildWorld(scene) {
   const chandLight = new THREE.PointLight('#ffd0e6', 6, 14, 2);
   chandLight.position.set(cx, H - 1.4, cz);
   roomGroup.add(chandLight);
+  // A second light over the far half, so the longer room is lit evenly
+  const chandLight2 = new THREE.PointLight('#ffd0e6', 5, 12, 2);
+  chandLight2.position.set(x0 + 3.5, H - 1.4, cz);
+  roomGroup.add(chandLight2);
 
   // The video frame at the end of the corridor: a little bigger than the photos. It keeps the video's proportions.
   const roomVideo = document.createElement('video');
