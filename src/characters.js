@@ -28,6 +28,15 @@ function part(mesh, parent, x = 0, y = 0, z = 0) {
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
 
+// Every material of the two characters goes through here. Physical materials give fabric a soft
+// sheen, hair, eyes and shoes a glossy clearcoat, and the environment map adds real reflections.
+const charMats = [];
+function physMat(opts) {
+  const m = new THREE.MeshPhysicalMaterial({ envMapIntensity: 0.7, ...opts });
+  charMats.push(m);
+  return m;
+}
+
 // Eyes close for a short moment every few seconds. Returns the open amount (1 open, about 0.08 closed).
 function blinkFactor(t, offset, period) {
   const k = (t + offset) % period;
@@ -39,14 +48,14 @@ function blinkFactor(t, offset, period) {
 // Everything sits on the front of the head (+z), so the face stays visible.
 function addPrincessFace(head, skinMat) {
   const blinks = [];
-  const irisMat = new THREE.MeshStandardMaterial({ color: '#3b2319', roughness: 0.35 });
+  const irisMat = physMat({ color: '#3b2319', roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.04 });
   const shineMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
-  const lashMat = new THREE.MeshStandardMaterial({ color: '#1e1210', roughness: 0.5 });
-  const cheekMat = new THREE.MeshStandardMaterial({ color: '#f58fa6', roughness: 0.7, transparent: true, opacity: 0.75 });
-  const lipMat = new THREE.MeshStandardMaterial({ color: '#c93d61', roughness: 0.4 });
+  const lashMat = physMat({ color: '#1e1210', roughness: 0.5 });
+  const cheekMat = physMat({ color: '#f58fa6', roughness: 0.7, transparent: true, opacity: 0.75 });
+  const lipMat = physMat({ color: '#c93d61', roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.1 });
   [-1, 1].forEach((side) => {
     const x = side * 0.08;
-    const eye = part(new THREE.Mesh(new THREE.SphereGeometry(0.03, 14, 12), irisMat), head, x, 0.0, 0.205);
+    const eye = part(new THREE.Mesh(new THREE.SphereGeometry(0.03, 24, 18), irisMat), head, x, 0.0, 0.205);
     eye.scale.set(1, 1.25, 0.6);
     blinks.push({ mesh: eye, base: 1.25 });
     const shine = part(new THREE.Mesh(new THREE.SphereGeometry(0.009, 8, 6), shineMat), head, x + side * 0.009, 0.012, 0.228);
@@ -61,6 +70,20 @@ function addPrincessFace(head, skinMat) {
     const cheek = part(new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), cheekMat), head, side * 0.13, -0.06, 0.18);
     cheek.scale.set(1, 0.7, 0.4);
   });
+  // Eyelashes: five soft strokes along each upper lid, fanning out toward the outer corner
+  [-1, 1].forEach((side) => {
+    const x = side * 0.08;
+    [-0.9, -0.45, 0, 0.45, 0.9].forEach((a) => {
+      const len = 0.02 + 0.006 * (1 - Math.abs(a) / 1.2);
+      const lash = new THREE.Mesh(new THREE.CapsuleGeometry(0.0038, len, 3, 6), lashMat);
+      const dx = Math.sin(a) * side;
+      const dy = Math.cos(a);
+      const reach = 0.036 + len / 2;
+      lash.position.set(x + dx * reach, dy * reach, 0.212);
+      lash.rotation.z = -a * side;
+      head.add(lash);
+    });
+  });
   part(new THREE.Mesh(new THREE.SphereGeometry(0.016, 10, 8), skinMat), head, 0, -0.03, 0.222).scale.set(1, 1.2, 0.8);
   // smile: the lower half of a small ring
   const smile = part(new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.0072, 6, 14, Math.PI), lipMat), head, 0, -0.095, 0.205);
@@ -71,8 +94,8 @@ function addPrincessFace(head, skinMat) {
 // Boy's face: the same eyes and brows, with a simple smile
 function addBoyFace(head) {
   const blinks = [];
-  const irisMat = new THREE.MeshStandardMaterial({ color: '#1d1410', roughness: 0.4 });
-  const browMat = new THREE.MeshStandardMaterial({ color: '#1f1412', roughness: 0.6 });
+  const irisMat = physMat({ color: '#1d1410', roughness: 0.2, clearcoat: 0.8, clearcoatRoughness: 0.06 });
+  const browMat = physMat({ color: '#1f1412', roughness: 0.6 });
   const shineMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
   [-1, 1].forEach((side) => {
     const x = side * 0.08;
@@ -84,14 +107,14 @@ function addBoyFace(head) {
     const brow = part(new THREE.Mesh(new THREE.CapsuleGeometry(0.006, 0.05, 3, 6), browMat), head, x, 0.068, 0.19);
     brow.rotation.z = Math.PI / 2;
   });
-  const smile = part(new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.0065, 6, 12, Math.PI), new THREE.MeshStandardMaterial({ color: '#b5485f', roughness: 0.5 })), head, 0, -0.09, 0.2);
+  const smile = part(new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.0065, 6, 12, Math.PI), physMat({ color: '#b5485f', roughness: 0.5 })), head, 0, -0.09, 0.2);
   smile.rotation.z = Math.PI;
   // ears, a small nose and soft cheeks
-  const boySkin = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.6 });
+  const boySkin = physMat({ color: SKIN, roughness: 0.5, sheen: 0.3, sheenColor: new THREE.Color('#ffd9c2'), sheenRoughness: 0.6, clearcoat: 0.12, clearcoatRoughness: 0.45 });
   [-1, 1].forEach((side) => {
     part(new THREE.Mesh(new THREE.SphereGeometry(0.048, 10, 8), boySkin), head, side * 0.222, -0.012, 0).scale.set(0.45, 1, 0.8);
     const cheek = part(
-      new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 8), new THREE.MeshStandardMaterial({ color: '#f58fa6', roughness: 0.7, transparent: true, opacity: 0.55 })),
+      new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 8), physMat({ color: '#f58fa6', roughness: 0.7, transparent: true, opacity: 0.55 })),
       head, side * 0.12, -0.055, 0.185,
     );
     cheek.scale.set(1, 0.7, 0.4);
@@ -181,7 +204,7 @@ function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damp
     owner = g;
   });
 
-  const ribbon = createRibbon(material, 8, 14, braid);
+  const ribbon = createRibbon(material, 12, 22, braid);
   base.add(ribbon.mesh);
   const inv = new THREE.Matrix4();
   const tmp = new THREE.Vector3();
@@ -229,7 +252,7 @@ function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damp
 // sitting on top of the smooth base so there are no bald gaps. Positions are fixed, so the
 // curls stay put on the head and move with it.
 function addCurlyHair(head, mat, headR) {
-  const geometry = new THREE.SphereGeometry(1, 10, 8);
+  const geometry = new THREE.SphereGeometry(1, 16, 12);
   const rings = [
     { theta: 0.26, count: 9, r: 0.043 },
     { theta: 0.5, count: 13, r: 0.046 },
@@ -294,9 +317,9 @@ function addTiara(head, goldMat) {
   for (let i = 0; i <= 8; i += 1) bandPts.push(band(-span + (i / 8) * span * 2));
   head.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(bandPts), 40, 0.013, 8, false), goldMat));
 
-  const gemPink = new THREE.MeshStandardMaterial({ color: '#ff8fab', roughness: 0.2, metalness: 0.1, emissive: '#4a1426' });
-  const gemBlue = new THREE.MeshStandardMaterial({ color: '#8ec5ff', roughness: 0.2, metalness: 0.1 });
-  const pearlMat = new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.3 });
+  const gemPink = physMat({ color: '#ff8fab', roughness: 0.2, metalness: 0.1, emissive: '#4a1426' });
+  const gemBlue = physMat({ color: '#8ec5ff', roughness: 0.2, metalness: 0.1 });
+  const pearlMat = physMat({ color: '#fff6ee', roughness: 0.3 });
   const up = new THREE.Vector3(0, 1, 0);
   const dir = new THREE.Vector3();
   const quat = new THREE.Quaternion();
@@ -339,12 +362,12 @@ export function createCouple(dressColor) {
   body.scale.setScalar(PRINCESS_SCALE);
   root.add(body);
 
-  const dressMat = new THREE.MeshStandardMaterial({ color: dressColor, roughness: 0.55, side: THREE.DoubleSide });
-  const pinkGemMatBody = new THREE.MeshStandardMaterial({ color: '#ff5f8f', roughness: 0.15, metalness: 0.1, emissive: '#3a0f1f' });
-  const skinMat = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.6 });
-  const hairMat = new THREE.MeshStandardMaterial({ color: HAIR, roughness: 0.45 });
-  const goldMat = new THREE.MeshStandardMaterial({ color: '#f5c96a', metalness: 0.8, roughness: 0.25 });
-  const shoeMat = new THREE.MeshStandardMaterial({ color: '#2a1a24', roughness: 0.5 });
+  const dressMat = physMat({ color: dressColor, roughness: 0.42, side: THREE.DoubleSide, sheen: 1, sheenColor: new THREE.Color('#ffe6f0'), sheenRoughness: 0.35 });
+  const pinkGemMatBody = physMat({ color: '#ff5f8f', roughness: 0.08, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.03, emissive: '#3a0f1f' });
+  const skinMat = physMat({ color: SKIN, roughness: 0.5, sheen: 0.3, sheenColor: new THREE.Color('#ffd9c2'), sheenRoughness: 0.6, clearcoat: 0.12, clearcoatRoughness: 0.45 });
+  const hairMat = physMat({ color: HAIR, roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.2 });
+  const goldMat = physMat({ color: '#f5c96a', metalness: 1, roughness: 0.2, clearcoat: 0.5, clearcoatRoughness: 0.15 });
+  const shoeMat = physMat({ color: '#2a1a24', roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.08 });
 
   // Skirt: a lathe with a soft bell shape. Her feet move under it while she walks.
   const skirtProfile = [
@@ -354,23 +377,23 @@ export function createCouple(dressColor) {
     new THREE.Vector2(0.38, 0.98),
     new THREE.Vector2(0.3, 1.1),
   ];
-  const skirt = new THREE.Mesh(new THREE.LatheGeometry(skirtProfile, 40), dressMat);
+  const skirt = new THREE.Mesh(new THREE.LatheGeometry(skirtProfile, 112), dressMat);
   skirt.position.y = 0.12;
   body.add(skirt);
 
   // A lighter petticoat under the skirt, with a white lace edge along the hem
   const petticoat = new THREE.Mesh(
-    new THREE.LatheGeometry(skirtProfile.map((p) => new THREE.Vector2(p.x * 0.93, p.y * 0.97)), 40),
-    new THREE.MeshStandardMaterial({ color: '#ffd7e6', roughness: 0.7, side: THREE.DoubleSide }),
+    new THREE.LatheGeometry(skirtProfile.map((p) => new THREE.Vector2(p.x * 0.93, p.y * 0.97)), 112),
+    physMat({ color: '#ffd7e6', roughness: 0.7, side: THREE.DoubleSide }),
   );
   petticoat.position.y = 0.1;
   body.add(petticoat);
-  const petLaceMat = new THREE.MeshStandardMaterial({ color: '#fff7fb', roughness: 0.5 });
-  const hem = part(new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.024, 8, 56), petLaceMat), body, 0, 0.13, 0);
+  const petLaceMat = physMat({ color: '#fff7fb', roughness: 0.6, sheen: 1, sheenColor: new THREE.Color('#ffffff'), sheenRoughness: 0.5 });
+  const hem = part(new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.024, 12, 120), petLaceMat), body, 0, 0.13, 0);
   hem.rotation.x = Math.PI / 2;
 
   // A sash at the waist with a bow at the back
-  const sashMat = new THREE.MeshStandardMaterial({ color: '#ff8fb8', roughness: 0.35, metalness: 0.1 });
+  const sashMat = physMat({ color: '#ff8fb8', roughness: 0.3, sheen: 0.8, sheenColor: new THREE.Color('#ffd0e2'), sheenRoughness: 0.4 });
   const sash = part(new THREE.Mesh(new THREE.TorusGeometry(0.275, 0.034, 10, 40), sashMat), body, 0, 1.19, 0);
   sash.rotation.x = Math.PI / 2;
   [-1, 1].forEach((side) => {
@@ -401,8 +424,8 @@ export function createCouple(dressColor) {
     const pivot = new THREE.Group();
     pivot.position.set(side * 0.3, 1.6, 0);
     body.add(pivot);
-    part(new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.42, 4, 8), dressMat), pivot, 0, -0.25, 0.02);
-    part(new THREE.Mesh(new THREE.SphereGeometry(0.08, 10, 8), skinMat), pivot, 0, -0.5, 0.03);
+    part(new THREE.Mesh(new THREE.CapsuleGeometry(0.07, 0.42, 8, 16), dressMat), pivot, 0, -0.25, 0.02);
+    part(new THREE.Mesh(new THREE.SphereGeometry(0.08, 18, 14), skinMat), pivot, 0, -0.5, 0.03);
     arms.push(pivot);
   });
 
@@ -421,29 +444,29 @@ export function createCouple(dressColor) {
 
   // A rose in her other hand
   const rose = new THREE.Group();
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), new THREE.MeshStandardMaterial({ color: '#c81e3c', roughness: 0.5 })), rose, 0, 0.05, 0);
-  part(new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.35, 6), new THREE.MeshStandardMaterial({ color: '#2f7a4a' })), rose, 0, -0.14, 0);
+  part(new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), physMat({ color: '#c81e3c', roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.2 })), rose, 0, 0.05, 0);
+  part(new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.35, 6), physMat({ color: '#2f7a4a' })), rose, 0, -0.14, 0);
   rose.position.set(0.02, -0.66, 0.12);
   arms[1].add(rose);
 
-  const head = part(new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 14), skinMat), body, 0, 2.0, 0);
+  const head = part(new THREE.Mesh(new THREE.SphereGeometry(0.22, 40, 28), skinMat), body, 0, 2.0, 0);
   // Hair covers the crown and the back of the head, so the face stays visible
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.245, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.36), hairMat), head, 0, 0.03, 0);
+  part(new THREE.Mesh(new THREE.SphereGeometry(0.245, 40, 28, 0, Math.PI * 2, 0, Math.PI * 0.36), hairMat), head, 0, 0.03, 0);
   // Back of the head: a hair shell over the back half of the skull, down to the nape.
   // phi in [PI, 2PI] is the back (z <= 0), so no skin shows from behind.
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.252, 24, 14, Math.PI, Math.PI, 0, Math.PI * 0.62), hairMat), head, 0, 0, 0);
+  part(new THREE.Mesh(new THREE.SphereGeometry(0.252, 40, 28, Math.PI, Math.PI, 0, Math.PI * 0.62), hairMat), head, 0, 0, 0);
   addBangs(head, hairMat, 0.245);
   const princessBlinks = addPrincessFace(head, skinMat);
   addTiara(head, goldMat);
 
   // Earrings: gold studs with a pink drop
-  const pinkGemMat = new THREE.MeshStandardMaterial({ color: '#ff5f8f', roughness: 0.15, metalness: 0.1, emissive: '#3a0f1f' });
+  const pinkGemMat = physMat({ color: '#ff5f8f', roughness: 0.08, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.03, emissive: '#3a0f1f' });
   [-1, 1].forEach((side) => {
     part(new THREE.Mesh(new THREE.SphereGeometry(0.017, 10, 8), goldMat), head, side * 0.216, -0.03, 0);
     part(new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), pinkGemMat), head, side * 0.222, -0.075, 0);
   });
   // A small pink bow on the side of the hair
-  const bowMat = new THREE.MeshStandardMaterial({ color: '#ff8fab', roughness: 0.4 });
+  const bowMat = physMat({ color: '#ff8fab', roughness: 0.35, sheen: 0.6, sheenColor: new THREE.Color('#ffd6e2'), clearcoat: 0.5, clearcoatRoughness: 0.2 });
   [-1, 1].forEach((side) => {
     const loop = part(new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), bowMat), head, 0.2 + side * 0.03, 0.13, 0.12);
     loop.scale.set(1, 0.6, 0.5);
@@ -452,7 +475,7 @@ export function createCouple(dressColor) {
   part(new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 8), bowMat), head, 0.2, 0.13, 0.125);
 
   // Two braids down her back. Each is a physics chain with a braided ribbon and a pink tie at the end
-  const tieMat = new THREE.MeshStandardMaterial({ color: '#ff8fab', roughness: 0.4 });
+  const tieMat = physMat({ color: '#ff8fab', roughness: 0.35, sheen: 0.6, sheenColor: new THREE.Color('#ffd6e2'), clearcoat: 0.5, clearcoatRoughness: 0.2 });
   const braids = [-1, 1].map((side) => {
     const braid = createHairChain({
       parent: head,
@@ -477,23 +500,23 @@ export function createCouple(dressColor) {
   const boy = new THREE.Group();
   boy.name = 'boy';
   root.add(boy);
-  const coatMat = new THREE.MeshStandardMaterial({ color: COAT, roughness: 0.7 });
-  const pantsMat = new THREE.MeshStandardMaterial({ color: PANTS, roughness: 0.8 });
-  const boyHairMat = new THREE.MeshStandardMaterial({ color: '#1f1412', roughness: 0.5 });
+  const coatMat = physMat({ color: COAT, roughness: 0.6, sheen: 0.7, sheenColor: new THREE.Color('#8e9ad0'), sheenRoughness: 0.5 });
+  const pantsMat = physMat({ color: PANTS, roughness: 0.7, sheen: 0.35, sheenColor: new THREE.Color('#3a3f66'), sheenRoughness: 0.6 });
+  const boyHairMat = physMat({ color: '#1f1412', roughness: 0.4, clearcoat: 0.5, clearcoatRoughness: 0.25 });
   const boyBody = new THREE.Group();
   boy.add(boyBody);
-  const torso = part(new THREE.Mesh(new THREE.CapsuleGeometry(0.27, 0.55, 6, 12), coatMat), boyBody, 0, 1.05, 0);
-  const boyHead = part(new THREE.Mesh(new THREE.SphereGeometry(0.23, 16, 12), skinMat), boyBody, 0, 1.75, 0);
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.245, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.45), boyHairMat), boyHead, 0, 0.03, 0);
+  const torso = part(new THREE.Mesh(new THREE.CapsuleGeometry(0.27, 0.55, 12, 32), coatMat), boyBody, 0, 1.05, 0);
+  const boyHead = part(new THREE.Mesh(new THREE.SphereGeometry(0.23, 40, 28), skinMat), boyBody, 0, 1.75, 0);
+  part(new THREE.Mesh(new THREE.SphereGeometry(0.245, 40, 28, 0, Math.PI * 2, 0, Math.PI * 0.45), boyHairMat), boyHead, 0, 0.03, 0);
   addCurlyHair(boyHead, boyHairMat, 0.235);
   const boyBlinks = addBoyFace(boyHead);
   // Neck, a white collar with a pink bow tie, a dark vest with gold buttons, lapels and a belt
-  const boyShirtMat = new THREE.MeshStandardMaterial({ color: '#f7f4ef', roughness: 0.6 });
-  const vestMat = new THREE.MeshStandardMaterial({ color: '#3d4a7a', roughness: 0.6 });
-  const lapelMat = new THREE.MeshStandardMaterial({ color: '#1f2542', roughness: 0.7 });
-  const goldBtnMat = new THREE.MeshStandardMaterial({ color: '#e8c06a', metalness: 0.7, roughness: 0.3 });
-  const beltMat = new THREE.MeshStandardMaterial({ color: '#5a3a22', roughness: 0.6 });
-  const bowTieMat = new THREE.MeshStandardMaterial({ color: '#e15a7a', roughness: 0.4 });
+  const boyShirtMat = physMat({ color: '#f7f4ef', roughness: 0.5, sheen: 0.3, sheenColor: new THREE.Color('#ffffff') });
+  const vestMat = physMat({ color: '#3d4a7a', roughness: 0.6, sheen: 0.6, sheenColor: new THREE.Color('#6e7fc0'), sheenRoughness: 0.5 });
+  const lapelMat = physMat({ color: '#1f2542', roughness: 0.7 });
+  const goldBtnMat = physMat({ color: '#e8c06a', metalness: 1, roughness: 0.2, clearcoat: 0.4 });
+  const beltMat = physMat({ color: '#5a3a22', roughness: 0.5, clearcoat: 0.3, clearcoatRoughness: 0.4 });
+  const bowTieMat = physMat({ color: '#e15a7a', roughness: 0.35, clearcoat: 0.6, clearcoatRoughness: 0.2 });
   part(new THREE.Mesh(new THREE.CylinderGeometry(0.095, 0.11, 0.2, 12), skinMat), boyBody, 0, 1.6, 0);
   [-1, 1].forEach((side) => {
     const collar = part(new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.035, 0.02), boyShirtMat), boyBody, side * 0.065, 1.48, 0.2);
@@ -519,18 +542,18 @@ export function createCouple(dressColor) {
   // Legs: hip, knee and foot, so the knee bends through each step
   const legs = [];
   const shins = [];
-  const soleMat = new THREE.MeshStandardMaterial({ color: '#efe6dc', roughness: 0.6 });
-  const shoeLaceMat = new THREE.MeshStandardMaterial({ color: '#ffffff' });
+  const soleMat = physMat({ color: '#efe6dc', roughness: 0.6 });
+  const shoeLaceMat = physMat({ color: '#ffffff' });
   [-0.13, 0.13].forEach((x) => {
     const hip = new THREE.Group();
     hip.position.set(x, 0.62, 0);
     boyBody.add(hip);
-    part(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.31, 8), pantsMat), hip, 0, -0.155, 0);
+    part(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.08, 0.31, 18), pantsMat), hip, 0, -0.155, 0);
     const knee = new THREE.Group();
     knee.position.set(0, -0.31, 0);
     hip.add(knee);
-    part(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.31, 8), pantsMat), knee, 0, -0.155, 0);
-    part(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.26), new THREE.MeshStandardMaterial({ color: SHOE })), knee, 0, -0.335, 0.05);
+    part(new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.07, 0.31, 18), pantsMat), knee, 0, -0.155, 0);
+    part(new THREE.Mesh(new THREE.BoxGeometry(0.16, 0.1, 0.26), physMat({ color: SHOE, roughness: 0.35, clearcoat: 0.9, clearcoatRoughness: 0.1 })), knee, 0, -0.335, 0.05);
     part(new THREE.Mesh(new THREE.BoxGeometry(0.17, 0.03, 0.28), soleMat), knee, 0, -0.39, 0.05);
     part(new THREE.Mesh(new THREE.BoxGeometry(0.1, 0.014, 0.03), shoeLaceMat), knee, 0, -0.282, 0.12);
     legs.push(hip);
@@ -541,13 +564,13 @@ export function createCouple(dressColor) {
   const freeArm = new THREE.Group();
   freeArm.position.set(-0.34, 1.35, 0);
   boyBody.add(freeArm);
-  part(new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.42, 4, 8), coatMat), freeArm, 0, -0.27, 0);
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), skinMat), freeArm, 0, -0.56, 0);
+  part(new THREE.Mesh(new THREE.CapsuleGeometry(0.075, 0.42, 8, 16), coatMat), freeArm, 0, -0.27, 0);
+  part(new THREE.Mesh(new THREE.SphereGeometry(0.085, 18, 14), skinMat), freeArm, 0, -0.56, 0);
 
   const innerShoulder = new THREE.Vector3(0.34, 1.35, 0);
   const innerArm = new THREE.Mesh(new THREE.CylinderGeometry(ARM_R, ARM_R, 1, 10), coatMat);
   boy.add(innerArm);
-  const innerHand = new THREE.Mesh(new THREE.SphereGeometry(0.085, 10, 8), skinMat);
+  const innerHand = new THREE.Mesh(new THREE.SphereGeometry(0.085, 18, 14), skinMat);
   boy.add(innerHand);
 
   const handWorld = new THREE.Vector3();
@@ -828,6 +851,14 @@ export function createCouple(dressColor) {
     stretchInnerArm(holdAmount, s, amount * walk);
   }
 
+  // The environment map (set once by the main scene) gives the materials real reflections
+  function setEnvironment(texture) {
+    charMats.forEach((m) => {
+      m.envMap = texture;
+      m.needsUpdate = true;
+    });
+  }
+
   function setDress(color) {
     dressMat.color.set(color);
   }
@@ -863,5 +894,5 @@ export function createCouple(dressColor) {
     return danceName();
   }
 
-  return { root, animate, setDress, measure, feet, stride: () => phase, toggleHolding, isHolding, nextDance, danceName };
+  return { root, animate, setDress, setEnvironment, measure, feet, stride: () => phase, toggleHolding, isHolding, nextDance, danceName };
 }

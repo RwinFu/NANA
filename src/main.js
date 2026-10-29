@@ -1,6 +1,7 @@
 import '@fontsource-variable/vazirmatn';
 import './style.css';
 import * as THREE from 'three';
+import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { allMemories, defaults, letterParagraphs } from './memories.js';
 import { createStore, formatNumber } from './state.js';
 import { buildWorld, LAYOUT } from './world.js';
@@ -181,6 +182,10 @@ if (renderer) {
   introFairy = createFairy(scene);
   hero = createCouple(store.get().avatarColor);
   scene.add(hero.root);
+  // A soft studio reflection for the characters' glossy parts (hair, eyes, gold, shoes)
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  hero.setEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture);
+  pmrem.dispose();
   cats = createCats(scene, hero);
   trail = createTrail(scene);
   footprints = createFootprints(scene);
