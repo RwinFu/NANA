@@ -39,6 +39,8 @@ const dom = {
   loveCount: $('#love-count'),
   plusOne: $('#plus-one'),
   musicBtn: $('#music-btn'),
+  holdBtn: $('#hold-btn'),
+  danceBtn: $('#dance-btn'),
   prompt: $('#prompt'),
   promptLabel: $('#prompt-label'),
   promptBtn: $('#prompt-btn'),
@@ -447,6 +449,12 @@ window.addEventListener('keydown', (event) => {
   if (event.code === 'KeyE') {
     event.preventDefault();
     interact();
+  } else if (event.code === 'KeyG') {
+    event.preventDefault();
+    toggleHold();
+  } else if (event.code === 'KeyR') {
+    event.preventDefault();
+    cycleDance();
   } else if (event.code === 'KeyH') {
     openDialog(dom.help);
   }
@@ -459,6 +467,39 @@ dom.love.addEventListener('click', () => {
   addLove(hero ? hero.root.position.clone().setY(2.2) : null);
   fx.burst(rect.left + rect.width / 2, rect.top + rect.height / 2, '#ff8fab', 22);
 });
+
+// ---------- hand holding and dances ---------------------------------------
+
+let coupleUiKey = '';
+function syncCoupleUi() {
+  if (!hero) return;
+  const holding = hero.isHolding();
+  const dance = hero.danceName();
+  const key = `${holding}|${dance}`;
+  if (key === coupleUiKey) return;
+  coupleUiKey = key;
+  dom.holdBtn.textContent = holding ? 'ول کن' : 'دست بگیر';
+  dom.holdBtn.setAttribute('aria-pressed', String(holding));
+  dom.danceBtn.textContent = dance ? `رقص: ${dance}` : 'رقص';
+  dom.danceBtn.setAttribute('aria-pressed', String(!!dance));
+}
+
+function toggleHold() {
+  if (!hero) return;
+  const on = hero.toggleHolding();
+  toast(on ? 'دستش را گرفت' : 'دستش را رها کرد', 2200);
+  syncCoupleUi();
+}
+
+function cycleDance() {
+  if (!hero) return;
+  const name = hero.nextDance();
+  toast(name ? `رقص «${name}»` : 'رقص تمام شد', 2600);
+  syncCoupleUi();
+}
+
+dom.holdBtn.addEventListener('click', toggleHold);
+dom.danceBtn.addEventListener('click', cycleDance);
 
 $('#finale-btn').addEventListener('click', () => openFinale());
 $('#letter-btn').addEventListener('click', () => openDialog(dom.letter));
@@ -667,6 +708,7 @@ function frame() {
   if (started) updateSparkles(t, dt, 1);
 
   hero.animate(dt, t, started && controls.moving);
+  syncCoupleUi();
   trail?.update(dt, hero.root.position, started && controls.moving, camera);
   footprints?.update(dt, hero, started && controls.moving);
   envelope.update(t, dt);

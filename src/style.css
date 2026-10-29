@@ -84,6 +84,11 @@ a {
   animation: flash 0.55s ease-out;
 }
 
+.chip[aria-pressed='true'] {
+  background: rgba(255, 143, 171, 0.22);
+  border-color: rgba(255, 143, 171, 0.7);
+}
+
 @keyframes flash {
   0% { opacity: 0.85; }
   100% { opacity: 0; }
