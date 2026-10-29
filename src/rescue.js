@@ -22,6 +22,7 @@ const TOWER = { x0: 2080, x1: 2260, top: 150 };
 const PRINCESS_AT = { x: 2180, y: 150 };
 const GATE_X = 4150;
 const EXIT_DELAY = 1.2;
+const GLITCH_S = 1.2; // the broken-signal burst at the gate, before the fade
 const FADE_MS = 1800;
 // The golden hair the boy climbs: from the high balcony down to the ground
 // Two golden braids to climb: the first up the stage-1 tower to the balcony,
@@ -135,6 +136,7 @@ function newState() {
     shake: 0,
     flash: 0,
     flashT: 5,
+    glitch: 0,
     hearts: HEARTS,
     checkpoint: CHECKPOINTS[0],
     rescued: false,
@@ -1596,6 +1598,38 @@ function buildDom() {
   return root;
 }
 
+// Broken-signal burst when the boy reaches the gate: torn bands, static bars,
+// colour ghosts and scanlines. k goes from 1 down to 0 over the burst.
+function drawGlitch(ctx, canvas, k) {
+  const cw = canvas.width;
+  const ch = canvas.height;
+  const unit = ch / H;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  const tears = 5 + Math.floor(Math.random() * 6);
+  for (let i = 0; i < tears; i++) {
+    const y = Math.random() * ch;
+    const h = (6 + Math.random() * 40) * unit * (0.4 + k);
+    const dx = (Math.random() - 0.5) * 160 * unit * k;
+    ctx.drawImage(canvas, 0, y, cw, h, dx, y, cw, h);
+  }
+  for (let i = 0; i < 14; i++) {
+    ctx.fillStyle = Math.random() < 0.5
+      ? `rgba(255,255,255,${(0.5 * k).toFixed(3)})`
+      : `rgba(0,0,0,${(0.6 * k).toFixed(3)})`;
+    ctx.fillRect(0, Math.random() * ch, cw, (1 + Math.random() * 5) * unit);
+  }
+  ctx.globalCompositeOperation = 'screen';
+  ctx.fillStyle = `rgba(255,40,140,${(0.22 * k).toFixed(3)})`;
+  ctx.fillRect(Math.random() * cw * 0.12, Math.random() * ch, cw * 0.55, 10 * unit);
+  ctx.fillStyle = `rgba(60,220,255,${(0.2 * k).toFixed(3)})`;
+  ctx.fillRect(Math.random() * cw * 0.2, Math.random() * ch, cw * 0.5, 7 * unit);
+  ctx.globalCompositeOperation = 'source-over';
+  ctx.fillStyle = `rgba(0,0,0,${(0.35 * k).toFixed(3)})`;
+  for (let y = 0; y < ch; y += 4 * unit) ctx.fillRect(0, y, cw, 2 * unit);
+  ctx.restore();
+}
+
 // The how-to page shown when the link opens. Start hides it and calls onStart().
 export function showHowTo({ onStart }) {
   const root = document.createElement('section');
@@ -1636,7 +1670,7 @@ export function showHowTo({ onStart }) {
 
 // Plays the game. onDone() runs once the screen has gone black after the win (or a skip).
 // The caller then shows the next scene and calls reveal() to fade the black away.
-export function createRescueGame({ onDone, autoStart = false }) {
+export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
   const root = buildDom();
   const canvas = root.querySelector('.rescue-canvas');
   const ctx = canvas.getContext('2d');
@@ -1678,6 +1712,7 @@ export function createRescueGame({ onDone, autoStart = false }) {
     ctx.clip();
     render(ctx, g, g.t);
     ctx.restore();
+    if (g.glitch > 0) drawGlitch(ctx, canvas, g.glitch / GLITCH_S);
   }
 
   function syncUi() {
@@ -1764,8 +1799,15 @@ export function createRescueGame({ onDone, autoStart = false }) {
   }
 
   // One simulation step
+  let gateFired = false;
   function tick(dt) {
     update(g, dt, input, pressed);
+    if (g.glitch > 0) g.glitch = Math.max(0, g.glitch - dt);
+    if (!gateFired && g.phase === 'won') {
+      gateFired = true;
+      g.glitch = GLITCH_S;
+      if (onGate) onGate();
+    }
     pressed.jump = false;
     pressed.fire = false;
     if (g.phase === 'won' && g.endT >= EXIT_DELAY) exitToIntro(false);

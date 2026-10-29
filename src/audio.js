@@ -11,6 +11,8 @@ const PATTERN = [0, 1, 2, 3, 2, 1, 2, 1];
 const BPM = 76;
 const STEP = 60 / BPM / 2; // eighth notes
 const LOOKAHEAD_S = 0.25;
+// The song from the family folder. Starts at the gate and keeps playing through the tour.
+const SONG_URL = `${import.meta.env.BASE_URL}music/khooneye-man.mp3`;
 
 export function createAudio() {
   let ctx = null;
@@ -21,6 +23,9 @@ export function createAudio() {
   let timer = null;
   let nextTime = 0;
   let step = 0;
+  let song = null;
+  let songActive = false;
+  let fadeTimer = null;
 
   function ensureContext() {
     if (ctx) return ctx;
@@ -96,16 +101,67 @@ export function createAudio() {
     get musicOn() {
       return musicOn;
     },
+    get songPlaying() {
+      return !!song && !song.paused;
+    },
     // Called from a user gesture (the start button) so browsers allow audio.
     unlock() {
       const context = ensureContext();
       if (context && context.state === 'suspended') context.resume();
-      if (musicOn) startLoop();
+      if (musicOn && !songActive) startLoop();
     },
     setMusic(on) {
       musicOn = on;
+      if (songActive) {
+        if (song) on ? song.play().catch(() => {}) : song.pause();
+        return;
+      }
       if (on) startLoop();
       else stopLoop();
+    },
+    // The family song takes over from the synth loop and loops until the end.
+    startSong() {
+      if (!song) {
+        song = new Audio(SONG_URL);
+        song.loop = true;
+        song.preload = 'auto';
+        song.volume = 0;
+      }
+      stopLoop();
+      songActive = true;
+      if (!musicOn) return;
+      song.currentTime = 0;
+      song.play().catch(() => {});
+      clearInterval(fadeTimer);
+      const from = 0;
+      const t0 = performance.now();
+      fadeTimer = setInterval(() => {
+        const k = Math.min(1, (performance.now() - t0) / 2200);
+        song.volume = from + (0.7 - from) * k;
+        if (k >= 1) clearInterval(fadeTimer);
+      }, 60);
+    },
+    // A short burst of filtered static for the gate glitch.
+    static(duration = 1.2) {
+      const context = ensureContext();
+      if (!context || !sfx) return;
+      if (context.state === 'suspended') context.resume();
+      const len = Math.floor(context.sampleRate * duration);
+      const buf = context.createBuffer(1, len, context.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 2;
+      const src = context.createBufferSource();
+      src.buffer = buf;
+      const band = context.createBiquadFilter();
+      band.type = 'bandpass';
+      band.frequency.value = 1800;
+      band.Q.value = 0.6;
+      const gain = context.createGain();
+      gain.gain.value = 0.6;
+      src.connect(band);
+      band.connect(gain);
+      gain.connect(sfx);
+      src.start();
     },
     chime(freq = 659.25) {
       const context = ensureContext();

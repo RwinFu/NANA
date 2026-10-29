@@ -155,7 +155,14 @@ let introT0 = 0;
 function beginRescue() {
   rescueActive = true;
   dom.intro.hidden = true;
-  rescue = createRescueGame({ onDone: finishRescue, autoStart: true });
+  rescue = createRescueGame({
+    onDone: finishRescue,
+    autoStart: true,
+    onGate: () => {
+      audio.static();
+      audio.startSong();
+    },
+  });
   if (import.meta.env.DEV) window.__rescue = rescue;
 }
 
@@ -782,5 +789,5 @@ showHowTo({
 
 // Dev-only hook for automated checks
 if (import.meta.env.DEV) {
-  window.__home = { controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), addLove, hero: () => hero, cats: () => cats, footprints: () => footprints };
+  window.__home = { audio, controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), addLove, hero: () => hero, cats: () => cats, footprints: () => footprints };
 }
