@@ -147,6 +147,8 @@ const raycaster = new THREE.Raycaster();
 // "Enter the house" starts the rescue mini game. When the boy has saved the princess and both cats,
 // the intro flight plays, then the tour of our home starts by itself.
 let rescueActive = false;
+let introPlaying = false; // the flight plays only after the rescue
+let introSettled = false;
 let rescue = null;
 let introT0 = 0;
 let pendingState = null;
@@ -161,6 +163,7 @@ function beginRescue(state) {
 
 function finishRescue() {
   rescueActive = false;
+  introPlaying = true;
   introFired = false;
   introReady = false;
   introT0 = clock.elapsedTime;
@@ -743,8 +746,16 @@ function frame() {
       camera.position.lerpVectors(transition.from, target, e);
       if (k >= 1) transition = null;
     }
-  } else {
+  } else if (introPlaying) {
     updateIntro(t - introT0, dt);
+  } else {
+    // Landing page: the castle stays still in its final view until the rescue is over
+    if (!introSettled) {
+      introSettled = true;
+      dom.intro.classList.add('is-ready');
+      world.castle.setLit(1);
+    }
+    introCamera(INTRO_FLIGHT);
   }
   if (started) updateSparkles(t, dt, 1);
 

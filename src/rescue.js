@@ -16,17 +16,23 @@ const HEARTS = 3;
 const DRAGON_HITS = 3;
 const DRAGON_ACTIVE_X = 500;
 const ARENA_X = 1800;
-const CAGE_X = 2105;
 const BARRIER_X = 2180;
+// The princess is held on top of her tower (the stone block beside the dragon's yard)
+const TOWER = { x0: 2080, x1: 2260, top: 150 };
+const PRINCESS_AT = { x: 2180, y: 150 };
 const GATE_X = 4150;
 const EXIT_DELAY = 1.2;
 const FADE_MS = 1800;
 // The golden hair the boy climbs: from the high balcony down to the ground
-const ROPE = { x: 700, top: 150, bottom: GROUND_Y };
-// The two cats: Pastil is caged on the balcony at the top of the golden hair,
-// Ani is in a small cage in the dragon's yard (it opens when the dragon flees)
-const PASTIL_AT = { x: 790, y: 150 };
-const ANI_AT = { x: 1985, y: GROUND_Y };
+// Two golden braids to climb: the first up the stage-1 tower to the balcony,
+// the second up the princess's tower
+const ROPES = [
+  { x: 700, top: 150, bottom: GROUND_Y, window: true },
+  { x: 2050, top: 150, bottom: GROUND_Y, window: false },
+];
+// The two cats: Ani (the orange one) is caged on the balcony and is rescued first;
+// Pastil is caged in the dragon's yard and opens when the dragon flees
+const CAT_AT = { ani: { x: 790, y: 150 }, pastil: { x: 1985, y: GROUND_Y } };
 const CAT_STYLE = {
   pastil: { base: '#a7a098', stripe: '#5b5249', eye: '#e8b64c', name: 'پاستیل' },
   ani: { base: '#8a6a4c', stripe: '#3a2a1e', eye: '#7fa35a', name: 'آنی' },
@@ -47,11 +53,12 @@ const LEDGES = [
   { x: 1180, y: 280, w: 150 },
   { x: 1420, y: 360, w: 260 }, // bridge over the pit
   { x: 620, y: 150, w: 200 }, // the high balcony, reached by the golden hair
+  { x: 2030, y: 150, w: 230 }, // the top of the princess's tower
   { x: 2620, y: 340, w: 160 },
   { x: 3000, y: 280, w: 170 },
   { x: 3500, y: 350, w: 170 },
 ];
-const CHECKPOINTS = [40, 905, 1190, 1830, 2220, 3245];
+const CHECKPOINTS = [40, 905, 1190, 1830, 2000, 3245];
 const STAGE_NAMES = ['برج قلعه', 'نبرد با اژدها', 'فرار از قلعه'];
 const KEYMAP = {
   ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
@@ -136,7 +143,7 @@ function newState() {
     msgT: 0,
     p: { x: 40, y: GROUND_Y, vx: 0, vy: 0, facing: 1, onGround: true, phase: 0, inv: 0, coyote: 0, jumpBuf: 0, fireCd: 0, climb: false, usedDouble: false },
     dragon: { x: 1500, y: 150, hp: DRAGON_HITS, state: 'fight', active: false, alpha: 1, flap: 0, hit: 0, fireT: 1.5 },
-    princess: { x: CAGE_X, state: 'captive', facing: 1, phase: 0, moving: 0 },
+    princess: { x: PRINCESS_AT.x, y: PRINCESS_AT.y, state: 'captive', facing: 1, phase: 0, moving: 0 },
     fire: [],
     sparks: [],
     rocks: [],
@@ -144,8 +151,8 @@ function newState() {
     parts: [],
     ropeTaught: false,
     cats: {
-      pastil: { freed: false, x: PASTIL_AT.x, y: PASTIL_AT.y },
-      ani: { freed: false, x: ANI_AT.x, y: ANI_AT.y },
+      ani: { freed: false, x: CAT_AT.ani.x, y: CAT_AT.ani.y },
+      pastil: { freed: false, x: CAT_AT.pastil.x, y: CAT_AT.pastil.y },
     },
     abilities: { doubleJump: false, rapid: false },
   };
@@ -167,7 +174,7 @@ function burst(g, x, y, color, n, speed) {
 function solidsFor(g) {
   const list = GROUND.map(([a, b]) => ({ x0: a, x1: b, y0: GROUND_Y, y1: GROUND_Y + 220 }));
   for (const l of LEDGES) list.push({ x0: l.x, x1: l.x + l.w, y0: l.y, y1: l.y + 26 });
-  if (!g.rescued) list.push({ x0: BARRIER_X, x1: BARRIER_X + 22, y0: -400, y1: GROUND_Y + 220 });
+  list.push({ x0: TOWER.x0, x1: TOWER.x1, y0: TOWER.top, y1: GROUND_Y + 220 });
   return list;
 }
 
@@ -246,10 +253,12 @@ function update(g, dt, input, pressed) {
   p.jumpBuf = pressed.jump && playing ? 0.12 : p.jumpBuf - dt;
 
   // The golden hair: hold jump next to it to climb. Let go to slide down, walk away to drop off.
-  const nearRope = Math.abs(p.x - ROPE.x) < 18 && p.y <= ROPE.bottom + 2 && p.y > ROPE.top + 12;
+  const rope = ROPES.find((r) => Math.abs(p.x - r.x) < 18 && p.y <= r.bottom + 2 && p.y > r.top + 12) || null;
+  const nearRope = rope !== null;
   if (p.climb && (!playing || dir !== 0)) p.climb = false;
   if (!p.climb && playing && dir === 0 && nearRope && input.jump) {
     p.climb = true;
+    p.rope = rope;
     p.jumpBuf = 0;
   }
 
@@ -263,14 +272,14 @@ function update(g, dt, input, pressed) {
 
   if (p.climb) {
     p.phase += dt * 9;
-    p.x = ROPE.x;
+    p.x = p.rope.x;
     p.vx = 0;
     p.vy = input.jump ? -230 : 70;
     p.onGround = false;
     p.coyote = 0;
     p.y += p.vy * dt;
-    if (p.y <= ROPE.top) {
-      p.y = ROPE.top;
+    if (p.y <= p.rope.top) {
+      p.y = p.rope.top;
       p.vy = 0;
       p.climb = false;
       p.onGround = true;
@@ -326,10 +335,11 @@ function update(g, dt, input, pressed) {
   if (p.y > 620) lose(g, 'fall');
 
   // Checkpoints: the furthest one reached on the ground
+  // Checkpoints only count when the boy stands on the ground (not on the tower top)
   for (const cp of CHECKPOINTS) {
-    if (p.x >= cp && cp > g.checkpoint) g.checkpoint = cp;
+    if (p.onGround && p.y >= GROUND_Y - 1 && p.x >= cp && cp > g.checkpoint) g.checkpoint = cp;
   }
-  if (playing && !g.ropeTaught && Math.abs(p.x - ROPE.x) < 160) {
+  if (playing && !g.ropeTaught && Math.abs(p.x - ROPES[0].x) < 160) {
     g.ropeTaught = true;
     say(g, 'موی طلایی را بگیر و دکمه‌ی پرش را نگه دار تا بالا بروی', 3.4);
   }
@@ -353,41 +363,42 @@ function update(g, dt, input, pressed) {
   g.camX = Math.max(0, Math.min(LEVEL_W - W, p.x - 330));
 }
 
-// Freeing the cats: Pastil on the balcony, Ani in the yard. Freed cats run after the boy.
+// Freeing the cats: Ani on the balcony first, Pastil in the yard after the dragon. Freed cats run after the boy.
 function updateCats(g, dt) {
   const p = g.p;
-  const pa = g.cats.pastil;
   const an = g.cats.ani;
+  const pa = g.cats.pastil;
   if (g.phase !== 'play' && g.phase !== 'won') return;
 
-  if (!pa.freed && Math.abs(p.x - PASTIL_AT.x) < 60 && Math.abs(p.y - PASTIL_AT.y) < 56) {
-    pa.freed = true;
-    g.abilities.doubleJump = true;
-    g.shake = 0.4;
-    burst(g, PASTIL_AT.x, PASTIL_AT.y - 30, '#ff8fb8', 26, 260);
-    say(g, 'پاستیل نجات یافت! حالا می‌توانی دوباره در هوا بپری', 3.4);
-  }
-  if (!an.freed && g.cageOpen && Math.abs(p.x - ANI_AT.x) < 64) {
+  if (!an.freed && Math.abs(p.x - CAT_AT.ani.x) < 60 && Math.abs(p.y - CAT_AT.ani.y) < 56) {
     an.freed = true;
     g.abilities.rapid = true;
     g.shake = 0.4;
-    burst(g, ANI_AT.x, ANI_AT.y - 30, '#ffd66b', 26, 260);
+    burst(g, CAT_AT.ani.x, CAT_AT.ani.y - 30, '#ffd66b', 26, 260);
     say(g, 'آنی نجات یافت! جرقه‌هایت سریع‌تر شدند', 3.4);
   }
+  if (!pa.freed && g.cageOpen && Math.abs(p.x - CAT_AT.pastil.x) < 64) {
+    pa.freed = true;
+    g.abilities.doubleJump = true;
+    g.shake = 0.4;
+    burst(g, CAT_AT.pastil.x, CAT_AT.pastil.y - 30, '#ff8fb8', 26, 260);
+    say(g, 'پاستیل نجات یافت! حالا می‌توانی دوباره در هوا بپری', 3.4);
+  }
 
-  if (g.phase === 'play' && g.rescued && p.x >= GATE_X - 120 && (!pa.freed || !an.freed) && g.msgT <= 0) {
-    say(g, !pa.freed ? 'پاستیل هنوز روی بالکن اسیر است!' : 'آنی هنوز توی حیاط اسیر است!', 2.4);
+  if (g.phase === 'play' && g.rescued && p.x >= GATE_X - 120 && (!an.freed || !pa.freed) && g.msgT <= 0) {
+    const missing = !an.freed ? CAT_STYLE.ani.name : CAT_STYLE.pastil.name;
+    say(g, `${missing} هنوز اسیر است! برو و نجاتش بده`, 2.4);
   }
 
   // Freed cats follow the boy
-  const followX = (cat, back) => p.x - back * p.facing;
-  if (pa.freed) {
-    pa.x += (followX(pa, 40) - pa.x) * Math.min(1, dt * 5);
-    pa.y += (p.y - pa.y) * Math.min(1, dt * 8);
-  }
+  const followX = (back) => p.x - back * p.facing;
   if (an.freed) {
-    an.x += (followX(an, 70) - an.x) * Math.min(1, dt * 5);
+    an.x += (followX(40) - an.x) * Math.min(1, dt * 5);
     an.y += (p.y - an.y) * Math.min(1, dt * 8);
+  }
+  if (pa.freed) {
+    pa.x += (followX(70) - pa.x) * Math.min(1, dt * 5);
+    pa.y += (p.y - pa.y) * Math.min(1, dt * 8);
   }
 }
 
@@ -425,7 +436,7 @@ function updateDragon(g, dt) {
   if (p.x > DRAGON_ACTIVE_X || inArena) d.active = true;
   if (!d.active) return;
   const target = inArena
-    ? CAGE_X - 90 + Math.sin(g.t * 0.9) * 120
+    ? PRINCESS_AT.x - 130 + Math.sin(g.t * 0.9) * 90
     : p.x + 300 + Math.sin(g.t * 0.7) * 50;
   d.x += (target - d.x) * Math.min(1, dt * 1.6);
   d.y = 150 + Math.sin(g.t * 1.3) * 30;
@@ -507,7 +518,7 @@ function updateRocks(g, dt) {
 
 function checkCage(g) {
   const p = g.p;
-  if (g.rescued || Math.abs(p.x - CAGE_X) >= 70) return;
+  if (g.rescued || Math.abs(p.x - PRINCESS_AT.x) >= 70 || Math.abs(p.y - PRINCESS_AT.y) >= 60) return;
   if (!g.cageOpen) {
     if (g.msgT <= 0) say(g, 'اول اژدها را با جرقه‌های جادویی شکست بده', 1.6);
     return;
@@ -516,8 +527,8 @@ function checkCage(g) {
   g.princess.state = 'freed';
   g.shake = 0.6;
   g.flash = 1;
-  burst(g, CAGE_X, GROUND_Y - 60, '#ffd66b', 40, 360);
-  burst(g, CAGE_X, GROUND_Y - 60, '#ff8fb8', 30, 300);
+  burst(g, PRINCESS_AT.x, PRINCESS_AT.y - 60, '#ffd66b', 40, 360);
+  burst(g, PRINCESS_AT.x, PRINCESS_AT.y - 60, '#ff8fb8', 30, 300);
   say(g, 'پرنسس نجات یافت! حالا با هم فرار کنید', 3.2);
 }
 
@@ -530,6 +541,7 @@ function updatePrincess(g, dt) {
   const target = g.p.x - 46;
   const before = pr.x;
   pr.x += (target - pr.x) * Math.min(1, dt * 5);
+  pr.y += (g.p.y - pr.y) * Math.min(1, dt * 8);
   pr.moving = pr.x - before;
   pr.phase += Math.abs(pr.moving) * 0.6 + dt * 2;
   pr.facing = 1;
@@ -774,31 +786,32 @@ function drawFloor(ctx) {
 }
 
 function drawCage(ctx, g, t) {
-  const cx = CAGE_X;
+  const cx = PRINCESS_AT.x;
+  const base = PRINCESS_AT.y;
   if (g.cageOpen && !g.rescued) {
     const pulse = 0.35 + 0.15 * Math.sin(t * 4);
-    const glow = ctx.createRadialGradient(cx, GROUND_Y - 60, 10, cx, GROUND_Y - 60, 110);
+    const glow = ctx.createRadialGradient(cx, base - 60, 10, cx, base - 60, 110);
     glow.addColorStop(0, `rgba(255,214,120,${pulse.toFixed(3)})`);
     glow.addColorStop(1, 'rgba(255,214,120,0)');
     ctx.fillStyle = glow;
-    ctx.fillRect(cx - 120, GROUND_Y - 180, 240, 240);
+    ctx.fillRect(cx - 120, base - 180, 240, 240);
   }
   if (g.rescued) return;
   ctx.strokeStyle = '#d9b35a';
   ctx.lineWidth = 3;
   ctx.beginPath();
-  ctx.arc(cx, GROUND_Y - 118, 46, Math.PI, 0);
+  ctx.arc(cx, base - 118, 46, Math.PI, 0);
   ctx.stroke();
   for (let dx = -40; dx <= 40; dx += 10) {
     // the door opens: the front bars are gone
     if (g.cageOpen && dx > 0) continue;
     ctx.beginPath();
-    ctx.moveTo(cx + dx, GROUND_Y - 118 + Math.sqrt(Math.max(0, 46 * 46 - dx * dx)) * -1);
-    ctx.lineTo(cx + dx, GROUND_Y);
+    ctx.moveTo(cx + dx, base - 118 + Math.sqrt(Math.max(0, 46 * 46 - dx * dx)) * -1);
+    ctx.lineTo(cx + dx, base);
     ctx.stroke();
   }
   ctx.fillStyle = '#d9b35a';
-  ctx.fillRect(cx - 50, GROUND_Y - 6, 100, 8);
+  ctx.fillRect(cx - 50, base - 6, 100, 8);
 }
 
 function drawBarrier(ctx, g, t) {
@@ -855,7 +868,7 @@ function drawPrincess(ctx, pr, t) {
   const bob = pr.state === 'freed' ? Math.abs(Math.sin(pr.phase)) * 2 : 0;
   const sway = pr.state === 'freed' ? Math.sin(pr.phase) * 2 : Math.sin(t * 2) * 0.8;
   ctx.save();
-  ctx.translate(pr.x, GROUND_Y - bob);
+  ctx.translate(pr.x, pr.y - bob);
   ctx.scale(pr.facing, 1);
   // Long hair at the back
   ctx.fillStyle = '#6b3a2a';
@@ -1164,52 +1177,75 @@ function drawGlimmer(ctx, t) {
   ctx.globalAlpha = 1;
 }
 
-// The golden hair: a braid tied to a window at the top and hanging down the tower
-function drawRope(ctx, t) {
-  const x = ROPE.x;
-  const top = 60;
-  const bottom = ROPE.bottom;
-  ctx.fillStyle = '#0c0716';
-  ctx.beginPath();
-  ctx.moveTo(x - 16, top + 40);
-  ctx.lineTo(x - 16, top + 6);
-  ctx.arc(x, top + 6, 16, Math.PI, 0);
-  ctx.lineTo(x + 16, top + 40);
-  ctx.closePath();
-  ctx.fill();
-  ctx.strokeStyle = '#d9b35a';
-  ctx.lineWidth = 2;
-  ctx.stroke();
+// A golden braid: the tower's climbing rope. The first one is tied to a window at the top.
+function drawRope(ctx, t, rope) {
+  const x = rope.x;
+  const top = rope.window ? 60 : rope.top;
+  const bottom = rope.bottom;
+  const start = rope.window ? 100 : rope.top;
+  if (rope.window) {
+    ctx.fillStyle = '#0c0716';
+    ctx.beginPath();
+    ctx.moveTo(x - 16, 100);
+    ctx.lineTo(x - 16, 66);
+    ctx.arc(x, 66, 16, Math.PI, 0);
+    ctx.lineTo(x + 16, 100);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#d9b35a';
+    ctx.lineWidth = 2;
+    ctx.stroke();
+  }
   // Two strands twisting around each other
   ctx.lineWidth = 6;
   for (let strand = 0; strand < 2; strand += 1) {
     ctx.strokeStyle = strand ? '#f5d77a' : '#d9a441';
     ctx.beginPath();
-    for (let y = top + 40; y <= bottom; y += 6) {
+    for (let y = start; y <= bottom; y += 6) {
       const px = x + Math.sin(y * 0.09 + strand * Math.PI) * 4;
-      if (y === top + 40) ctx.moveTo(px, y);
+      if (y === start) ctx.moveTo(px, y);
       else ctx.lineTo(px, y);
     }
     ctx.stroke();
   }
   // A shine that slides down the braid
-  const span = bottom - top;
-  const shine = (t * 220) % span + top;
+  const span = bottom - start;
+  const shine = ((t * 220) % span) + start;
   ctx.fillStyle = 'rgba(255,255,230,0.9)';
   ctx.beginPath();
   ctx.arc(x + Math.sin(shine * 0.09) * 4, shine, 3.5, 0, Math.PI * 2);
   ctx.fill();
-  // Pink ribbon at the balcony
+  // Pink ribbon at the top
   ctx.fillStyle = '#ff8fb8';
   ctx.beginPath();
-  ctx.moveTo(x, ROPE.top);
-  ctx.lineTo(x - 12, ROPE.top + 8);
-  ctx.lineTo(x - 6, ROPE.top + 14);
-  ctx.lineTo(x, ROPE.top + 6);
-  ctx.lineTo(x + 6, ROPE.top + 14);
-  ctx.lineTo(x + 12, ROPE.top + 8);
+  ctx.moveTo(x, rope.top);
+  ctx.lineTo(x - 12, rope.top + 8);
+  ctx.lineTo(x - 6, rope.top + 14);
+  ctx.lineTo(x, rope.top + 6);
+  ctx.lineTo(x + 6, rope.top + 14);
+  ctx.lineTo(x + 12, rope.top + 8);
   ctx.closePath();
   ctx.fill();
+  void top;
+}
+
+// The princess's stone tower: a lit window and crenellations on top
+function drawTower(ctx) {
+  const { x0, x1, top } = TOWER;
+  ctx.fillStyle = '#2f2246';
+  ctx.fillRect(x0, top, x1 - x0, GROUND_Y - top);
+  ctx.fillStyle = 'rgba(0,0,0,0.22)';
+  for (let y = top + 24; y < GROUND_Y; y += 36) ctx.fillRect(x0, y, x1 - x0, 2);
+  ctx.fillStyle = '#0c0716';
+  ctx.beginPath();
+  ctx.moveTo(x0 + 60, top + 150);
+  ctx.lineTo(x0 + 60, top + 110);
+  ctx.arc(x0 + 90, top + 110, 30, Math.PI, 0);
+  ctx.lineTo(x0 + 120, top + 150);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = '#3d2c58';
+  for (let x = x0; x < x1; x += 30) ctx.fillRect(x + 4, top - 14, 16, 14);
 }
 
 function loadImage(src) {
@@ -1313,21 +1349,21 @@ function drawCatCage(ctx, cx, baseY, opened) {
 }
 
 function drawCats(ctx, g, t) {
-  const pa = g.cats.pastil;
   const an = g.cats.ani;
-  // Pastil in her cage on the balcony
-  if (!pa.freed) {
-    drawCatCage(ctx, PASTIL_AT.x, PASTIL_AT.y, false);
-    drawCatSprite(ctx, 'pastil', PASTIL_AT.x, PASTIL_AT.y - 6, 1, t, true);
-  }
-  // Ani in her cage in the yard; the cage opens when the dragon flees
+  const pa = g.cats.pastil;
+  // Ani in her cage on the balcony (the first one)
   if (!an.freed) {
-    drawCatCage(ctx, ANI_AT.x, ANI_AT.y, g.cageOpen);
-    drawCatSprite(ctx, 'ani', ANI_AT.x, ANI_AT.y - 6, -1, t, !g.cageOpen);
+    drawCatCage(ctx, CAT_AT.ani.x, CAT_AT.ani.y, false);
+    drawCatSprite(ctx, 'ani', CAT_AT.ani.x, CAT_AT.ani.y - 6, 1, t, true);
+  }
+  // Pastil in her cage in the yard; the cage opens when the dragon flees
+  if (!pa.freed) {
+    drawCatCage(ctx, CAT_AT.pastil.x, CAT_AT.pastil.y, g.cageOpen);
+    drawCatSprite(ctx, 'pastil', CAT_AT.pastil.x, CAT_AT.pastil.y - 6, -1, t, !g.cageOpen);
   }
   // Freed cats run after the boy
-  if (pa.freed) drawCatSprite(ctx, 'pastil', pa.x, pa.y - 6, g.p.facing, t, false);
   if (an.freed) drawCatSprite(ctx, 'ani', an.x, an.y - 6, g.p.facing, t, false);
+  if (pa.freed) drawCatSprite(ctx, 'pastil', pa.x, pa.y - 6, g.p.facing, t, false);
 }
 
 // Chips at the top left: the ability and the cat who gave it
@@ -1494,10 +1530,10 @@ function render(ctx, g, t) {
   drawWall(ctx, g, t);
   ctx.save();
   ctx.translate(-g.camX + (g.shake > 0 ? (Math.random() - 0.5) * g.shake * 16 : 0), g.shake > 0 ? (Math.random() - 0.5) * g.shake * 10 : 0);
+  drawTower(ctx);
   drawFloor(ctx);
   drawGate(ctx, g, t);
-  drawBarrier(ctx, g, t);
-  drawRope(ctx, t);
+  for (const r of ROPES) drawRope(ctx, t, r);
   drawPrincess(ctx, g.princess, t);
   drawCage(ctx, g, t);
   drawCats(ctx, g, t);
