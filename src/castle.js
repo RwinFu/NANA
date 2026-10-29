@@ -179,7 +179,6 @@ export function buildCastle(scene, track) {
   // Round tower: a cone roof with an eave, a corbel row under the eave, a belt course,
   // a plinth, two windows, a gold tip and a pennant
   function tower({ x, z, r, h }, roofScale = 0.42) {
-    add(new THREE.CylinderGeometry(r * 1.12, r * 1.16, 0.9, 28), stoneLight, x, 0.45, z);
     add(new THREE.CylinderGeometry(r, r * 1.06, h, 28), stone, x, h / 2, z);
     const beltY = h * 0.72;
     const belt = add(new THREE.TorusGeometry(r * 1.03, 0.08, 8, 40), stoneLight, x, beltY, z);
@@ -207,7 +206,6 @@ export function buildCastle(scene, track) {
 
   // Central keep: stone drum on a plinth, an eave under the spire, a rose window and a spire with a pennant
   const keepH = KEEP.top - KEEP.base;
-  add(new THREE.CylinderGeometry(KEEP.r * 1.1, KEEP.r * 1.14, 1.0, 28), stoneLight, KEEP.x, 0.5, KEEP.z);
   add(new THREE.CylinderGeometry(KEEP.r, KEEP.r * 1.05, keepH, 28), stone, KEEP.x, KEEP.base + keepH / 2, KEEP.z);
   const keepBelt = add(new THREE.TorusGeometry(KEEP.r * 1.03, 0.1, 8, 40), stoneLight, KEEP.x, KEEP.base + keepH * 0.55, KEEP.z);
   keepBelt.rotation.x = Math.PI / 2;
