@@ -12,6 +12,7 @@ import { createFx } from './fx.js';
 import { createTrail } from './trail.js';
 import { createFootprints } from './footprints.js';
 import { createSparkles } from './castle.js';
+import { createFairy } from './fairy.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -131,6 +132,7 @@ let controls = null;
 let started = false;
 let transition = null;
 let introSparkles = null;
+let introFairy = null;
 let introSparkleLevel = 0;
 let introReady = false;
 let introFired = false;
@@ -148,6 +150,7 @@ if (renderer) {
 
   world = buildWorld(scene);
   introSparkles = createSparkles(scene);
+  introFairy = createFairy(scene);
   hero = createCouple(store.get().avatarColor);
   scene.add(hero.root);
   trail = createTrail(scene);
@@ -650,11 +653,12 @@ function introCamera(t) {
   return p;
 }
 
-// Fairy dust fades in during the flight and out once the game starts
+// Fairy dust fades in during the flight and out once the game starts; the fairy with her letter flies the flight with the camera
 function updateSparkles(t, dt, p) {
   const target = started ? 0 : Math.min(1, p * 2.5);
   introSparkleLevel += (target - introSparkleLevel) * Math.min(1, dt * 2.5);
   introSparkles?.update(t, dt, introSparkleLevel);
+  introFairy?.update(t, dt, p, started, camera);
 }
 
 function updateIntro(t, dt) {
