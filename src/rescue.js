@@ -1670,7 +1670,7 @@ export function showHowTo({ onStart }) {
 
 // Plays the game. onDone() runs once the screen has gone black after the win (or a skip).
 // The caller then shows the next scene and calls reveal() to fade the black away.
-export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
+export function createRescueGame({ onDone, autoStart = false, onGate = null, onPowerOff = null }) {
   const root = buildDom();
   const canvas = root.querySelector('.rescue-canvas');
   const ctx = canvas.getContext('2d');
@@ -1836,6 +1836,7 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
     detach();
     root.classList.toggle('is-quick', quick);
     root.classList.add('is-dark');
+    if (onPowerOff) onPowerOff(); // the TV-off crackle, with the picture collapsing
     syncUi();
     draw();
     window.setTimeout(() => {
@@ -1844,9 +1845,10 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
   }
 
   // Fade the black away and remove the overlay
+  // The TV-on: two black bars part from the middle and open onto the intro
   function reveal() {
     root.classList.add('is-leaving');
-    window.setTimeout(() => root.remove(), FADE_MS + 300);
+    window.setTimeout(() => root.remove(), 1500);
   }
 
   function startGame() {
