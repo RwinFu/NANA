@@ -195,6 +195,60 @@ function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damp
   return { step, angles: () => joints.map((j) => [+j.ax.toFixed(3), +j.az.toFixed(3)]) };
 }
 
+// Curly hair for the boy: a cloud of small curls over the crown, the sides and the nape,
+// sitting on top of the smooth base so there are no bald gaps. Positions are fixed, so the
+// curls stay put on the head and move with it.
+function addCurlyHair(head, mat, headR) {
+  const geometry = new THREE.SphereGeometry(1, 10, 8);
+  const rings = [
+    { theta: 0.26, count: 9, r: 0.043 },
+    { theta: 0.5, count: 13, r: 0.046 },
+    { theta: 0.74, count: 16, r: 0.05 },
+    { theta: 0.95, count: 18, r: 0.048 },
+    { theta: 1.4, count: 14, r: 0.05, back: true },
+  ];
+  rings.forEach((ring, ri) => {
+    for (let i = 0; i < ring.count; i += 1) {
+      const u = i / ring.count;
+      // a fixed, varied jitter so the curls look natural but never change between frames
+      const jitter = Math.abs(Math.sin((i + 1) * 12.9898 + ri * 78.233) * 43758.5453) % 1;
+      const a = ring.back
+        ? Math.PI + (u - 0.5) * 2.2
+        : (u + (ri % 2) * 0.5 / ring.count) * Math.PI * 2;
+      const theta = ring.theta + (jitter - 0.5) * 0.08;
+      const rr = headR + ring.r * 0.55;
+      const sinT = Math.sin(theta);
+      const curl = new THREE.Mesh(geometry, mat);
+      curl.position.set(rr * sinT * Math.sin(a), rr * Math.cos(theta), rr * sinT * Math.cos(a));
+      const size = ring.r * (0.9 + jitter * 0.25);
+      curl.scale.setScalar(size);
+      head.add(curl);
+    }
+  });
+}
+
+// Bangs for the princess: a fringe of tapered strands that starts at the hairline and falls
+// over the forehead, stopping above the eyebrows. Each strand fans out a little, so it reads as
+// soft, swept-aside bangs.
+function addBangs(head, mat, headR) {
+  [-2, -1, 0, 1, 2].forEach((k) => {
+    const a0 = k * 0.2;
+    const sweep = k * 0.08;
+    const pts = [0.5, 0.78, 0.98, 1.1].map((theta, j) => {
+      const rr = headR + 0.012 + 0.012 * j;
+      const a = a0 + sweep * (j / 3);
+      const sinT = Math.sin(theta);
+      return new THREE.Vector3(rr * sinT * Math.sin(a), rr * Math.cos(theta), rr * sinT * Math.cos(a));
+    });
+    const radius = 0.017 + 0.004 * (2 - Math.abs(k));
+    const strand = new THREE.Mesh(
+      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, radius, 6, false),
+      mat,
+    );
+    head.add(strand);
+  });
+}
+
 // The walking princess (you) and the boy who follows her and holds her hand.
 // Her front is +z; the ponytail hangs at -z.
 export function createCouple(dressColor) {
@@ -260,6 +314,7 @@ export function createCouple(dressColor) {
   // Hair covers the crown and the back of the head, so the face stays visible
   part(new THREE.Mesh(new THREE.SphereGeometry(0.245, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.36), hairMat), head, 0, 0.03, 0);
   part(new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 12), hairMat), head, 0, -0.12, -0.11).scale.set(1, 1.2, 0.8);
+  addBangs(head, hairMat, 0.245);
   addPrincessFace(head, skinMat);
   const tiara = part(new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.025, 8, 24, Math.PI), goldMat), head, 0, 0.2, 0.02);
   tiara.rotation.x = -0.2;
@@ -304,6 +359,7 @@ export function createCouple(dressColor) {
   part(new THREE.Mesh(new THREE.CapsuleGeometry(0.27, 0.55, 6, 12), coatMat), boyBody, 0, 1.05, 0);
   const boyHead = part(new THREE.Mesh(new THREE.SphereGeometry(0.23, 16, 12), skinMat), boyBody, 0, 1.75, 0);
   part(new THREE.Mesh(new THREE.SphereGeometry(0.245, 16, 12, 0, Math.PI * 2, 0, Math.PI * 0.45), boyHairMat), boyHead, 0, 0.03, 0);
+  addCurlyHair(boyHead, boyHairMat, 0.235);
   addBoyFace(boyHead);
 
   // Legs: hip, knee and foot, so the knee bends through each step
