@@ -17,8 +17,8 @@ export const LAYOUT = {
   // The photo room: a chamber inside the castle, west of the gallery hall, entered through a doorway in the hall's west wall.
   room: {
     height: 4.6,
-    ox0: -12.3, ox1: -3.85, oz0: -15.9, oz1: -2.0, // outside faces (the hall wall is its east side)
-    x0: -12.0, x1: -4.15, z0: -15.6, z1: -2.3, // inside faces
+    ox0: -14.3, ox1: -3.85, oz0: -6.5, oz1: -2.0, // outside faces (the hall wall is its east side)
+    x0: -14.0, x1: -4.15, z0: -6.2, z1: -2.3, // inside faces: a long, narrow corridor
     door: { z0: -4.6, z1: -2.5, top: 4.4 }, // doorway in the hall's west wall (z0 is the far edge)
   },
 };
@@ -557,11 +557,9 @@ export function buildWorld(scene) {
 
   const R = LAYOUT.room;
   const roomFrames = buildFrames(soloMemories, memoryList.length, (i) => {
-    if (i < 2) return { x: R.x0 + 0.06, y: 2.1, z: [-3.9, -14.0][i], rotY: Math.PI / 2 }; // back wall, either side of the video
-    if (i < 5) return { x: [-10.4, -8.0, -5.6][i - 2], y: 2.1, z: R.z0 + 0.06, rotY: 0 }; // far wall
-    if (i < 7) return { x: [-10.6, -7.6][i - 5], y: 2.1, z: R.z1 - 0.06, rotY: Math.PI }; // near wall
-    return { x: R.x1 - 0.06, y: 2.1, z: [-7.0, -11.6][i - 7], rotY: -Math.PI / 2 }; // hall wall, room side
-  }, 1.9, 1.5);
+    if (i < 5) return { x: [-13.0, -11.1, -9.2, -7.3, -5.4][i], y: 2.1, z: R.z0 + 0.06, rotY: 0 }; // far wall
+    return { x: [-12.4, -10.0, -7.6, -5.2][i - 5], y: 2.1, z: R.z1 - 0.06, rotY: Math.PI }; // near wall
+  }, 1.6, 1.4);
 
   const frames = [...hallFrames, ...roomFrames];
 
@@ -611,8 +609,8 @@ export function buildWorld(scene) {
     );
   });
 
-  // The photo room, inside the castle: plum velvet walls, gold trim, a chandelier,
-  // nine photos, and a large gold frame on the back wall for the video.
+  // The photo room, a corridor inside the castle: plum velvet walls, gold trim, a chandelier,
+  // nine photos along the walls, and the video in a gold frame at the far end.
   const roomGroup = new THREE.Group();
   scene.add(roomGroup);
   const velvet = track(new THREE.MeshStandardMaterial({ color: '#3b1c36', roughness: 0.95 }));
@@ -650,30 +648,29 @@ export function buildWorld(scene) {
   block(x1 - 0.06, x1, 0, 0.18, z0, R.door.z0, gold);
   block(x1 - 0.06, x1, 0, 0.18, R.door.z1, z1, gold);
 
-  // Rug in the middle of the floor
-  const rugTex = canvasTexture(512, 400, (ctx, w, h) => {
+  // Runner rug down the middle of the corridor
+  const runnerTex = canvasTexture(1024, 256, (ctx, w, h) => {
     ctx.fillStyle = '#7a2650';
     ctx.fillRect(0, 0, w, h);
     ctx.strokeStyle = '#e0b060';
-    ctx.lineWidth = 14;
-    ctx.strokeRect(24, 24, w - 48, h - 48);
+    ctx.lineWidth = 12;
+    ctx.strokeRect(20, 20, w - 40, h - 40);
     ctx.strokeStyle = '#f2a7c3';
     ctx.lineWidth = 4;
-    ctx.strokeRect(60, 60, w - 120, h - 120);
-    // a gold medallion in the middle
-    ctx.beginPath();
-    ctx.arc(w / 2, h / 2, 56, 0, Math.PI * 2);
-    ctx.fillStyle = '#e0b060';
-    ctx.fill();
-    ctx.fillStyle = '#7a2650';
-    ctx.beginPath();
-    ctx.arc(w / 2, h / 2, 40, 0, Math.PI * 2);
-    ctx.fill();
+    ctx.strokeRect(50, 50, w - 100, h - 100);
+    for (let k = 0; k < 9; k += 1) {
+      ctx.fillStyle = '#e0b060';
+      ctx.beginPath();
+      const x = 90 + k * 100;
+      ctx.moveTo(x, h / 2 - 34); ctx.lineTo(x + 26, h / 2); ctx.lineTo(x, h / 2 + 34); ctx.lineTo(x - 26, h / 2);
+      ctx.closePath();
+      ctx.fill();
+    }
   });
-  rugTex.colorSpace = THREE.SRGBColorSpace;
+  runnerTex.colorSpace = THREE.SRGBColorSpace;
   const roomRug = new THREE.Mesh(
-    track(new THREE.PlaneGeometry(5.0, 4.0)),
-    new THREE.MeshStandardMaterial({ map: rugTex, roughness: 0.9 })
+    track(new THREE.PlaneGeometry(x1 - x0 - 0.8, z1 - z0 - 1.0)),
+    new THREE.MeshStandardMaterial({ map: runnerTex, roughness: 0.9 })
   );
   roomRug.rotation.x = -Math.PI / 2;
   roomRug.position.set(cx, 0.02, cz);
@@ -700,7 +697,7 @@ export function buildWorld(scene) {
   chandLight.position.set(cx, H - 1.4, cz);
   roomGroup.add(chandLight);
 
-  // The big video frame on the back wall. The video keeps its own proportions.
+  // The video frame at the end of the corridor: a little bigger than the photos. It keeps the video's proportions.
   const roomVideo = document.createElement('video');
   roomVideo.src = soloVideo.src;
   roomVideo.loop = true;
@@ -709,8 +706,11 @@ export function buildWorld(scene) {
   roomVideo.preload = 'auto';
   const videoTex = track(new THREE.VideoTexture(roomVideo));
   videoTex.colorSpace = THREE.SRGBColorSpace;
-  const screenW = 5.0;
-  let screenH = (screenW * 9) / 16;
+  // The video fits inside a box of at most 2.2 m wide and 2.4 m high, keeping its own proportions
+  const fitW = 2.2;
+  const fitH = 2.4;
+  let screenW = fitW;
+  let screenH = fitH;
   const videoY = 2.35;
   const screen = new THREE.Mesh(
     track(new THREE.PlaneGeometry(1, 1)),
@@ -719,15 +719,22 @@ export function buildWorld(scene) {
   const screenFrame = new THREE.Mesh(unitBox, gold);
   screen.position.set(x0 + 0.12, videoY, cz); // in front of its frame
   screen.rotation.y = Math.PI / 2; // face into the room
-  screen.scale.set(screenW, screenH, 1);
-  screenFrame.position.set(x0 + 0.07, videoY, cz);
-  screenFrame.scale.set(0.04, screenH + 0.3, screenW + 0.3);
   roomGroup.add(screen, screenFrame);
-  roomVideo.addEventListener('loadedmetadata', () => {
-    const aspect = roomVideo.videoWidth / roomVideo.videoHeight || 16 / 9;
-    screenH = screenW / aspect;
+  const sizeScreen = (aspect) => {
+    if (aspect >= fitW / fitH) {
+      screenW = fitW;
+      screenH = fitW / aspect;
+    } else {
+      screenH = fitH;
+      screenW = fitH * aspect;
+    }
     screen.scale.set(screenW, screenH, 1);
+    screenFrame.position.set(x0 + 0.07, videoY, cz);
     screenFrame.scale.set(0.04, screenH + 0.3, screenW + 0.3);
+  };
+  sizeScreen(16 / 9);
+  roomVideo.addEventListener('loadedmetadata', () => {
+    sizeScreen(roomVideo.videoWidth / roomVideo.videoHeight || 16 / 9);
   });
   roomVideo.play().catch(() => {});
 
@@ -737,10 +744,10 @@ export function buildWorld(scene) {
   const armGeo = track(new THREE.BoxGeometry(0.1, 0.5, 0.1));
   [-1, 1].forEach((s) => {
     const glow = new THREE.Mesh(sconceGeo, sconceMat);
-    glow.position.set(x0 + 0.15, 3.55, cz + s * 3.45);
+    glow.position.set(x0 + 0.15, 3.55, cz + s * 1.75);
     roomGroup.add(glow);
     const arm = new THREE.Mesh(armGeo, gold);
-    arm.position.set(x0 + 0.1, 3.3, cz + s * 3.45);
+    arm.position.set(x0 + 0.1, 3.3, cz + s * 1.75);
     roomGroup.add(arm);
   });
 
