@@ -46,6 +46,7 @@ const dom = {
   promptBtn: $('#prompt-btn'),
   hint: $('#controls-hint'),
   joystick: $('#joystick'),
+  jump: $('#jump-btn'),
   knob: $('#joystick-knob'),
   toast: $('#toast'),
   flash: $('#flash'),
@@ -116,7 +117,13 @@ if (!renderer) {
 }
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 220);
+// Portrait phones get a wider vertical FOV so the couple fits side by side
+const camera = new THREE.PerspectiveCamera(
+  window.innerWidth / window.innerHeight < 0.8 ? 66 : 55,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  220
+);
 let world = null;
 let hero = null;
 let cats = null;
@@ -550,6 +557,12 @@ dom.joystick.addEventListener('pointerup', (event) => {
 });
 dom.joystick.addEventListener('pointercancel', joyEnd);
 
+// Jump button for touch screens: one tap, one jump
+dom.jump.addEventListener('pointerdown', (event) => {
+  event.preventDefault();
+  controls?.jump();
+});
+
 // ---------- start --------------------------------------------------------
 
 function setFormError(message) {
@@ -588,6 +601,7 @@ function start(state) {
   dom.hud.hidden = false;
   dom.hint.hidden = coarse;
   dom.joystick.hidden = !coarse;
+  dom.jump.hidden = !coarse;
   window.setTimeout(() => {
     dom.intro.hidden = true;
   }, 900);
@@ -671,6 +685,7 @@ function onResize() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   camera.aspect = w / h;
+  camera.fov = w / h < 0.8 ? 66 : 55;
   camera.updateProjectionMatrix();
   if (renderer) renderer.setSize(w, h, false);
 }
@@ -707,7 +722,7 @@ function frame() {
   }
   if (started) updateSparkles(t, dt, 1);
 
-  hero.animate(dt, t, started && controls.moving);
+  hero.animate(dt, t, started && controls.moving, controls.airborne);
   cats?.update(dt, t, hero, started);
   syncCoupleUi();
   trail?.update(dt, hero.root.position, started && controls.moving, camera);
