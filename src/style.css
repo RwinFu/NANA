@@ -101,6 +101,41 @@ a {
   overflow-y: auto;
 }
 
+/* Cinematic letterbox while the castle flight plays; it opens up once the form is ready */
+.intro::before,
+.intro::after {
+  content: '';
+  position: fixed;
+  left: 0;
+  right: 0;
+  height: 0;
+  background: #05060f;
+  pointer-events: none;
+  z-index: 2;
+  transition: height 1.4s ease;
+}
+.intro::before { top: 0; }
+.intro::after { bottom: 0; }
+.intro:not(.is-ready)::before,
+.intro:not(.is-ready)::after {
+  height: 12vh;
+}
+.intro:not(.is-ready) {
+  background: linear-gradient(to left, rgba(11, 12, 28, 0.35) 0%, rgba(11, 12, 28, 0) 60%);
+}
+.intro:not(.is-ready) .intro-inner {
+  opacity: 0;
+  transform: translateY(26px);
+  pointer-events: none;
+}
+.intro.is-ready .intro-inner {
+  animation: intro-rise 1.1s cubic-bezier(0.2, 0.7, 0.2, 1) both;
+}
+@keyframes intro-rise {
+  from { opacity: 0; transform: translateY(26px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
 .intro.is-leaving {
   opacity: 0;
   transform: translateX(24px);

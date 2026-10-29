@@ -72,8 +72,59 @@ function addBoyFace(head) {
   smile.rotation.z = Math.PI;
 }
 
-// A chain of hinged segments that hangs from `anchor`. Each joint is a spring pulled toward its
+// A smooth ribbon that follows a list of points (in the space of its parent). It is rebuilt
+// each frame from the hair joints, so the hair reads as one flowing strand, not as beads.
+function createRibbon(material, radialSegs = 8, spine = 14) {
+  const geometry = new THREE.BufferGeometry();
+  const positions = new Float32Array((spine + 1) * (radialSegs + 1) * 3);
+  const indices = [];
+  for (let i = 0; i < spine; i += 1) {
+    for (let j = 0; j < radialSegs; j += 1) {
+      const a = i * (radialSegs + 1) + j;
+      const b = (i + 1) * (radialSegs + 1) + j;
+      indices.push(a, b, a + 1, b, b + 1, a + 1);
+    }
+  }
+  geometry.setIndex(indices);
+  geometry.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.frustumCulled = false;
+  const ref = new THREE.Vector3(1, 0, 0);
+  const alt = new THREE.Vector3(0, 0, 1);
+  const T = new THREE.Vector3();
+  const N = new THREE.Vector3();
+  const B = new THREE.Vector3();
+
+  function update(points, r0, r1) {
+    const curve = new THREE.CatmullRomCurve3(points, false, 'centripetal');
+    const pts = curve.getSpacedPoints(spine);
+    for (let i = 0; i <= spine; i += 1) {
+      const p = pts[i];
+      T.subVectors(pts[Math.min(spine, i + 1)], pts[Math.max(0, i - 1)]).normalize();
+      N.crossVectors(T, Math.abs(T.x) > 0.9 ? alt : ref).normalize();
+      B.crossVectors(T, N).normalize();
+      const r = THREE.MathUtils.lerp(r0, r1, i / spine);
+      for (let j = 0; j <= radialSegs; j += 1) {
+        const a = (j / radialSegs) * Math.PI * 2;
+        const c = Math.cos(a) * r;
+        const d = Math.sin(a) * r;
+        const k = (i * (radialSegs + 1) + j) * 3;
+        positions[k] = p.x + c * N.x + d * B.x;
+        positions[k + 1] = p.y + c * N.y + d * B.y;
+        positions[k + 2] = p.z + c * N.z + d * B.z;
+      }
+    }
+    geometry.attributes.position.needsUpdate = true;
+    geometry.computeVertexNormals();
+    return pts[spine];
+  }
+
+  return { mesh, update };
+}
+
+// A chain of hinged joints that hangs from `anchor`. Each joint is a spring pulled toward its
 // rest angle, damped, and pushed by the head's acceleration, so the hair lags behind every move.
+// The hair itself is a smooth ribbon that follows the joints.
 function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damping, drive, material }) {
   const base = new THREE.Group();
   base.position.set(anchor.x, anchor.y, anchor.z);
@@ -84,13 +135,9 @@ function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damp
     const g = new THREE.Group();
     if (i > 0) g.position.y = -lengths[i - 1];
     owner.add(g);
-    const r = radii[i];
-    // segments overlap a little, so bent hair reads as one strand instead of beads
-    const mesh = new THREE.Mesh(new THREE.CapsuleGeometry(r, Math.max(0.01, len * 1.3 - 2 * r), 4, 8), material);
-    mesh.position.y = -len / 2;
-    g.add(mesh);
     joints.push({
       g,
+      len,
       ax: 0,
       az: 0,
       vx: 0,
@@ -104,6 +151,16 @@ function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damp
     owner = g;
   });
 
+  const ribbon = createRibbon(material);
+  base.add(ribbon.mesh);
+  const inv = new THREE.Matrix4();
+  const tmp = new THREE.Vector3();
+  const tip = new THREE.Vector3();
+  const tipCap = new THREE.Mesh(new THREE.SphereGeometry(1, 10, 8), material);
+  base.add(tipCap);
+  const r0 = radii[0];
+  const r1 = radii[radii.length - 1] * 0.6;
+
   function step(dt, accLocal, sway) {
     const d = Math.min(dt, 0.05);
     joints.forEach((j, i) => {
@@ -114,6 +171,25 @@ function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damp
       j.az = clamp(j.az + j.vz * d, -HAIR_LIMIT, HAIR_LIMIT);
       j.g.rotation.set(j.ax, 0, j.az);
     });
+
+    // Joint pivots and the tip, in the chain's own space
+    let top = base;
+    while (top.parent) top = top.parent;
+    top.updateMatrixWorld(true);
+    inv.copy(base.matrixWorld).invert();
+    const last = joints[joints.length - 1];
+    const pts = [new THREE.Vector3(0, 0, 0)];
+    joints.forEach((j, i) => {
+      if (i === 0) return;
+      j.g.getWorldPosition(tmp).applyMatrix4(inv);
+      pts.push(tmp.clone());
+    });
+    tip.set(0, -last.len, 0);
+    last.g.localToWorld(tip).applyMatrix4(inv);
+    pts.push(tip.clone());
+    const end = ribbon.update(pts, r0, r1);
+    tipCap.position.copy(end);
+    tipCap.scale.setScalar(r1);
   }
 
   return { step, angles: () => joints.map((j) => [+j.ax.toFixed(3), +j.az.toFixed(3)]) };

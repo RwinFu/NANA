@@ -11,6 +11,7 @@ import { createAudio } from './audio.js';
 import { createFx } from './fx.js';
 import { createTrail } from './trail.js';
 import { createFootprints } from './footprints.js';
+import { createSparkles } from './castle.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -127,6 +128,10 @@ let envelope = null;
 let controls = null;
 let started = false;
 let transition = null;
+let introSparkles = null;
+let introSparkleLevel = 0;
+let introReady = false;
+let introFired = false;
 let nearFrame = -1;
 const audio = createAudio();
 const fx = createFx($('#fx'));
@@ -140,6 +145,7 @@ if (renderer) {
   renderer.toneMappingExposure = 1.05;
 
   world = buildWorld(scene);
+  introSparkles = createSparkles(scene);
   hero = createCouple(store.get().avatarColor);
   scene.add(hero.root);
   trail = createTrail(scene);
@@ -574,10 +580,57 @@ if (world) {
 
 // ---------- intro camera -------------------------------------------------
 
+// The intro is a flight: the camera swoops down from high above the castle to the gate
+// over INTRO_FLIGHT seconds of real time, then settles into the hover view.
+const INTRO_FLIGHT = 8;
+const INTRO_FROM = new THREE.Vector3(0, 42, 96);
+const INTRO_TO_Z = 10.5;
+const INTRO_LOOK_FROM = new THREE.Vector3(0, 18, 0);
+const INTRO_LOOK_TO = new THREE.Vector3(0, 3.6, -2);
+
+function easeInOutCubic(p) {
+  return p < 0.5 ? 4 * p * p * p : 1 - Math.pow(-2 * p + 2, 3) / 2;
+}
+
 function introCamera(t) {
-  const sway = Math.sin(t * 0.14) * 0.9;
-  camera.position.set(Math.sin(sway) * 8.5, 2.6 + Math.sin(t * 0.3) * 0.2, 10.5);
-  camera.lookAt(0, 3.6, -2);
+  const p = Math.min(1, t / INTRO_FLIGHT);
+  const e = easeInOutCubic(p);
+  const hover = Math.sin(t * 0.14) * 0.9;
+  const endX = Math.sin(hover) * 8.5;
+  // A sweeping arc to the side while descending, then the gentle hover
+  const arc = Math.sin(p * Math.PI) * -14;
+  camera.position.set(
+    THREE.MathUtils.lerp(0, endX, e) + arc,
+    THREE.MathUtils.lerp(INTRO_FROM.y, 2.6, e) + Math.sin(t * 0.3) * 0.2 * e,
+    THREE.MathUtils.lerp(INTRO_FROM.z, INTRO_TO_Z, e),
+  );
+  const look = INTRO_LOOK_FROM.clone().lerp(INTRO_LOOK_TO, e);
+  camera.lookAt(look);
+  return p;
+}
+
+// Fairy dust fades in during the flight and out once the game starts
+function updateSparkles(t, dt, p) {
+  const target = started ? 0 : Math.min(1, p * 2.5);
+  introSparkleLevel += (target - introSparkleLevel) * Math.min(1, dt * 2.5);
+  introSparkles?.update(t, dt, introSparkleLevel);
+}
+
+function updateIntro(t, dt) {
+  const p = introCamera(t);
+  updateSparkles(t, dt, p);
+  world.castle.setLit(p);
+
+  if (!introFired && t > 2.6) {
+    introFired = true;
+    fx.show(9, 0.55);
+  }
+  if (!introReady && p >= 1) {
+    introReady = true;
+    world.castle.setLit(1);
+    dom.intro.classList.add('is-ready');
+    fx.show(5, 0.7);
+  }
 }
 
 // ---------- resize & loop -------------------------------------------------
@@ -609,8 +662,9 @@ function frame() {
       if (k >= 1) transition = null;
     }
   } else {
-    introCamera(t);
+    updateIntro(t, dt);
   }
+  if (started) updateSparkles(t, dt, 1);
 
   hero.animate(dt, t, started && controls.moving);
   trail?.update(dt, hero.root.position, started && controls.moving, camera);
