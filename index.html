@@ -44,10 +44,6 @@
               <input id="anniversary-msg" name="anniversaryMsg" maxlength="120" autocomplete="off" />
             </label>
             <div class="row row-end">
-              <label class="field field-number">
-                <span>چند بار گفتی دوستت دارم؟</span>
-                <input id="love-count-input" name="loveCount" type="number" inputmode="numeric" min="1" max="9999999" step="1" />
-              </label>
               <fieldset class="swatches">
                 <legend>رنگ لباسش</legend>
                 <div class="swatch-row" id="swatch-row"></div>
@@ -72,11 +68,6 @@
           <small id="hud-subtitle">از طرف من برای پرنسس من</small>
         </div>
         <div class="hud-actions">
-          <button class="love-btn" id="love-btn" type="button" title="دوستت دارم">
-            <svg class="icon heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.8 4.5c2 0 3.5 1.1 4.2 2.6.7-1.5 2.2-2.6 4.2-2.6 3.8 0 5.9 3.9 4.4 7.3C19.5 16.4 12 21 12 21z" /></svg>
-            <span><b id="love-count">۰</b> بار دوستت دارم</span>
-            <em class="plus-one" id="plus-one" aria-hidden="true">+۱</em>
-          </button>
           <button class="chip" id="finale-btn" type="button">جشن سالگرد</button>
           <button class="chip" id="letter-btn" type="button">نامه</button>
           <button class="chip" id="hold-btn" type="button" aria-pressed="false" title="دست دخترم را بگیر یا رها کن (G)">دست بگیر</button>
@@ -129,10 +120,6 @@
           <h2 id="memory-title"></h2>
           <p class="memory-caption" id="memory-caption"></p>
           <div class="memory-actions">
-            <button class="love-btn compact" id="memory-love" type="button">
-              <svg class="icon heart" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 21s-7.5-4.6-9.6-9.2C.9 8.4 3 4.5 6.8 4.5c2 0 3.5 1.1 4.2 2.6.7-1.5 2.2-2.6 4.2-2.6 3.8 0 5.9 3.9 4.4 7.3C19.5 16.4 12 21 12 21z" /></svg>
-              <span id="memory-love-text">دوستت دارم</span>
-            </button>
             <div class="pager">
               <button class="chip" id="memory-prev" type="button">قبلی</button>
               <button class="chip" id="memory-next" type="button">بعدی</button>
@@ -149,14 +136,10 @@
         <p class="finale-message" id="finale-message"></p>
         <dl class="stats">
           <div><dt>روز عاشقی و لبخند</dt><dd>۳۶۵</dd></div>
-          <div><dt>بار گفتم دوستت دارم</dt><dd id="stat-love">۰</dd></div>
           <div><dt>قاب خاطره</dt><dd>۱۲</dd></div>
           <div><dt>عشق تا بی‌نهایت</dt><dd>∞</dd></div>
         </dl>
         <div class="finale-actions">
-          <button class="enter small" id="finale-love" type="button">
-            <span>یک «دوستت دارم» دیگر</span>
-          </button>
           <button class="chip" id="finale-photo" type="button">ساختن کارت پستال</button>
         </div>
       </dialog>

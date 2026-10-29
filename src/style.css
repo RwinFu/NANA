@@ -234,14 +234,7 @@ a {
 .field input:focus-visible {
   outline: none;
   box-shadow: 0 1px 0 var(--lamp);
-}
-
-.field-number input {
-  width: 9.5ch;
-  font-variant-numeric: tabular-nums;
-}
-
-.swatches {
+}.swatches {
   margin: 0;
   border: 0;
   padding: 0;
@@ -379,10 +372,7 @@ a {
   align-items: center;
   gap: 8px;
   max-width: 100%;
-}
-
-.chip,
-.love-btn {
+}.chip {
   position: relative;
   display: inline-flex;
   align-items: center;
@@ -399,16 +389,10 @@ a {
   font-size: 15px;
   cursor: pointer;
   transition: background 0.2s ease, transform 0.2s ease, border-color 0.2s ease;
-}
-
-.chip:hover,
-.love-btn:hover {
+}.chip:hover {
   background: rgba(40, 32, 70, 0.9);
   border-color: rgba(255, 207, 138, 0.45);
-}
-
-.chip:active,
-.love-btn:active {
+}.chip:active {
   transform: scale(0.97);
 }
 
@@ -434,62 +418,7 @@ a {
 
 #music-btn.is-off svg {
   stroke-dasharray: 3 3;
-}
-
-.love-btn {
-  padding-inline: 18px;
-  border-color: rgba(255, 122, 154, 0.55);
-  background: linear-gradient(120deg, rgba(255, 122, 154, 0.26), rgba(255, 122, 154, 0.1)), var(--panel);
-  box-shadow: 0 0 28px rgba(255, 122, 154, 0.22);
-  font-size: 16px;
-}
-
-.love-btn b {
-  font-size: 19px;
-  font-weight: 900;
-  font-variant-numeric: tabular-nums;
-}
-
-.love-btn .icon.heart,
-.love-btn svg.heart {
-  width: 18px;
-  height: 18px;
-  fill: var(--rose);
-  stroke: none;
-  animation: beat 1.8s ease-in-out infinite;
-  flex: none;
-}
-
-.love-btn.compact {
-  min-height: 48px;
-  font-size: 16px;
-}
-
-.plus-one {
-  position: absolute;
-  top: -10px;
-  inset-inline-start: 50%;
-  translate: -50% 0;
-  color: var(--lamp);
-  font-style: normal;
-  font-size: 15px;
-  font-weight: 900;
-  opacity: 0;
-  pointer-events: none;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.6);
-}
-
-.plus-one.is-showing {
-  animation: plus-one 0.9s ease-out forwards;
-}
-
-@keyframes plus-one {
-  0% { opacity: 0; transform: translateY(6px); }
-  20% { opacity: 1; }
-  100% { opacity: 0; transform: translateY(-26px); }
-}
-
-@keyframes beat {
+}@keyframes beat {
   0%, 100% { transform: scale(1); }
   12% { transform: scale(1.18); }
   24% { transform: scale(1); }
@@ -942,15 +871,7 @@ dialog h2 {
   .hud-actions {
     justify-content: center;
     gap: 6px;
-  }
-
-  .love-btn {
-    order: -1;
-    width: 100%;
-    justify-content: center;
-  }
-
-  .chip {
+  }.chip {
     min-height: 38px;
     padding: 6px 12px;
     font-size: 14px;

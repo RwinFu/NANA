@@ -25,7 +25,6 @@ const SWATCHES = [
   ['#c084fc', 'بنفش یاسی'],
   ['#ffd875', 'طلایی رویایی'],
 ];
-const MILESTONE = 1000;
 const INTERACT_RADIUS = 3.6;
 const ENVELOPE_RADIUS = 3.2;
 
@@ -38,9 +37,6 @@ const dom = {
   swatchRow: $('#swatch-row'),
   hud: $('#hud'),
   hudSub: $('#hud-subtitle'),
-  love: $('#love-btn'),
-  loveCount: $('#love-count'),
-  plusOne: $('#plus-one'),
   musicBtn: $('#music-btn'),
   holdBtn: $('#hold-btn'),
   danceBtn: $('#dance-btn'),
@@ -70,7 +66,6 @@ function fillForm(state) {
   $('#to-name').value = state.toName;
   $('#dedication').value = state.dedication;
   $('#anniversary-msg').value = state.anniversaryMsg;
-  $('#love-count-input').value = String(state.loveCount);
 }
 fillForm(store.get());
 
@@ -94,16 +89,12 @@ SWATCHES.forEach(([color, label]) => {
 });
 
 function readForm() {
-  const raw = Number($('#love-count-input').value);
-  const loveOk = Number.isInteger(raw) && raw >= 1 && raw <= 9999999;
   return {
-    loveOk,
     patch: {
       fromName: $('#from-name').value,
       toName: $('#to-name').value,
       dedication: $('#dedication').value,
       anniversaryMsg: $('#anniversary-msg').value,
-      loveCount: loveOk ? raw : store.get().loveCount,
       avatarColor: selectedColor,
     },
   };
@@ -224,33 +215,6 @@ function toast(text, ms = 2800) {
   toastTimer = window.setTimeout(() => dom.toast.classList.remove('is-visible'), ms);
 }
 
-// ---------- love ---------------------------------------------------------
-
-function renderLove(count) {
-  const text = formatNumber(count);
-  dom.loveCount.textContent = text;
-  $('#memory-love-text').textContent = `دوستت دارم (${text} بار)`;
-  $('#stat-love').textContent = text;
-}
-
-function addLove(burstAt) {
-  const count = store.get().loveCount + 1;
-  store.set({ loveCount: count });
-  renderLove(count);
-  audio.chime(count % 2 ? 659.25 : 783.99);
-
-  dom.plusOne.classList.remove('is-showing');
-  void dom.plusOne.offsetWidth; // restart the CSS animation
-  dom.plusOne.classList.add('is-showing');
-
-  if (world && burstAt) world.burstHearts(burstAt, 9);
-  if (count % MILESTONE === 0) {
-    toast(`به ${formatNumber(count)} بار دوستت دارم رسیدیم`, 3600);
-    fx.show(3, 0.4);
-  }
-  return count;
-}
-
 // ---------- dialogs ------------------------------------------------------
 
 let lastFocus = null;
@@ -293,7 +257,6 @@ function showMemory(index) {
     memoryPhoto.alt = 'این عکس پیدا نشد';
     memoryPhoto.hidden = true;
   };
-  renderLove(store.get().loveCount);
 }
 
 function openMemory(index) {
@@ -313,23 +276,16 @@ dom.memory.addEventListener('keydown', (event) => {
 });
 $('#memory-prev').addEventListener('click', () => showMemory(memoryIndex - 1));
 $('#memory-next').addEventListener('click', () => showMemory(memoryIndex + 1));
-$('#memory-love').addEventListener('click', () => addLove());
 
 // Finale
 function openFinale() {
   const s = store.get();
   $('#finale-message').textContent = s.anniversaryMsg;
   $('#finale-title').textContent = 'اولین سالگرد یکی شدنمون مبارک!';
-  renderLove(s.loveCount);
   openDialog(dom.finale);
   audio.fanfare();
   fx.show(7, 0.45);
 }
-$('#finale-love').addEventListener('click', () => {
-  const origin = hero ? hero.root.position.clone().setY(2.4) : null;
-  addLove(origin);
-  fx.burst(window.innerWidth / 2, window.innerHeight * 0.45, '#ff8fab', 40);
-});
 $('#finale-photo').addEventListener('click', () => openPostcard());
 
 // Letter (shown after the envelope opens)
@@ -503,12 +459,6 @@ window.addEventListener('keydown', (event) => {
 
 // ---------- HUD ----------------------------------------------------------
 
-dom.love.addEventListener('click', () => {
-  const rect = dom.love.getBoundingClientRect();
-  addLove(hero ? hero.root.position.clone().setY(2.2) : null);
-  fx.burst(rect.left + rect.width / 2, rect.top + rect.height / 2, '#ff8fab', 22);
-});
-
 // ---------- hand holding and dances ---------------------------------------
 
 let coupleUiKey = '';
@@ -602,17 +552,10 @@ function setFormError(message) {
   dom.error.hidden = !message;
 }
 
-$('#love-count-input').addEventListener('input', () => setFormError(''));
-
 dom.setup.addEventListener('submit', (event) => {
   event.preventDefault();
   if (!renderer) return;
-  const { loveOk, patch } = readForm();
-  if (!loveOk) {
-    setFormError('تعداد «دوستت دارم» باید یک عدد صحیح بین ۱ و ۹٬۹۹۹٬۹۹۹ باشد.');
-    $('#love-count-input').focus();
-    return;
-  }
+  const { patch } = readForm();
   setFormError('');
   const state = store.set(patch);
   audio.unlock();
@@ -625,7 +568,6 @@ function start(state) {
   setMusicUi();
 
   dom.hudSub.textContent = `از طرف ${state.fromName} برای ${state.toName}`;
-  renderLove(state.loveCount);
   if (world) world.setDedication(state.dedication);
   hero?.setDress(state.avatarColor);
   fillLetter(state);
@@ -791,5 +733,5 @@ showHowTo({
 
 // Dev-only hook for automated checks
 if (import.meta.env.DEV) {
-  window.__home = { audio, controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), addLove, hero: () => hero, cats: () => cats, footprints: () => footprints };
+  window.__home = { audio, controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), hero: () => hero, cats: () => cats, footprints: () => footprints };
 }
