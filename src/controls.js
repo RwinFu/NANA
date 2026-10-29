@@ -24,8 +24,10 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   if (Math.abs(z) < 0.5 + margin && Math.abs(x) > LAYOUT.doorHalfWidth - margin && Math.abs(x) < 10.5 && y < 8) {
     return true;
   }
-  // Hall side walls and ceiling
-  if (z <= 0.2 && z > -len - margin && Math.abs(x) > hall - margin - BOY_REACH && y < 6) return true;
+  // Hall side walls and ceiling. The west wall has a doorway into the photo room.
+  const R = LAYOUT.room;
+  const throughDoor = x < 0 && z <= R.door.z1 - margin && z >= R.door.z0 + margin && y < R.door.top;
+  if (z <= 0.2 && z > -len - margin && Math.abs(x) > hall - margin - BOY_REACH && !throughDoor && y < 6) return true;
   if (z <= 0.2 && z > -len && y >= 6) return true;
   // Hall end wall
   if (z <= -len + margin) return true;
@@ -33,6 +35,13 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   const env = LAYOUT.envelope;
   if (Math.abs(x) < env.w / 2 + margin && Math.abs(z - env.z) < 0.1 + margin && y < env.y + env.h + 0.3) {
     return true;
+  }
+  // The photo room (inside the castle): its walls, and the doorway in the hall's west wall
+  if (y < R.height) {
+    const inBox = x >= R.ox0 - margin && x <= R.ox1 + margin && z >= R.oz0 - margin && z <= R.oz1 + margin;
+    const inside = x >= R.x0 + margin && x <= R.x1 - margin && z >= R.z0 + margin && z <= R.z1 - margin;
+    const doorway = x >= R.x1 - margin && z >= R.door.z0 + margin && z <= R.door.z1 - margin;
+    if (inBox && !inside && !doorway) return true;
   }
   // Garden limits
   if (Math.abs(x) > LAYOUT.gardenHalfWidth) return true;
