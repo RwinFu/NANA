@@ -14,7 +14,7 @@ import { createFootprints } from './footprints.js';
 import { createSparkles } from './castle.js';
 import { createFairy } from './fairy.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
-import { createRescueGame } from './rescue.js';
+import { createRescueGame, showHowTo } from './rescue.js';
 import { createCats } from './cats.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -151,13 +151,11 @@ let introPlaying = false; // the flight plays only after the rescue
 let introSettled = false;
 let rescue = null;
 let introT0 = 0;
-let pendingState = null;
 
-function beginRescue(state) {
-  pendingState = state;
+function beginRescue() {
   rescueActive = true;
   dom.intro.hidden = true;
-  rescue = createRescueGame({ onDone: finishRescue, autoStart: false });
+  rescue = createRescueGame({ onDone: finishRescue, autoStart: true });
   if (import.meta.env.DEV) window.__rescue = rescue;
 }
 
@@ -611,7 +609,7 @@ dom.setup.addEventListener('submit', (event) => {
   setFormError('');
   const state = store.set(patch);
   audio.unlock();
-  beginRescue(state);
+  start(state);
 });
 
 function start(state) {
@@ -697,11 +695,6 @@ function updateSparkles(t, dt, p) {
 
 function updateIntro(t, dt) {
   const p = introCamera(t);
-  if (pendingState && t > INTRO_FLIGHT + 1.2) {
-    const s = pendingState;
-    pendingState = null;
-    start(s);
-  }
   updateSparkles(t, dt, p);
   world.castle.setLit(p);
 
@@ -712,6 +705,7 @@ function updateIntro(t, dt) {
   if (!introReady && p >= 1) {
     introReady = true;
     world.castle.setLit(1);
+    dom.intro.classList.remove('flight-only'); // the names form and enter button appear now
     dom.intro.classList.add('is-ready');
     fx.show(5, 0.7);
   }
@@ -776,6 +770,15 @@ if (renderer) {
   onResize();
   frame();
 }
+
+// The how-to page opens first. Its start button begins the rescue straight away;
+// the intro, then the names form and the enter button come after the rescue.
+showHowTo({
+  onStart() {
+    audio.unlock();
+    beginRescue();
+  },
+});
 
 // Dev-only hook for automated checks
 if (import.meta.env.DEV) {
