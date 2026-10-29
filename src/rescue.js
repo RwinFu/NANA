@@ -1573,20 +1573,6 @@ function buildDom() {
   root.innerHTML = `
     <canvas class="rescue-canvas" aria-hidden="true"></canvas>
     <div class="rescue-fade" aria-hidden="true"></div>
-    <div class="rescue-card" data-card="title">
-      <div class="rescue-card-inner">
-        <p class="rescue-kicker">قبل از ورود به خانه</p>
-        <h2>روش نجات پرنسس</h2>
-        <ol class="rescue-steps">
-          <li>با ← و → پسر را حرکت بده و با Space بپر.</li>
-          <li>نزدیک گیسوی طلایی، Space را نگه دار تا بالا بروی. رها کن تا سر بخوری.</li>
-          <li>با F جرقه بزن تا اژدها فرار کند.</li>
-          <li>گربه‌ها را نجات بده؛ پرنسس بالای برج منتظر است.</li>
-        </ol>
-        <p class="rescue-keys" data-keys>← → حرکت · Space پرش و چنگ زدن · F جرقه‌ی جادویی</p>
-        <button type="button" class="rescue-btn" data-action="start">شروع</button>
-      </div>
-    </div>
     <div class="rescue-card" data-card="lost" hidden>
       <div class="rescue-card-inner">
         <h2>پرنسس منتظر است</h2>
@@ -1610,13 +1596,50 @@ function buildDom() {
   return root;
 }
 
+// The how-to page shown when the link opens. Start hides it and calls onStart().
+export function showHowTo({ onStart }) {
+  const root = document.createElement('section');
+  root.className = 'rescue rescue-howto';
+  root.setAttribute('aria-label', 'روش نجات پرنسس');
+  const coarse = window.matchMedia('(pointer: coarse)').matches;
+  const keys = coarse
+    ? 'دکمه‌های پایین صفحه را برای حرکت و جرقه بزن'
+    : '← → حرکت · Space پرش و چنگ زدن · F جرقه‌ی جادویی';
+  root.innerHTML = `
+    <div class="rescue-card" data-card="howto">
+      <div class="rescue-card-inner">
+        <p class="rescue-kicker">قبل از ورود به خانه</p>
+        <h2>روش نجات پرنسس</h2>
+        <ol class="rescue-steps">
+          <li>با ← و → پسر را حرکت بده و با Space بپر.</li>
+          <li>نزدیک گیسوی طلایی، Space را نگه دار تا بالا بروی. رها کن تا سر بخوری.</li>
+          <li>با F جرقه بزن تا اژدها فرار کند.</li>
+          <li>گربه‌ها را نجات بده؛ پرنسس بالای برج منتظر است.</li>
+        </ol>
+        <p class="rescue-keys">${keys}</p>
+        <button type="button" class="rescue-btn" data-action="start">شروع</button>
+      </div>
+    </div>
+  `;
+  document.body.appendChild(root);
+  const btn = root.querySelector('[data-action="start"]');
+  let closing = false;
+  btn.addEventListener('click', () => {
+    if (closing) return;
+    closing = true;
+    root.classList.add('is-leaving');
+    window.setTimeout(() => root.remove(), 800);
+    onStart();
+  });
+  return root;
+}
+
 // Plays the game. onDone() runs once the screen has gone black after the win (or a skip).
 // The caller then shows the next scene and calls reveal() to fade the black away.
 export function createRescueGame({ onDone, autoStart = false }) {
   const root = buildDom();
   const canvas = root.querySelector('.rescue-canvas');
   const ctx = canvas.getContext('2d');
-  const titleCard = root.querySelector('[data-card="title"]');
   const lostCard = root.querySelector('[data-card="lost"]');
   const skipBtn = root.querySelector('.rescue-skip');
   const touch = root.querySelector('.rescue-touch');
@@ -1662,7 +1685,6 @@ export function createRescueGame({ onDone, autoStart = false }) {
     skipBtn.hidden = exiting || !(playing || g.phase === 'won');
     touch.hidden = exiting || !(coarse && playing);
     lostCard.hidden = g.phase !== 'lost';
-    titleCard.hidden = g.phase !== 'title';
   }
 
   function setKey(key, down) {
@@ -1682,11 +1704,6 @@ export function createRescueGame({ onDone, autoStart = false }) {
   function onKeyDown(e) {
     if (exiting) return;
     const isButton = !!e.target && e.target.tagName === 'BUTTON';
-    if (g.phase === 'title' && !isButton && (e.code === 'Enter' || e.code === 'Space')) {
-      e.preventDefault();
-      startGame();
-      return;
-    }
     if (isButton && (e.code === 'Space' || e.code === 'Enter')) return;
     const key = KEYMAP[e.code];
     if (!key) return;
@@ -1704,8 +1721,7 @@ export function createRescueGame({ onDone, autoStart = false }) {
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
     const action = btn.dataset.action;
-    if (action === 'start') startGame();
-    else if (action === 'retry') retry();
+    if (action === 'retry') retry();
     else if (action === 'skip') exitToIntro(true);
   }
 
@@ -1812,7 +1828,6 @@ export function createRescueGame({ onDone, autoStart = false }) {
   resize();
   syncUi();
   if (autoStart) startGame();
-  // otherwise the how-to card waits for the start button
   last = performance.now();
   raf = requestAnimationFrame(loop);
 

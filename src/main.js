@@ -14,7 +14,7 @@ import { createFootprints } from './footprints.js';
 import { createSparkles } from './castle.js';
 import { createFairy } from './fairy.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
-import { createRescueGame } from './rescue.js';
+import { createRescueGame, showHowTo } from './rescue.js';
 import { createCats } from './cats.js';
 
 const $ = (sel) => document.querySelector(sel);
@@ -157,7 +157,7 @@ function beginRescue(state) {
   pendingState = state;
   rescueActive = true;
   dom.intro.hidden = true;
-  rescue = createRescueGame({ onDone: finishRescue, autoStart: false });
+  rescue = createRescueGame({ onDone: finishRescue, autoStart: true });
   if (import.meta.env.DEV) window.__rescue = rescue;
 }
 
@@ -776,6 +776,9 @@ if (renderer) {
   onResize();
   frame();
 }
+
+// The how-to page opens first, before the landing and the enter button
+showHowTo({ onStart() {} });
 
 // Dev-only hook for automated checks
 if (import.meta.env.DEV) {

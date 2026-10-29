@@ -1171,3 +1171,11 @@ dialog h2 {
   color: #2a1530;
   background: linear-gradient(120deg, #ff8fb8, #ffd66b);
 }
+
+/* the how-to page that opens with the link */
+.rescue.rescue-howto {
+  background: radial-gradient(120% 90% at 50% 20%, #2a1438 0%, #0d0716 60%, #05040d 100%);
+  transition: opacity 0.7s ease;
+}
+.rescue.rescue-howto.is-leaving { opacity: 0; pointer-events: none; }
+.rescue.rescue-howto .rescue-card { position: absolute; }
