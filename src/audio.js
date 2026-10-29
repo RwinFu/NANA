@@ -10,7 +10,8 @@ const CHORDS = [
   [246.94, 311.13, 369.99, 493.88], // B: B D# F# B
 ];
 const PATTERN = [0, 2, 1, 2, 3, 1, 2, 1];
-const BPM = 76;
+// The song's detected beat is about 172 BPM. Its half-time pulse, about 86, is the one the loop follows.
+const BPM = 86;
 const STEP = 60 / BPM / 2; // eighth notes
 const LOOKAHEAD_S = 0.25;
 // The song from the family folder. Starts at the gate and keeps playing through the tour.
