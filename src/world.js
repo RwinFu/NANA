@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { memories as memoryList, soloMemories, soloVideo } from './memories.js';
 import { buildCastle } from './castle.js';
+import { createRugGlint, createStoneGlint } from './rugglint.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -185,6 +186,7 @@ export function buildWorld(scene) {
   rug.rotation.x = -Math.PI / 2;
   rug.position.set(0, 0.02, -19);
   scene.add(rug);
+  const rugGlint = createRugGlint(scene, rug, { x: 0, z: -19, halfW: 1.1, halfD: 18 });
 
 
   // Hall ceiling and walls
@@ -334,12 +336,16 @@ export function buildWorld(scene) {
   // Garden: path, trees, bushes, lamps, flowers
   const stoneGeo = track(new THREE.CylinderGeometry(0.5, 0.55, 0.08, 10));
   const stoneMat = new THREE.MeshStandardMaterial({ color: '#c9bfd1', roughness: 0.9 });
+  const stoneMeshes = [];
   for (let i = 0; i < 16; i += 1) {
-    const stone = new THREE.Mesh(stoneGeo, stoneMat);
+    // each stone has its own material so it can glow on its own
+    const stone = new THREE.Mesh(stoneGeo, stoneMat.clone());
     stone.position.set((Math.random() - 0.5) * 0.6, 0.04, 1.5 + i * 1.45);
     stone.scale.set(1, 1, 0.8 + Math.random() * 0.4);
     scene.add(stone);
+    stoneMeshes.push(stone);
   }
+  const stoneGlint = createStoneGlint(scene, stoneMeshes);
 
   const trunkGeo = track(new THREE.CylinderGeometry(0.18, 0.28, 2.2, 7));
   const trunkMat = new THREE.MeshStandardMaterial({ color: '#4a3323', roughness: 1 });
@@ -872,5 +878,7 @@ export function buildWorld(scene) {
     dispose,
     hallLights,
     heartWindow,
+    rugGlint,
+    stoneGlint,
   };
 }

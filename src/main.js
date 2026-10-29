@@ -155,7 +155,14 @@ let introT0 = 0;
 function beginRescue() {
   rescueActive = true;
   dom.intro.hidden = true;
-  rescue = createRescueGame({ onDone: finishRescue, autoStart: true });
+  rescue = createRescueGame({
+    onDone: finishRescue,
+    autoStart: true,
+    onGate: () => {
+      audio.static();
+      audio.startSong();
+    },
+  });
   if (import.meta.env.DEV) window.__rescue = rescue;
 }
 
@@ -757,6 +764,8 @@ function frame() {
   cats?.update(dt, t, hero, started);
   syncCoupleUi();
   trail?.update(dt, hero.root.position, started && controls.moving, camera);
+  world?.rugGlint?.update(dt, t, hero.root.position, started && controls.moving);
+  world?.stoneGlint?.update(dt, t, hero.root.position, started && controls.moving);
   footprints?.update(dt, hero, started && controls.moving);
   envelope.update(t, dt);
   world.update(t, dt, started ? nearFrame : -1);
@@ -782,5 +791,5 @@ showHowTo({
 
 // Dev-only hook for automated checks
 if (import.meta.env.DEV) {
-  window.__home = { controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), addLove, hero: () => hero, cats: () => cats, footprints: () => footprints };
+  window.__home = { audio, controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), addLove, hero: () => hero, cats: () => cats, footprints: () => footprints };
 }

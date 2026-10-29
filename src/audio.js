@@ -1,16 +1,21 @@
 // Small Web Audio synth: a soft arpeggiated loop plus a few sound effects.
 // Everything is generated in code, so there are no audio files to download.
 
+// The loop is in C# minor, the key of the family song. The melody opens on C# then G#,
+// the first two notes of the song, and moves through its E, D# and F# colour.
 const CHORDS = [
-  [261.63, 329.63, 392.0, 523.25], // C
-  [220.0, 261.63, 329.63, 440.0], // Am
-  [174.61, 220.0, 261.63, 349.23], // F
-  [196.0, 246.94, 293.66, 392.0], // G
+  [277.18, 329.63, 415.3, 554.37], // C#m: C# E G# C#
+  [220.0, 277.18, 329.63, 440.0], // A: A C# E A
+  [164.81, 207.65, 246.94, 329.63], // E: E G# B E
+  [246.94, 311.13, 369.99, 493.88], // B: B D# F# B
 ];
-const PATTERN = [0, 1, 2, 3, 2, 1, 2, 1];
-const BPM = 76;
+const PATTERN = [0, 2, 1, 2, 3, 1, 2, 1];
+// The song's detected beat is about 172 BPM. Its half-time pulse, about 86, is the one the loop follows.
+const BPM = 86;
 const STEP = 60 / BPM / 2; // eighth notes
 const LOOKAHEAD_S = 0.25;
+// The song from the family folder. Starts at the gate and keeps playing through the tour.
+const SONG_URL = `${import.meta.env.BASE_URL}music/khooneye-man.mp3`;
 
 export function createAudio() {
   let ctx = null;
@@ -21,6 +26,10 @@ export function createAudio() {
   let timer = null;
   let nextTime = 0;
   let step = 0;
+  let song = null;
+  let songActive = false;
+  let fadeTimer = null;
+  let songTimer = null;
 
   function ensureContext() {
     if (ctx) return ctx;
@@ -96,16 +105,79 @@ export function createAudio() {
     get musicOn() {
       return musicOn;
     },
+    get songPlaying() {
+      return !!song && !song.paused;
+    },
     // Called from a user gesture (the start button) so browsers allow audio.
     unlock() {
       const context = ensureContext();
       if (context && context.state === 'suspended') context.resume();
-      if (musicOn) startLoop();
+      if (musicOn && !songActive) startLoop();
     },
     setMusic(on) {
       musicOn = on;
+      if (songActive) {
+        if (song) on ? song.play().catch(() => {}) : song.pause();
+        return;
+      }
       if (on) startLoop();
       else stopLoop();
+    },
+    // The family song takes over from the synth loop and loops until the end.
+    startSong() {
+      if (!song) {
+        song = new Audio(SONG_URL);
+        song.loop = true;
+        song.preload = 'auto';
+        song.volume = 0;
+      }
+      // Start the song on the next bar of the synth loop, so its first note lands on the downbeat
+      // the mini-game music was playing on. Waits at most one bar (about 2.8 s).
+      let delayS = 0;
+      if (ctx && playing) {
+        const toBar = (PATTERN.length - (step % PATTERN.length)) % PATTERN.length;
+        delayS = Math.max(0, nextTime + toBar * STEP - ctx.currentTime);
+      }
+      stopLoop();
+      songActive = true;
+      if (!musicOn) return;
+      clearTimeout(songTimer);
+      const begin = () => {
+        song.currentTime = 0;
+        song.play().catch(() => {});
+        clearInterval(fadeTimer);
+        const from = 0;
+        const t0 = performance.now();
+        fadeTimer = setInterval(() => {
+          const k = Math.min(1, (performance.now() - t0) / 2200);
+          song.volume = from + (0.7 - from) * k;
+          if (k >= 1) clearInterval(fadeTimer);
+        }, 60);
+      };
+      if (delayS > 0.02) songTimer = setTimeout(begin, delayS * 1000);
+      else begin();
+    },
+    // A short burst of filtered static for the gate glitch.
+    static(duration = 1.2) {
+      const context = ensureContext();
+      if (!context || !sfx) return;
+      if (context.state === 'suspended') context.resume();
+      const len = Math.floor(context.sampleRate * duration);
+      const buf = context.createBuffer(1, len, context.sampleRate);
+      const data = buf.getChannelData(0);
+      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 2;
+      const src = context.createBufferSource();
+      src.buffer = buf;
+      const band = context.createBiquadFilter();
+      band.type = 'bandpass';
+      band.frequency.value = 1800;
+      band.Q.value = 0.6;
+      const gain = context.createGain();
+      gain.gain.value = 0.6;
+      src.connect(band);
+      band.connect(gain);
+      gain.connect(sfx);
+      src.start();
     },
     chime(freq = 659.25) {
       const context = ensureContext();
