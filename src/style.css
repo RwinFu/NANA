@@ -858,12 +858,10 @@ dialog h2 {
     font-size: 17px;
   }
 
-  /* HUD: one compact block of 44px tap targets that wraps onto two rows */
   .hud {
     flex-direction: column;
     align-items: stretch;
-    gap: 0;
-    padding: 8px 8px 10px;
+    padding: 10px 10px;
   }
 
   .hud-title {
@@ -873,17 +871,14 @@ dialog h2 {
   .hud-actions {
     justify-content: center;
     gap: 6px;
-  }
-
-  .chip {
-    min-height: 44px;
-    padding: 8px 14px;
-    font-size: 15px;
-    white-space: nowrap;
+  }.chip {
+    min-height: 38px;
+    padding: 6px 12px;
+    font-size: 14px;
   }
 
   .icon-chip {
-    width: 44px;
+    width: 38px;
   }
 
   .controls-hint {
@@ -891,30 +886,23 @@ dialog h2 {
   }
 
   .toast {
-    top: 124px;
-    font-size: 15px;
-    padding: 12px 18px;
+    top: 196px;
   }
 
   .prompt {
     bottom: 186px;
   }
 
-  .prompt-text {
-    min-height: 44px;
-  }
-
-  /* Joystick: smaller so it leaves the couple in view; the thumb stays inside the ring */
   .joystick {
-    width: 104px;
-    height: 104px;
-    inset-inline-start: 14px;
-    bottom: 20px;
+    width: 116px;
+    height: 116px;
+    inset-inline-start: 16px;
+    bottom: 22px;
   }
 
   .joystick-knob {
-    width: 46px;
-    height: 46px;
+    width: 50px;
+    height: 50px;
   }
 
   dialog.sheet {
