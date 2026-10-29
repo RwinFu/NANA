@@ -1573,15 +1573,6 @@ function buildDom() {
   root.innerHTML = `
     <canvas class="rescue-canvas" aria-hidden="true"></canvas>
     <div class="rescue-fade" aria-hidden="true"></div>
-    <div class="rescue-card" data-card="title">
-      <div class="rescue-card-inner">
-        <p class="rescue-kicker">قبل از ورود به خانه</p>
-        <h2>نجات پرنسس</h2>
-        <p>پرنسس زیر نگاه اژدها در قفس قلعه‌ی ترسناک اسیر است. پسر شجاع باید او را نجات بدهد و با هم از قلعه‌ی بلند فرار کنند.</p>
-        <p class="rescue-keys" data-keys>← → حرکت · Space پرش · F جرقه‌ی جادویی</p>
-        <button type="button" class="rescue-btn" data-action="start">شروع ماجراجویی</button>
-      </div>
-    </div>
     <div class="rescue-card" data-card="lost" hidden>
       <div class="rescue-card-inner">
         <h2>پرنسس منتظر است</h2>
@@ -1611,15 +1602,11 @@ export function createRescueGame({ onDone, autoStart = false }) {
   const root = buildDom();
   const canvas = root.querySelector('.rescue-canvas');
   const ctx = canvas.getContext('2d');
-  const titleCard = root.querySelector('[data-card="title"]');
   const lostCard = root.querySelector('[data-card="lost"]');
   const skipBtn = root.querySelector('.rescue-skip');
   const touch = root.querySelector('.rescue-touch');
   const rotateCard = root.querySelector('.rescue-rotate');
   const coarse = window.matchMedia('(pointer: coarse)').matches;
-  if (coarse) {
-    root.querySelector('[data-keys]').textContent = 'دکمه‌های پایین صفحه را برای حرکت و جرقه بزن';
-  }
 
   const input = { left: false, right: false, jump: false, fire: false };
   const pressed = { jump: false, fire: false };
@@ -1660,7 +1647,6 @@ export function createRescueGame({ onDone, autoStart = false }) {
     skipBtn.hidden = exiting || !(playing || g.phase === 'won');
     touch.hidden = exiting || !(coarse && playing);
     lostCard.hidden = g.phase !== 'lost';
-    titleCard.hidden = g.phase !== 'title';
   }
 
   function setKey(key, down) {
@@ -1680,11 +1666,6 @@ export function createRescueGame({ onDone, autoStart = false }) {
   function onKeyDown(e) {
     if (exiting) return;
     const isButton = !!e.target && e.target.tagName === 'BUTTON';
-    if (g.phase === 'title' && !isButton && (e.code === 'Enter' || e.code === 'Space')) {
-      e.preventDefault();
-      startGame();
-      return;
-    }
     if (isButton && (e.code === 'Space' || e.code === 'Enter')) return;
     const key = KEYMAP[e.code];
     if (!key) return;
@@ -1702,8 +1683,7 @@ export function createRescueGame({ onDone, autoStart = false }) {
     const btn = e.target.closest('button[data-action]');
     if (!btn) return;
     const action = btn.dataset.action;
-    if (action === 'start') startGame();
-    else if (action === 'retry') retry();
+    if (action === 'retry') retry();
     else if (action === 'skip') exitToIntro(true);
   }
 
