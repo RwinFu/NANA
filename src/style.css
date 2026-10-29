@@ -1107,3 +1107,36 @@ dialog h2 {
   touch-action: none;
   user-select: none;
 }
+
+/* ---------- intro after the rescue: the flight plays without the form ---------- */
+.intro.flight-only #setup,
+.intro.flight-only #enter-btn {
+  visibility: hidden;
+}
+
+/* ---------- rescue: phones held upright ask for landscape ---------- */
+.rescue-rotate {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 4, 13, 0.9);
+  color: #ffe9f2;
+  text-align: center;
+  padding: 24px;
+  font-size: 18px;
+  line-height: 1.9;
+}
+.rescue-rotate[hidden] { display: none !important; }
+
+/* ---------- rescue touch layout: movement on the left, jump and spark on the right (the page is RTL) ---------- */
+.rescue-touch { direction: ltr; }
+.rescue-touch-group { direction: ltr; }
+.rescue-skip {
+  top: 52px;
+  right: 14px;
+  bottom: auto;
+  left: auto;
+}

@@ -400,6 +400,7 @@ export function createCouple(dressColor) {
 
   // ----- the boy: his own group, moved to his place beside her each frame -----
   const boy = new THREE.Group();
+  boy.name = 'boy';
   root.add(boy);
   const coatMat = new THREE.MeshStandardMaterial({ color: COAT, roughness: 0.7 });
   const pantsMat = new THREE.MeshStandardMaterial({ color: PANTS, roughness: 0.8 });

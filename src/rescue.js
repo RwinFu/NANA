@@ -23,6 +23,18 @@ const EXIT_DELAY = 1.2;
 const FADE_MS = 1800;
 // The golden hair the boy climbs: from the high balcony down to the ground
 const ROPE = { x: 700, top: 150, bottom: GROUND_Y };
+// The two cats: Pastil is caged on the balcony at the top of the golden hair,
+// Ani is in a small cage in the dragon's yard (it opens when the dragon flees)
+const PASTIL_AT = { x: 790, y: 150 };
+const ANI_AT = { x: 1985, y: GROUND_Y };
+const CAT_STYLE = {
+  pastil: { base: '#a7a098', stripe: '#5b5249', eye: '#e8b64c', name: 'پاستیل' },
+  ani: { base: '#8a6a4c', stripe: '#3a2a1e', eye: '#7fa35a', name: 'آنی' },
+};
+const CAT_IMAGES = {
+  pastil: loadImage('/cats/pastil.jpg'),
+  ani: loadImage('/cats/ani.jpg'),
+};
 const FONT = '"Vazirmatn Variable", Vazirmatn, sans-serif';
 
 // Solid ground, with pits between the segments
@@ -122,7 +134,7 @@ function newState() {
     cageOpen: false,
     msg: '',
     msgT: 0,
-    p: { x: 40, y: GROUND_Y, vx: 0, vy: 0, facing: 1, onGround: true, phase: 0, inv: 0, coyote: 0, jumpBuf: 0, fireCd: 0, climb: false },
+    p: { x: 40, y: GROUND_Y, vx: 0, vy: 0, facing: 1, onGround: true, phase: 0, inv: 0, coyote: 0, jumpBuf: 0, fireCd: 0, climb: false, usedDouble: false },
     dragon: { x: 1500, y: 150, hp: DRAGON_HITS, state: 'fight', active: false, alpha: 1, flap: 0, hit: 0, fireT: 1.5 },
     princess: { x: CAGE_X, state: 'captive', facing: 1, phase: 0, moving: 0 },
     fire: [],
@@ -131,6 +143,11 @@ function newState() {
     rockT: 1.5,
     parts: [],
     ropeTaught: false,
+    cats: {
+      pastil: { freed: false, x: PASTIL_AT.x, y: PASTIL_AT.y },
+      ani: { freed: false, x: ANI_AT.x, y: ANI_AT.y },
+    },
+    abilities: { doubleJump: false, rapid: false },
   };
 }
 
@@ -238,7 +255,7 @@ function update(g, dt, input, pressed) {
 
   p.fireCd = Math.max(0, p.fireCd - dt);
   if (playing && pressed.fire && p.fireCd <= 0) {
-    p.fireCd = 0.35;
+    p.fireCd = g.abilities.rapid ? 0.16 : 0.35;
     spark(g);
   }
   p.inv = Math.max(0, p.inv - dt);
@@ -265,11 +282,18 @@ function update(g, dt, input, pressed) {
       p.onGround = true;
     }
   } else {
+    if (p.onGround) p.usedDouble = false;
     if (p.jumpBuf > 0 && (p.onGround || p.coyote > 0)) {
       p.vy = JUMP_V;
       p.onGround = false;
       p.coyote = 0;
       p.jumpBuf = 0;
+    } else if (p.jumpBuf > 0 && g.abilities.doubleJump && !p.usedDouble) {
+      // Pastil's gift: a second jump in the air
+      p.vy = JUMP_V * 0.92;
+      p.usedDouble = true;
+      p.jumpBuf = 0;
+      burst(g, p.x, p.y, '#cfe9ff', 8, 120);
     }
     // Physics: horizontal, then vertical
     const solids = solidsFor(g);
@@ -318,14 +342,53 @@ function update(g, dt, input, pressed) {
     checkCage(g);
   }
   updatePrincess(g, dt);
+  updateCats(g, dt);
 
-  if (playing && g.rescued && p.x >= GATE_X) {
+  if (playing && g.rescued && g.cats.pastil.freed && g.cats.ani.freed && p.x >= GATE_X) {
     g.phase = 'won';
     g.endT = 0;
     say(g, 'نجات یافتی! پرنسس و پسرش با هم از قلعه بیرون رفتند', 99);
   }
 
   g.camX = Math.max(0, Math.min(LEVEL_W - W, p.x - 330));
+}
+
+// Freeing the cats: Pastil on the balcony, Ani in the yard. Freed cats run after the boy.
+function updateCats(g, dt) {
+  const p = g.p;
+  const pa = g.cats.pastil;
+  const an = g.cats.ani;
+  if (g.phase !== 'play' && g.phase !== 'won') return;
+
+  if (!pa.freed && Math.abs(p.x - PASTIL_AT.x) < 60 && Math.abs(p.y - PASTIL_AT.y) < 56) {
+    pa.freed = true;
+    g.abilities.doubleJump = true;
+    g.shake = 0.4;
+    burst(g, PASTIL_AT.x, PASTIL_AT.y - 30, '#ff8fb8', 26, 260);
+    say(g, 'پاستیل نجات یافت! حالا می‌توانی دوباره در هوا بپری', 3.4);
+  }
+  if (!an.freed && g.cageOpen && Math.abs(p.x - ANI_AT.x) < 64) {
+    an.freed = true;
+    g.abilities.rapid = true;
+    g.shake = 0.4;
+    burst(g, ANI_AT.x, ANI_AT.y - 30, '#ffd66b', 26, 260);
+    say(g, 'آنی نجات یافت! جرقه‌هایت سریع‌تر شدند', 3.4);
+  }
+
+  if (g.phase === 'play' && g.rescued && p.x >= GATE_X - 120 && (!pa.freed || !an.freed) && g.msgT <= 0) {
+    say(g, !pa.freed ? 'پاستیل هنوز روی بالکن اسیر است!' : 'آنی هنوز توی حیاط اسیر است!', 2.4);
+  }
+
+  // Freed cats follow the boy
+  const followX = (cat, back) => p.x - back * p.facing;
+  if (pa.freed) {
+    pa.x += (followX(pa, 40) - pa.x) * Math.min(1, dt * 5);
+    pa.y += (p.y - pa.y) * Math.min(1, dt * 8);
+  }
+  if (an.freed) {
+    an.x += (followX(an, 70) - an.x) * Math.min(1, dt * 5);
+    an.y += (p.y - an.y) * Math.min(1, dt * 8);
+  }
 }
 
 function spark(g) {
@@ -1149,6 +1212,164 @@ function drawRope(ctx, t) {
   ctx.fill();
 }
 
+function loadImage(src) {
+  const img = new Image();
+  img.src = src;
+  return img;
+}
+
+// A small cat drawn in the game's style: body, striped coat, ears, eyes, and a collar for Pastil
+function drawCatSprite(ctx, key, x, y, dir, t, caged) {
+  const st = CAT_STYLE[key];
+  const bob = caged ? 0 : Math.abs(Math.sin(t * 9 + (key === 'ani' ? 1.5 : 0))) * 2;
+  ctx.save();
+  ctx.translate(x, y - bob);
+  ctx.scale(dir, 1);
+  // tail
+  ctx.strokeStyle = st.base;
+  ctx.lineWidth = 5;
+  ctx.lineCap = 'round';
+  ctx.beginPath();
+  ctx.moveTo(-14, -6);
+  ctx.quadraticCurveTo(-26, -8, -24, -20 + Math.sin(t * 4) * 2);
+  ctx.stroke();
+  // body
+  ctx.fillStyle = st.base;
+  ctx.beginPath();
+  ctx.ellipse(0, -9, 14, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.strokeStyle = st.stripe;
+  ctx.lineWidth = 2;
+  for (let i = -8; i <= 8; i += 5) {
+    ctx.beginPath();
+    ctx.moveTo(i, -16);
+    ctx.lineTo(i - 1, -11);
+    ctx.stroke();
+  }
+  // legs
+  ctx.strokeStyle = st.base;
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(-8, -3);
+  ctx.lineTo(-8, 0);
+  ctx.moveTo(8, -3);
+  ctx.lineTo(8, 0);
+  ctx.stroke();
+  // head and ears
+  ctx.fillStyle = st.base;
+  ctx.beginPath();
+  ctx.arc(11, -18, 8, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.beginPath();
+  ctx.moveTo(4, -23);
+  ctx.lineTo(5, -30);
+  ctx.lineTo(10, -25);
+  ctx.moveTo(14, -25);
+  ctx.lineTo(19, -30);
+  ctx.lineTo(19, -23);
+  ctx.fill();
+  // eyes and nose
+  ctx.fillStyle = st.eye;
+  ctx.beginPath();
+  ctx.arc(14, -19, 2, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = '#2b1b33';
+  ctx.fillRect(13.5, -19.5, 1, 2);
+  ctx.fillStyle = '#f08aa0';
+  ctx.beginPath();
+  ctx.arc(18, -15, 1.2, 0, Math.PI * 2);
+  ctx.fill();
+  if (key === 'pastil') {
+    ctx.strokeStyle = '#ff8fb8';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(6, -13);
+    ctx.lineTo(16, -11);
+    ctx.stroke();
+    ctx.fillStyle = '#f5c96a';
+    ctx.beginPath();
+    ctx.arc(11, -10, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+// A cage for a cat: arched bars on a base
+function drawCatCage(ctx, cx, baseY, opened) {
+  if (opened) return;
+  ctx.fillStyle = '#d9b35a';
+  ctx.fillRect(cx - 28, baseY - 4, 56, 6);
+  ctx.strokeStyle = '#d9b35a';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.arc(cx, baseY - 40, 26, Math.PI, 0);
+  ctx.stroke();
+  for (let dx = -22; dx <= 22; dx += 8) {
+    ctx.beginPath();
+    ctx.moveTo(cx + dx, baseY - 40 + Math.sqrt(Math.max(0, 26 * 26 - dx * dx)) * -1);
+    ctx.lineTo(cx + dx, baseY - 4);
+    ctx.stroke();
+  }
+}
+
+function drawCats(ctx, g, t) {
+  const pa = g.cats.pastil;
+  const an = g.cats.ani;
+  // Pastil in her cage on the balcony
+  if (!pa.freed) {
+    drawCatCage(ctx, PASTIL_AT.x, PASTIL_AT.y, false);
+    drawCatSprite(ctx, 'pastil', PASTIL_AT.x, PASTIL_AT.y - 6, 1, t, true);
+  }
+  // Ani in her cage in the yard; the cage opens when the dragon flees
+  if (!an.freed) {
+    drawCatCage(ctx, ANI_AT.x, ANI_AT.y, g.cageOpen);
+    drawCatSprite(ctx, 'ani', ANI_AT.x, ANI_AT.y - 6, -1, t, !g.cageOpen);
+  }
+  // Freed cats run after the boy
+  if (pa.freed) drawCatSprite(ctx, 'pastil', pa.x, pa.y - 6, g.p.facing, t, false);
+  if (an.freed) drawCatSprite(ctx, 'ani', an.x, an.y - 6, g.p.facing, t, false);
+}
+
+// Chips at the top left: the ability and the cat who gave it
+function drawAbilities(ctx, g) {
+  const chips = [];
+  if (g.abilities.doubleJump) chips.push({ key: 'pastil', label: 'پرش دوباره' });
+  if (g.abilities.rapid) chips.push({ key: 'ani', label: 'جرقه‌ی سریع' });
+  let x = 24;
+  for (const c of chips) {
+    ctx.font = `700 14px ${FONT}`;
+    const tw = ctx.measureText(c.label).width;
+    const w = tw + 56;
+    ctx.fillStyle = 'rgba(10,6,20,0.6)';
+    ctx.beginPath();
+    ctx.roundRect(x, 48, w, 34, 17);
+    ctx.fill();
+    ctx.save();
+    ctx.beginPath();
+    ctx.arc(x + 17, 65, 13, 0, Math.PI * 2);
+    ctx.clip();
+    const img = CAT_IMAGES[c.key];
+    if (img && img.complete && img.naturalWidth > 0) {
+      ctx.drawImage(img, x + 4, 52, 26, 26);
+    } else {
+      ctx.fillStyle = CAT_STYLE[c.key].base;
+      ctx.fillRect(x + 4, 52, 26, 26);
+    }
+    ctx.restore();
+    ctx.strokeStyle = '#ffd66b';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.arc(x + 17, 65, 13, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = '#ffe9f2';
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'middle';
+    ctx.fillText(c.label, x + 38, 66);
+    ctx.textBaseline = 'alphabetic';
+    x += w + 10;
+  }
+}
+
 function drawFire(ctx, g) {
   for (const f of g.fire) {
     const glow = ctx.createRadialGradient(f.x, f.y, 2, f.x, f.y, 20);
@@ -1279,6 +1500,7 @@ function render(ctx, g, t) {
   drawRope(ctx, t);
   drawPrincess(ctx, g.princess, t);
   drawCage(ctx, g, t);
+  drawCats(ctx, g, t);
   drawDragon(ctx, g.dragon, t);
   drawFire(ctx, g);
   drawRocks(ctx, g);
@@ -1292,6 +1514,7 @@ function render(ctx, g, t) {
   }
   drawGlimmer(ctx, t);
   drawHud(ctx, g);
+  drawAbilities(ctx, g);
   if (g.phase === 'lost') {
     ctx.fillStyle = 'rgba(5,4,13,0.6)';
     ctx.fillRect(0, 0, W, H);
@@ -1331,6 +1554,7 @@ function buildDom() {
       </div>
     </div>
     <button type="button" class="rescue-skip" data-action="skip" hidden>رد کردن</button>
+    <div class="rescue-rotate" hidden><p>گوشی را افقی کن تا بازی را بهتر ببینی</p></div>
     <div class="rescue-touch" hidden>
       <div class="rescue-touch-group">
         <button type="button" data-key="left" aria-label="چپ">◀</button>
@@ -1347,7 +1571,7 @@ function buildDom() {
 
 // Plays the game. onDone() runs once the screen has gone black after the win (or a skip).
 // The caller then shows the next scene and calls reveal() to fade the black away.
-export function createRescueGame({ onDone }) {
+export function createRescueGame({ onDone, autoStart = false }) {
   const root = buildDom();
   const canvas = root.querySelector('.rescue-canvas');
   const ctx = canvas.getContext('2d');
@@ -1355,6 +1579,7 @@ export function createRescueGame({ onDone }) {
   const lostCard = root.querySelector('[data-card="lost"]');
   const skipBtn = root.querySelector('.rescue-skip');
   const touch = root.querySelector('.rescue-touch');
+  const rotateCard = root.querySelector('.rescue-rotate');
   const coarse = window.matchMedia('(pointer: coarse)').matches;
   if (coarse) {
     root.querySelector('[data-keys]').textContent = 'دکمه‌های پایین صفحه را برای حرکت و جرقه بزن';
@@ -1497,7 +1722,10 @@ export function createRescueGame({ onDone }) {
     if (exiting) return;
     const dt = Math.min(0.033, Math.max(0, (now - last) / 1000));
     last = now;
-    tick(dt);
+    // Phones held upright: ask for landscape and pause the game
+    const upright = coarse && window.innerHeight > window.innerWidth;
+    rotateCard.hidden = !upright;
+    if (!upright) tick(dt);
     draw();
     if (!exiting) raf = requestAnimationFrame(loop);
   }
@@ -1545,6 +1773,7 @@ export function createRescueGame({ onDone }) {
 
   resize();
   syncUi();
+  if (autoStart) startGame();
   last = performance.now();
   raf = requestAnimationFrame(loop);
 
