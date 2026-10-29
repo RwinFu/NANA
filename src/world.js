@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { memories as memoryList } from './memories.js';
+import { memories as memoryList, soloMemories, soloVideo } from './memories.js';
 import { buildCastle } from './castle.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
@@ -14,9 +14,16 @@ export const LAYOUT = {
   spawn: new THREE.Vector3(0, 0, 19),
   // The big envelope standing in front of the heart window at the end of the hall
   envelope: { x: 0, y: 0.6, z: -38.9, w: 3.4, h: 2.2 },
+  // The photo room in the garden, west of the house. Its walls, its doorway on the east side, and its inside.
+  room: {
+    height: 4.6,
+    ox0: -19.4, ox1: -9.4, oz0: 5.6, oz1: 14.4, // outside faces of the walls
+    x0: -18.8, x1: -10.0, z0: 6.2, z1: 13.8, // inside faces of the walls
+    door: { z0: 9.0, z1: 11.6, top: 3.6 },
+  },
 };
 
-const FRAME_Z_STEP = 4.6;
+const FRAME_Z_STEP = 4.0;
 const FRAME_Z_START = -5;
 const MAX_FRAME_H = 1.9;
 const MAX_FRAME_W = 2.6;
@@ -321,7 +328,7 @@ export function buildWorld(scene) {
   const leafGreen = new THREE.MeshStandardMaterial({ color: '#3e7a5c', roughness: 0.9, flatShading: true });
   const leafBlossom = new THREE.MeshStandardMaterial({ color: '#e7a0b8', roughness: 0.9, flatShading: true });
   const treeSpots = [
-    [-11, 3], [-14, 9], [-9, 14], [-17, 18], [-12, 22],
+    [-11, 3], [-21, 11], [-6, 22], [-17, 18], [-12, 22],
     [11, 4], [15, 10], [9, 15], [16, 20], [12, 24],
     [-19, 2], [20, 1],
   ];
@@ -439,90 +446,113 @@ export function buildWorld(scene) {
   lanterns.instanceColor.needsUpdate = true;
   scene.add(lanterns);
 
-  // Frames
+  // Frames: the hall's photos on its walls, and the room's photos on its walls
   const frameGeo = track(new THREE.BoxGeometry(1, 1, 0.08));
   const photoGeo = track(new THREE.PlaneGeometry(1, 1));
-  const frames = memoryList.map((memory, index) => {
-    const side = index % 2 === 0 ? -1 : 1; // alternate walls
-    const row = Math.floor(index / 2);
-    const z = FRAME_Z_START - row * FRAME_Z_STEP;
-    const group = new THREE.Group();
-    group.position.set(side * (LAYOUT.hallHalfWidth - 0.08), 2.7, z);
-    group.rotation.y = side < 0 ? Math.PI / 2 : -Math.PI / 2; // face into the hall
+  function buildFrames(list, startIndex, placeAt, maxW, maxH) {
+    return list.map((memory, i) => {
+      const index = startIndex + i;
+      const spot = placeAt(i);
+      const group = new THREE.Group();
+      group.position.set(spot.x, spot.y, spot.z);
+      group.rotation.y = spot.rotY; // face into the hall or the room
 
-    const frameMat = new THREE.MeshStandardMaterial({
-      color: memory.frame.color,
-      roughness: 0.35,
-      metalness: 0.55,
+      const frameMat = new THREE.MeshStandardMaterial({
+        color: memory.frame.color,
+        roughness: 0.35,
+        metalness: 0.55,
+      });
+      const frameMesh = new THREE.Mesh(frameGeo, frameMat);
+      frameMesh.position.z = -0.02;
+      group.add(frameMesh);
+
+      const placeholder = canvasTexture(256, 256, (ctx, w, h) => {
+        const g = ctx.createLinearGradient(0, 0, w, h);
+        g.addColorStop(0, memory.frame.glow);
+        g.addColorStop(1, memory.frame.color);
+        ctx.fillStyle = g;
+        ctx.fillRect(0, 0, w, h);
+        ctx.fillStyle = 'rgba(255,255,255,0.85)';
+        ctx.font = `600 22px ${FONT}`;
+        ctx.textAlign = 'center';
+        ctx.fillText('در حال بارگذاری', w / 2, h / 2);
+      });
+      const photoMat = new THREE.MeshStandardMaterial({
+        map: placeholder,
+        roughness: 0.7,
+        metalness: 0,
+        emissive: new THREE.Color(memory.frame.glow),
+        emissiveMap: null,
+        emissiveIntensity: 0.12,
+      });
+      const photo = new THREE.Mesh(photoGeo, photoMat);
+      photo.position.z = 0.045;
+      group.add(photo);
+
+      // Lamp above the frame, and a soft wash of light on the wall
+      const lampArm = new THREE.Mesh(
+        new THREE.BoxGeometry(0.05, 0.5, 0.05),
+        new THREE.MeshStandardMaterial({ color: '#15121c', metalness: 0.6, roughness: 0.4 })
+      );
+      lampArm.position.set(0, 1.25, 0.25);
+      group.add(lampArm);
+      const lampHead = new THREE.Mesh(
+        new THREE.SphereGeometry(0.1, 12, 10),
+        new THREE.MeshBasicMaterial({ color: memory.frame.glow, fog: false })
+      );
+      lampHead.position.set(0, 1.55, 0.3);
+      group.add(lampHead);
+      const wash = new THREE.Sprite(glowAdd(memory.frame.glow, 0.28));
+      wash.scale.set(4.6, 3.6, 1);
+      wash.position.set(0, 0.2, 0.15);
+      group.add(wash);
+
+      scene.add(group);
+
+      return {
+        index,
+        memory,
+        group,
+        photo,
+        wash,
+        frameMesh,
+        maxW,
+        maxH,
+        // world-space point the player walks toward, and where the wall is
+        center: group.position.clone(),
+        loaded: false,
+      };
     });
-    const frameMesh = new THREE.Mesh(frameGeo, frameMat);
-    frameMesh.position.z = -0.02;
-    group.add(frameMesh);
+  }
 
-    const placeholder = canvasTexture(256, 256, (ctx, w, h) => {
-      const g = ctx.createLinearGradient(0, 0, w, h);
-      g.addColorStop(0, memory.frame.glow);
-      g.addColorStop(1, memory.frame.color);
-      ctx.fillStyle = g;
-      ctx.fillRect(0, 0, w, h);
-      ctx.fillStyle = 'rgba(255,255,255,0.85)';
-      ctx.font = `600 22px ${FONT}`;
-      ctx.textAlign = 'center';
-      ctx.fillText('در حال بارگذاری', w / 2, h / 2);
-    });
-    const photoMat = new THREE.MeshStandardMaterial({
-      map: placeholder,
-      roughness: 0.7,
-      metalness: 0,
-      emissive: new THREE.Color(memory.frame.glow),
-      emissiveMap: null,
-      emissiveIntensity: 0.12,
-    });
-    const photo = new THREE.Mesh(photoGeo, photoMat);
-    photo.position.z = 0.045;
-    group.add(photo);
-
-    // Lamp above the frame, and a soft wash of light on the wall
-    const lampArm = new THREE.Mesh(
-      new THREE.BoxGeometry(0.05, 0.5, 0.05),
-      new THREE.MeshStandardMaterial({ color: '#15121c', metalness: 0.6, roughness: 0.4 })
-    );
-    lampArm.position.set(0, 1.25, 0.25);
-    group.add(lampArm);
-    const lampHead = new THREE.Mesh(
-      new THREE.SphereGeometry(0.1, 12, 10),
-      new THREE.MeshBasicMaterial({ color: memory.frame.glow, fog: false })
-    );
-    lampHead.position.set(0, 1.55, 0.3);
-    group.add(lampHead);
-    const wash = new THREE.Sprite(glowAdd(memory.frame.glow, 0.28));
-    wash.scale.set(4.6, 3.6, 1);
-    wash.position.set(0, 0.2, 0.15);
-    group.add(wash);
-
-    scene.add(group);
-
-    const frame = {
-      index,
-      memory,
-      group,
-      photo,
-      wash,
-      frameMesh,
-      // world-space point the player walks toward, and where the wall is
-      center: group.position.clone(),
-      loaded: false,
+  const hallFrames = buildFrames(memoryList, 0, (i) => {
+    const side = i % 2 === 0 ? -1 : 1; // alternate walls
+    const row = Math.floor(i / 2);
+    return {
+      x: side * (LAYOUT.hallHalfWidth - 0.08),
+      y: 2.7,
+      z: FRAME_Z_START - row * FRAME_Z_STEP,
+      rotY: side < 0 ? Math.PI / 2 : -Math.PI / 2,
     };
-    return frame;
-  });
+  }, MAX_FRAME_W, MAX_FRAME_H);
+
+  const R = LAYOUT.room;
+  const roomColumns = [-17.2, -14.4, -11.6];
+  const roomFrames = buildFrames(soloMemories, memoryList.length, (i) => {
+    if (i < 3) return { x: R.x0 + 0.06, y: 2.1, z: [7.5, 10, 12.5][i], rotY: Math.PI / 2 }; // west wall
+    if (i < 6) return { x: roomColumns[i - 3], y: 2.1, z: R.z0 + 0.06, rotY: 0 }; // near wall
+    return { x: roomColumns[i - 6], y: 2.1, z: R.z1 - 0.06, rotY: Math.PI }; // far wall
+  }, 1.9, 1.5);
+
+  const frames = [...hallFrames, ...roomFrames];
 
   function applyPhoto(frame, texture) {
     const previous = frame.photo.material.map;
     const aspect = texture.image.width / texture.image.height || 1.4;
-    let h = Math.min(MAX_FRAME_H, MAX_FRAME_W / aspect);
+    let h = Math.min(frame.maxH, frame.maxW / aspect);
     let w = h * aspect;
-    if (w > MAX_FRAME_W) {
-      w = MAX_FRAME_W;
+    if (w > frame.maxW) {
+      w = frame.maxW;
       h = w / aspect;
     }
     frame.photo.scale.set(w, h, 1);
@@ -561,6 +591,123 @@ export function buildWorld(scene) {
       () => fallbackPhoto(frame)
     );
   });
+
+  // The room in the garden: plum velvet walls, a gold chandelier, the nine photos, and a screen for the video
+  const roomGroup = new THREE.Group();
+  scene.add(roomGroup);
+  const velvet = track(new THREE.MeshStandardMaterial({ color: '#3b1c36', roughness: 0.95 }));
+  const roomFloor = track(new THREE.MeshStandardMaterial({ color: '#2a1426', roughness: 0.6 }));
+  const roomCeil = track(new THREE.MeshStandardMaterial({ color: '#1f0f1d', roughness: 0.9 }));
+  const gold = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3, emissive: '#5a3a10', emissiveIntensity: 0.2 }));
+  const unitBox = track(new THREE.BoxGeometry(1, 1, 1));
+  function block(x0, x1, y0, y1, z0, z1, mat) {
+    const m = new THREE.Mesh(unitBox, mat);
+    m.scale.set(x1 - x0, y1 - y0, z1 - z0);
+    m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2);
+    roomGroup.add(m);
+    return m;
+  }
+  const H = R.height;
+  // Walls: the ring around the room, with a doorway in the east wall
+  block(R.ox0, R.x0, 0, H, R.oz0, R.oz1, velvet); // west
+  block(R.ox0, R.ox1, 0, H, R.z1, R.oz1, velvet); // far
+  block(R.ox0, R.ox1, 0, H, R.oz0, R.z0, velvet); // near
+  block(R.x1, R.ox1, 0, H, R.oz0, R.door.z0, velvet); // east, north of the door
+  block(R.x1, R.ox1, 0, H, R.door.z1, R.oz1, velvet); // east, south of the door
+  block(R.x1, R.ox1, R.door.top, H, R.door.z0, R.door.z1, velvet); // lintel
+  block(R.ox0, R.ox1, -0.1, 0, R.oz0, R.oz1, roomFloor);
+  block(R.ox0, R.ox1, H, H + 0.2, R.oz0, R.oz1, roomCeil);
+  // Gold trim along the top and the base of the inside walls
+  const trimTop = H - 0.25;
+  block(R.x0, R.x1, trimTop, trimTop + 0.12, R.z0, R.z0 + 0.1, gold);
+  block(R.x0, R.x1, trimTop, trimTop + 0.12, R.z1 - 0.1, R.z1, gold);
+  block(R.x0, R.x0 + 0.1, trimTop, trimTop + 0.12, R.z0, R.z1, gold);
+  block(R.x1 - 0.1, R.x1, trimTop, trimTop + 0.12, R.z0, R.door.z0, gold);
+  block(R.x1 - 0.1, R.x1, trimTop, trimTop + 0.12, R.door.z1, R.z1, gold);
+  block(R.x0, R.x1, 0, 0.18, R.z0, R.z0 + 0.06, gold);
+  block(R.x0, R.x1, 0, 0.18, R.z1 - 0.06, R.z1, gold);
+  block(R.x0, R.x0 + 0.06, 0, 0.18, R.z0, R.z1, gold);
+  block(R.x1 - 0.06, R.x1, 0, 0.18, R.z0, R.door.z0, gold);
+  block(R.x1 - 0.06, R.x1, 0, 0.18, R.door.z1, R.z1, gold);
+
+  // Rug in the middle of the floor
+  const rugTex = canvasTexture(512, 400, (ctx, w, h) => {
+    ctx.fillStyle = '#7a2650';
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#e0b060';
+    ctx.lineWidth = 14;
+    ctx.strokeRect(24, 24, w - 48, h - 48);
+    ctx.strokeStyle = '#f2a7c3';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(60, 60, w - 120, h - 120);
+    // a gold medallion in the middle
+    ctx.beginPath();
+    ctx.arc(w / 2, h / 2, 56, 0, Math.PI * 2);
+    ctx.fillStyle = '#e0b060';
+    ctx.fill();
+    ctx.fillStyle = '#7a2650';
+    ctx.beginPath();
+    ctx.arc(w / 2, h / 2, 40, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  rugTex.colorSpace = THREE.SRGBColorSpace;
+  const roomRug = new THREE.Mesh(
+    track(new THREE.PlaneGeometry(4.6, 3.6)),
+    new THREE.MeshStandardMaterial({ map: rugTex, roughness: 0.9 })
+  );
+  roomRug.rotation.x = -Math.PI / 2;
+  roomRug.position.set((R.x0 + R.x1) / 2, 0.02, 10);
+  roomGroup.add(roomRug);
+
+  // Chandelier: a gold ring hung from the ceiling, with pink lights
+  const chandelier = new THREE.Group();
+  chandelier.position.set((R.x0 + R.x1) / 2, H - 0.9, 10);
+  roomGroup.add(chandelier);
+  const ring = new THREE.Mesh(track(new THREE.TorusGeometry(0.9, 0.05, 10, 36)), gold);
+  ring.rotation.x = Math.PI / 2;
+  chandelier.add(ring);
+  const rod = new THREE.Mesh(track(new THREE.CylinderGeometry(0.02, 0.02, 0.9, 8)), gold);
+  rod.position.y = 0.45;
+  chandelier.add(rod);
+  const bulbMat = track(new THREE.MeshBasicMaterial({ color: '#ffd6ea' }));
+  for (let k = 0; k < 8; k += 1) {
+    const a = (k / 8) * Math.PI * 2;
+    const bulb = new THREE.Mesh(track(new THREE.SphereGeometry(0.07, 10, 8)), bulbMat);
+    bulb.position.set(Math.cos(a) * 0.9, -0.05, Math.sin(a) * 0.9);
+    chandelier.add(bulb);
+  }
+  const chandLight = new THREE.PointLight('#ffd0e6', 6, 12, 2);
+  chandLight.position.set((R.x0 + R.x1) / 2, H - 1.4, 10);
+  roomGroup.add(chandLight);
+
+  // The screen on the east wall, playing the video. Its shape follows the video's own proportions.
+  const roomVideo = document.createElement('video');
+  roomVideo.src = soloVideo.src;
+  roomVideo.loop = true;
+  roomVideo.muted = true;
+  roomVideo.playsInline = true;
+  roomVideo.preload = 'auto';
+  const videoTex = track(new THREE.VideoTexture(roomVideo));
+  videoTex.colorSpace = THREE.SRGBColorSpace;
+  const screenH = 1.4;
+  const screen = new THREE.Mesh(
+    track(new THREE.PlaneGeometry(1, 1)),
+    new THREE.MeshBasicMaterial({ map: videoTex, toneMapped: false })
+  );
+  const screenFrame = new THREE.Mesh(unitBox, gold);
+  screenFrame.scale.set(0.04, screenH + 0.22, screenH * (16 / 9) + 0.22);
+  const screenAt = { x: R.x1 - 0.12, y: 2.2, z: 7.6 }; // in front of its gold frame
+  screen.position.set(screenAt.x, screenAt.y, screenAt.z);
+  screen.rotation.y = -Math.PI / 2; // face into the room
+  screen.scale.set(screenH * (16 / 9), screenH, 1);
+  screenFrame.position.set(R.x1 - 0.07, screenAt.y, screenAt.z);
+  roomGroup.add(screen, screenFrame);
+  roomVideo.addEventListener('loadedmetadata', () => {
+    const aspect = roomVideo.videoWidth / roomVideo.videoHeight || 16 / 9;
+    screen.scale.set(screenH * aspect, screenH, 1);
+    screenFrame.scale.set(0.04, screenH + 0.22, screenH * aspect + 0.22);
+  });
+  roomVideo.play().catch(() => {});
 
   // Rising hearts (pooled sprites) used when the love button is pressed
   const heartTex = canvasTexture(128, 128, (ctx) => {
@@ -669,6 +816,9 @@ export function buildWorld(scene) {
       frame.photo.material.dispose();
     });
     plaqueTex.dispose();
+    roomVideo.pause();
+    roomVideo.removeAttribute('src');
+    roomVideo.load();
   }
 
   return {

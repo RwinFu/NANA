@@ -34,6 +34,14 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   if (Math.abs(x) < env.w / 2 + margin && Math.abs(z - env.z) < 0.1 + margin && y < env.y + env.h + 0.3) {
     return true;
   }
+  // The photo room in the garden: its walls, with a doorway on the east side
+  const R = LAYOUT.room;
+  const inOuter = x >= R.ox0 - margin && x <= R.ox1 + margin && z >= R.oz0 - margin && z <= R.oz1 + margin;
+  if (inOuter && y < R.height) {
+    const inside = x >= R.x0 + margin && x <= R.x1 - margin && z >= R.z0 + margin && z <= R.z1 - margin;
+    const doorway = x >= R.x1 - margin && x <= R.ox1 + margin && z >= R.door.z0 + margin && z <= R.door.z1 - margin;
+    if (!inside && !doorway) return true;
+  }
   // Garden limits
   if (Math.abs(x) > LAYOUT.gardenHalfWidth) return true;
   if (z > LAYOUT.gardenDepth) return true;

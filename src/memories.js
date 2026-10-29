@@ -118,4 +118,72 @@ export const memories = [
     image: memoryImage('memory-12.jpg'),
     frame: { name: 'آسمان شب با قاب نوری', color: '#171d33', glow: '#ffd257' },
   },
+  // Two-person photos added later, in the hall
+  {
+    id: 'night-drive-flash',
+    title: 'شب، ماشین، و یک فلاش',
+    caption: 'یک شب دیروقت، کنار هم و با خنده‌هایی که هنوز توی ماشین می‌پیچن.',
+    chapter: 'شب دیروقت',
+    image: memoryImage('memory-13.jpg'),
+    frame: { name: 'مس شب‌تاب', color: '#8a5a3c', glow: '#ffc78a' },
+  },
+  {
+    id: 'side-by-side',
+    title: 'کنار هم، همیشه',
+    caption: 'بعضی عکس‌ها ژست نمی‌خوان؛ فقط باید کنار هم باشیم.',
+    chapter: 'کنار هم',
+    image: memoryImage('memory-14.jpg'),
+    frame: { name: 'ابریشم یاسی', color: '#8e6fb0', glow: '#d9c2ff' },
+  },
+  {
+    id: 'selfie-together',
+    title: 'سلفیِ ما دونفر',
+    caption: 'با هم بودن، قشنگ‌ترین قاب‌بندی دنیاست.',
+    chapter: 'سلفیِ دونفره',
+    image: memoryImage('memory-15.jpg'),
+    frame: { name: 'نقره‌ی ماه', color: '#b8c2d4', glow: '#e3ecff' },
+  },
+  {
+    id: 'mirror-love',
+    title: 'آینه، رژ، و یک خنده',
+    caption: 'دو نفر، یک آینه، و کلی شیطنت عاشقانه.',
+    chapter: 'آینه‌ی عاشقانه',
+    image: memoryImage('memory-16.jpg'),
+    frame: { name: 'مخمل گل رز', color: '#9b2a4e', glow: '#ff8fb1' },
+  },
+  {
+    id: 'closer',
+    title: 'نزدیک‌تر از همیشه',
+    caption: 'بعضی لحظه‌ها اونقدر نزدیک‌ن که فقط با دل می‌شه دیدشون.',
+    chapter: 'نزدیک‌تر',
+    image: memoryImage('memory-17.jpg'),
+    frame: { name: 'عاج صدفی', color: '#e8dccb', glow: '#fff3e0' },
+  },
+  {
+    id: 'winter-tree',
+    title: 'کنار درخت کریسمس',
+    caption: 'یک شب زمستونی، زیر نور چراغ‌های درخت و کنار هم.',
+    chapter: 'شب زمستونی',
+    image: memoryImage('memory-18.jpg'),
+    frame: { name: 'کاج با نور طلایی', color: '#2f5e4a', glow: '#ffe27a' },
+  },
 ];
+
+// Single photos, shown in the room in the garden
+export const soloMemories = [
+  { id: 'calm-look', title: 'لبخندِ آروم', caption: 'توی ماشین، با دستی که آروم صورتت رو گرفته؛ آرامشت منو هم آروم می‌کنه.', chapter: 'آرامش', image: memoryImage('solo-01.jpg'), frame: { name: 'طلای وانیلی', color: '#c9a25b', glow: '#ffe9b0' } },
+  { id: 'cat-cuddle', title: 'یک دوستِ کوچولو', caption: 'با گربه‌ی سیاه‌وسفید، همون‌قدر مهربون و نرم که خودت هستی.', chapter: 'مهربانی', image: memoryImage('solo-02.jpg'), frame: { name: 'چوب روشن', color: '#a0785a', glow: '#ffd9b0' } },
+  { id: 'kitten-hug', title: 'بغلِ گربه‌ی کوچولو', caption: 'یه بغلِ کوچیک که دلم رو گرم کرد.', chapter: 'گرمای دل', image: memoryImage('solo-03.jpg'), frame: { name: 'یشم سبز', color: '#2c6e5a', glow: '#9fe6c8' } },
+  { id: 'floral-shirt', title: 'روزِ آفتابی', caption: 'با پیراهن گل‌دار، ساعت نقره‌ای و یک روز آفتابی.', chapter: 'روز آفتابی', image: memoryImage('solo-04.jpg'), frame: { name: 'مرمر گل‌دار', color: '#d9b9a3', glow: '#ffe0cc' } },
+  { id: 'red-necklace', title: 'گردنبند قرمز', caption: 'یک لبخند ساده با گردنبند قرمز؛ همون چیزی که منو هر روز شاد می‌کنه.', chapter: 'شادیِ ساده', image: memoryImage('solo-05.jpg'), frame: { name: 'یاقوت آتشی', color: '#8a1d2f', glow: '#ff7a8f' } },
+  { id: 'bouquet', title: 'دسته‌گلِ من', caption: 'با دسته‌گل آفتابگردون و رز؛ تو زیباترین گل زندگی منی.', chapter: 'دسته‌گل', image: memoryImage('solo-06.jpg'), frame: { name: 'آبنوس طلایی', color: '#2b2a33', glow: '#ffd27a' } },
+  { id: 'strawberry-mirror', title: 'آینه و توت‌فرنگی', caption: 'یه سلفیِ شیطون با توت‌فرنگی روی گوشی.', chapter: 'شیطنت', image: memoryImage('solo-07.jpg'), frame: { name: 'فیروزه‌ی روشن', color: '#5fb9d6', glow: '#b8efff' } },
+  { id: 'christmas-tree', title: 'زیر درخت کریسمس', caption: 'میان چراغ‌ها و زینت‌های کریسمس، با تو هر گوشه زیباتره.', chapter: 'کریسمسِ ما', image: memoryImage('solo-08.jpg'), frame: { name: 'طلای قرمز', color: '#b33a3a', glow: '#ffb0a0' } },
+  { id: 'blue-jacket', title: 'کاپشن آبی', caption: 'با کاپشن آبی و گوشواره‌ی کوچیک؛ آرومی و قشنگی توی یک قاب.', chapter: 'آرامش آبی', image: memoryImage('solo-09.jpg'), frame: { name: 'لاجورد', color: '#2d4f8a', glow: '#9ec7ff' } },
+];
+
+// The room's video, played on its screen
+export const soloVideo = { src: memoryImage('solo-video.mp4') };
+
+// Every photo, in viewer order: the hall first, then the room
+export const allMemories = [...memories, ...soloMemories];

@@ -1,7 +1,7 @@
 import '@fontsource-variable/vazirmatn';
 import './style.css';
 import * as THREE from 'three';
-import { defaults, letterParagraphs, memories } from './memories.js';
+import { allMemories, defaults, letterParagraphs } from './memories.js';
 import { createStore, formatNumber } from './state.js';
 import { buildWorld, LAYOUT } from './world.js';
 import { createCouple } from './characters.js';
@@ -239,9 +239,9 @@ const memoryPhoto = $('#memory-photo');
 const memoryFrame = $('#memory-frame');
 
 function showMemory(index) {
-  const count = memories.length;
+  const count = allMemories.length;
   memoryIndex = (index + count) % count;
-  const memory = memories[memoryIndex];
+  const memory = allMemories[memoryIndex];
   $('#memory-title').textContent = memory.title;
   $('#memory-caption').textContent = memory.caption;
   $('#memory-chapter').textContent = memory.chapter;
