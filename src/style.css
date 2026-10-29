@@ -520,6 +520,38 @@ kbd {
   touch-action: none;
 }
 
+.jump-btn {
+  position: fixed;
+  bottom: 28px;
+  inset-inline-end: 24px;
+  width: 84px;
+  height: 84px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 207, 138, 0.45);
+  background: rgba(20, 16, 42, 0.5);
+  color: var(--cream);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  touch-action: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.jump-btn[hidden] {
+  display: none;
+}
+
+.jump-btn svg {
+  width: 34px;
+  height: 34px;
+  fill: currentColor;
+}
+
+.jump-btn:active {
+  transform: scale(0.94);
+  background: rgba(40, 32, 70, 0.85);
+}
+
 .joystick-knob {
   width: 58px;
   height: 58px;
@@ -858,10 +890,12 @@ dialog h2 {
     font-size: 17px;
   }
 
+  /* HUD: one compact block of 44px tap targets that wraps onto two rows */
   .hud {
     flex-direction: column;
     align-items: stretch;
-    padding: 10px 10px;
+    gap: 0;
+    padding: 8px 8px 10px;
   }
 
   .hud-title {
@@ -871,14 +905,17 @@ dialog h2 {
   .hud-actions {
     justify-content: center;
     gap: 6px;
-  }.chip {
-    min-height: 38px;
-    padding: 6px 12px;
-    font-size: 14px;
+  }
+
+  .chip {
+    min-height: 44px;
+    padding: 8px 14px;
+    font-size: 15px;
+    white-space: nowrap;
   }
 
   .icon-chip {
-    width: 38px;
+    width: 44px;
   }
 
   .controls-hint {
@@ -886,23 +923,37 @@ dialog h2 {
   }
 
   .toast {
-    top: 196px;
+    top: 124px;
+    font-size: 15px;
+    padding: 12px 18px;
   }
 
   .prompt {
     bottom: 186px;
   }
 
+  .prompt-text {
+    min-height: 44px;
+  }
+
+  /* Joystick: smaller so it leaves the couple in view; the thumb stays inside the ring */
   .joystick {
-    width: 116px;
-    height: 116px;
-    inset-inline-start: 16px;
-    bottom: 22px;
+    width: 104px;
+    height: 104px;
+    inset-inline-start: 14px;
+    bottom: 20px;
   }
 
   .joystick-knob {
-    width: 50px;
-    height: 50px;
+    width: 46px;
+    height: 46px;
+  }
+
+  .jump-btn {
+    width: 72px;
+    height: 72px;
+    bottom: 20px;
+    inset-inline-end: 14px;
   }
 
   dialog.sheet {

@@ -639,6 +639,7 @@ export function createCouple(dressColor) {
   let rootReady = false;
   let phase = 0; // stride phase: advances with the distance the couple walks, so feet do not slide
   let amount = 0; // 0 standing, 1 walking, eased in and out
+  let airAmount = 0; // 0 on the ground, 1 mid-jump, eased in and out
   let idleTime = 0;
   let waveAmount = 0;
   let lookYaw = 0; // how far the boy turns his head toward her
@@ -745,14 +746,14 @@ export function createCouple(dressColor) {
       .applyAxisAngle(up, yaw);
     boyTarget.copy(rootPos).add(offsetLocal);
     boyWorld.lerp(boyTarget, 1 - Math.exp(-dt * FOLLOW_RATE));
-    boyWorld.y = 0;
+    boyWorld.y = rootPos.y; // he rises and lands with her when she jumps
     const faceHer = lerpAngle(0, m.phi + Math.PI, danceAmount);
     boyYaw = lerpAngle(boyYaw, yaw + faceHer, 1 - Math.exp(-dt * FOLLOW_RATE));
     boy.position.copy(root.worldToLocal(boyWorld.clone()));
     boy.rotation.y = boyYaw - yaw;
   }
 
-  function animate(dt, t, moving) {
+  function animate(dt, t, moving, airborne = false) {
     const step = Math.min(dt, 0.05);
     // distance walked since the last frame (ignores large jumps such as teleports)
     root.getWorldPosition(rootPos);
@@ -760,6 +761,8 @@ export function createCouple(dressColor) {
     prevRoot.copy(rootPos);
     if (moving) phase += (walked / STRIDE) * Math.PI * 2;
     amount += ((moving ? 1 : 0) - amount) * Math.min(1, dt * 8);
+    airAmount += ((airborne ? 1 : 0) - airAmount) * Math.min(1, dt * 14);
+    const air = airAmount;
 
     // Walking ends a dance; a dance holds hands
     if (moving) danceId = -1;
@@ -812,13 +815,13 @@ export function createCouple(dressColor) {
       const fi = fd + i * Math.PI;
       feet[i].position.set(
         x,
-        0.06 + Math.max(0, Math.cos(fw)) * 0.07 * amount * walk + Math.max(0, Math.cos(fi)) * 0.07 * m.feetAmp * d,
+        0.06 + Math.max(0, Math.cos(fw)) * 0.07 * amount * walk + Math.max(0, Math.cos(fi)) * 0.07 * m.feetAmp * d + 0.05 * air,
         0.12 + Math.sin(fw) * 0.14 * amount * walk + Math.sin(fi) * 0.14 * m.feetAmp * d,
       );
     });
     // Her arm on his side: hangs by default, reaches for his hand when holding, and takes the dance pose
     arms[0].rotation.x = Math.sin(phase) * 0.04 * amount * walk + armX * d;
-    arms[0].rotation.z = THREE.MathUtils.lerp(THREE.MathUtils.lerp(-0.12, -0.6, holdAmount), armZ, d);
+    arms[0].rotation.z = THREE.MathUtils.lerp(THREE.MathUtils.lerp(-0.12, -0.6, holdAmount), armZ, d) - 0.35 * air;
     arms[1].rotation.x = -s * 0.35 * amount * walk + 0.15 * idle - 0.15 * d * Math.sin(fd);
     head.rotation.y = Math.sin(t * 0.7) * 0.08 * idle;
     head.rotation.z = m.roll * 0.5 * d;
@@ -828,8 +831,8 @@ export function createCouple(dressColor) {
     legs.forEach((hip, i) => {
       const fw = phase + i * Math.PI;
       const fi = fd + i * Math.PI;
-      hip.rotation.x = Math.sin(fw) * 0.5 * amount * walk + Math.sin(fi) * m.legAmp * d;
-      shins[i].rotation.x = 0.85 * Math.max(0, Math.cos(fw)) * amount * walk + 2 * m.legAmp * Math.max(0, Math.cos(fi)) * d;
+      hip.rotation.x = Math.sin(fw) * 0.5 * amount * walk + Math.sin(fi) * m.legAmp * d - 0.6 * air;
+      shins[i].rotation.x = 0.85 * Math.max(0, Math.cos(fw)) * amount * walk + 2 * m.legAmp * Math.max(0, Math.cos(fi)) * d + 1.0 * air;
     });
     boyBody.position.y = Math.abs(s) * 0.035 * amount * walk + Math.sin(t * 1.4 + 1) * 0.01 * idle + bounce;
     boyBody.rotation.z = s * 0.025 * amount * walk + m.roll * d;

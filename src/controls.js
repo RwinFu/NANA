@@ -7,6 +7,19 @@ const PLAYER_RADIUS = 0.3;
 const BOY_REACH = 1.5;
 const WALK_SPEED = 3.6;
 const RUN_SPEED = 6.0;
+// Orbit sensitivity: a finger drags the camera faster than a mouse, so touch gets its own rates
+const MOUSE_YAW = 0.0056;
+const MOUSE_PITCH = 0.0037;
+const TOUCH_YAW = 0.0085;
+const TOUCH_PITCH = 0.0048;
+// Portrait screens are narrow, so the camera sits a little farther back to fit the couple
+function baseDistance() {
+  return window.innerWidth / Math.max(1, window.innerHeight) < 0.8 ? 6.3 : 5.4;
+}
+// Jump: about 1 m high, about 0.8 s in the air
+const JUMP_SPEED = 5.0;
+const JUMP_GRAVITY = 12.5;
+const JUMP_BUFFER = 0.12; // a press just before landing still jumps
 const MOVE_KEYS = {
   KeyW: [0, 1], ArrowUp: [0, 1],
   KeyS: [0, -1], ArrowDown: [0, -1],
@@ -56,8 +69,11 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   let heading = Math.PI; // facing the house
   let yaw = 0; // camera orbit angle around the player
   let pitch = 0.42;
-  let distance = 5.4;
+  let distance = baseDistance();
   let targetDistance = distance;
+  let spin = { yaw: 0, pitch: 0 }; // touch flick momentum, in radians per frame
+  let lastDragAt = 0;
+  let dragKind = 'mouse';
   const lookAt = pos.clone();
   let moving = false;
   let running = false;
@@ -66,6 +82,9 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   let pinchStart = 0;
   let pinchDistance = 0;
   let downAt = null;
+  let jumpY = 0; // height above the ground
+  let jumpVy = 0;
+  let jumpBuf = 0;
 
   const forward = new THREE.Vector3();
   const right = new THREE.Vector3();
@@ -79,6 +98,10 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
       if (event.code.startsWith('Arrow')) event.preventDefault();
     }
     if (event.code === 'ShiftLeft' || event.code === 'ShiftRight') running = true;
+    if (event.code === 'Space') {
+      event.preventDefault();
+      if (!event.repeat) jumpBuf = JUMP_BUFFER;
+    }
   }
   function onKeyUp(event) {
     keys.delete(event.code);
@@ -99,6 +122,8 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   function onPointerDown(event) {
     if (event.button !== undefined && event.button !== 0 && event.pointerType === 'mouse') return;
     canvas.setPointerCapture?.(event.pointerId);
+    dragKind = event.pointerType || 'mouse';
+    spin = { yaw: 0, pitch: 0 };
     pointers.set(event.pointerId, { x: event.clientX, y: event.clientY });
     downAt = { x: event.clientX, y: event.clientY, time: performance.now(), id: event.pointerId };
     if (pointers.size === 1) {
@@ -123,8 +148,13 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
       const dx = event.clientX - dragging.x;
       const dy = event.clientY - dragging.y;
       dragging = { x: event.clientX, y: event.clientY };
-      yaw -= dx * 0.0056;
-      pitch = THREE.MathUtils.clamp(pitch + dy * 0.0037, 0.12, 1.2);
+      const touch = dragKind === 'touch' || dragKind === 'pen';
+      const dYaw = -dx * (touch ? TOUCH_YAW : MOUSE_YAW);
+      const dPitch = dy * (touch ? TOUCH_PITCH : MOUSE_PITCH);
+      yaw += dYaw;
+      pitch = THREE.MathUtils.clamp(pitch + dPitch, 0.12, 1.2);
+      lastDragAt = performance.now();
+      spin = touch ? { yaw: dYaw, pitch: dPitch } : { yaw: 0, pitch: 0 };
     }
   }
   function onPointerUp(event) {
@@ -145,6 +175,8 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
     if (pointers.size === 0) {
       dragging = null;
       downAt = null;
+      // A quick flick keeps the camera turning briefly, then it eases to a stop
+      if (performance.now() - lastDragAt > 90) spin = { yaw: 0, pitch: 0 };
     }
     if (pointers.size === 1) {
       const [only] = pointers.values();
@@ -189,8 +221,30 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
     if (!isSolid(pos.x, 0, nz)) pos.z = nz;
   }
 
+  function jump() {
+    if (isBlocked()) return;
+    jumpBuf = JUMP_BUFFER;
+  }
+
+  function updateJump(dt) {
+    if (jumpBuf > 0 && jumpY === 0) {
+      jumpVy = JUMP_SPEED;
+      jumpBuf = 0;
+    }
+    jumpBuf = Math.max(0, jumpBuf - dt);
+    if (jumpY > 0 || jumpVy > 0) {
+      jumpVy -= JUMP_GRAVITY * dt;
+      jumpY += jumpVy * dt;
+      if (jumpY <= 0) {
+        jumpY = 0;
+        jumpVy = 0;
+      }
+    }
+  }
+
   function update(dt) {
     const [ix, iy] = isBlocked() ? [0, 0] : computeMoveInput();
+    updateJump(dt);
 
     // Camera-relative directions on the ground plane
     camera.getWorldDirection(forward);
@@ -209,12 +263,24 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
       heading = lerpAngle(heading, targetHeading, Math.min(1, dt * 12));
     }
 
-    player.position.set(pos.x, 0, pos.z);
+    player.position.set(pos.x, jumpY, pos.z);
     playerModel.rotation.y = heading;
+
+    // Touch flick momentum eases out; a new drag cancels it
+    if (!dragging && (spin.yaw || spin.pitch)) {
+      const k = dt * 60;
+      yaw += spin.yaw * k;
+      pitch = THREE.MathUtils.clamp(pitch + spin.pitch * k, 0.12, 1.2);
+      const decay = Math.exp(-dt * 5);
+      spin.yaw *= decay;
+      spin.pitch *= decay;
+      if (Math.abs(spin.yaw) < 1e-4) spin.yaw = 0;
+      if (Math.abs(spin.pitch) < 1e-4) spin.pitch = 0;
+    }
 
     // Camera follows smoothly and never passes through walls
     distance += (targetDistance - distance) * Math.min(1, dt * 8);
-    lookAt.lerp(new THREE.Vector3(pos.x, 1.5, pos.z), Math.min(1, dt * 10));
+    lookAt.lerp(new THREE.Vector3(pos.x, 1.5 + jumpY * 0.35, pos.z), Math.min(1, dt * 10));
     placeCamera();
   }
 
@@ -244,10 +310,14 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
     heading = Math.PI;
     yaw = 0;
     lookAt.set(pos.x, 1.5, pos.z);
-    targetDistance = distance = 5.4;
+    targetDistance = distance = baseDistance();
+    spin = { yaw: 0, pitch: 0 };
     keys.clear();
     joystick.x = 0;
     joystick.y = 0;
+    jumpY = 0;
+    jumpVy = 0;
+    jumpBuf = 0;
     placeCamera();
   }
 
@@ -268,6 +338,7 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   return {
     update,
     reset,
+    jump,
     setJoystick,
     dispose,
     get position() {
@@ -275,6 +346,12 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
     },
     get moving() {
       return moving;
+    },
+    get airborne() {
+      return jumpY > 0;
+    },
+    get jumpHeight() {
+      return jumpY;
     },
     get running() {
       return running;
