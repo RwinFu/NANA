@@ -17,6 +17,8 @@ const FOLLOW_RATE = 16; // higher means the boy keeps closer to his spot
 const STRIDE = 3.4;
 const HAIR_LIMIT = 1.3; // radians; keeps the hair from folding through the body
 const up = new THREE.Vector3(0, 1, 0);
+// The two-person dances, in the order the dance button cycles through them
+const DANCE_NAMES = ['والس', 'چرخش دونفره', 'دست بالا'];
 
 function part(mesh, parent, x = 0, y = 0, z = 0) {
   mesh.position.set(x, y, z);
@@ -450,11 +452,16 @@ export function createCouple(dressColor) {
   const dir = new THREE.Vector3();
   const mid = new THREE.Vector3();
 
-  // Place the inner arm from the boy's shoulder to her hand (in boy-local space)
-  function stretchInnerArm() {
+  const reachLocal = new THREE.Vector3();
+  const hangLocal = new THREE.Vector3();
+  // Place the inner arm from the boy's shoulder to his hand (in boy-local space). The hand hangs
+  // by his side and swings with the stride, or reaches for her hand while they hold hands.
+  function stretchInnerArm(hold, s, walk) {
     root.updateMatrixWorld(true);
     handL.getWorldPosition(handWorld);
-    boy.worldToLocal(handLocal.copy(handWorld));
+    boy.worldToLocal(reachLocal.copy(handWorld));
+    hangLocal.set(innerShoulder.x, innerShoulder.y - 0.56, -0.28 * s * walk);
+    handLocal.copy(hangLocal).lerp(reachLocal, hold);
     dir.copy(handLocal).sub(innerShoulder);
     const len = dir.length();
     if (len < 1e-4) return;
@@ -502,12 +509,22 @@ export function createCouple(dressColor) {
   const boyTarget = new THREE.Vector3();
   const boyWorld = new THREE.Vector3();
   const offset = new THREE.Vector3(-FOLLOW_SIDE, 0, -FOLLOW_BACK);
+  const offsetLocal = new THREE.Vector3();
   let boyYaw = 0;
   let rootReady = false;
   let phase = 0; // stride phase: advances with the distance the couple walks, so feet do not slide
   let amount = 0; // 0 standing, 1 walking, eased in and out
   let idleTime = 0;
   let waveAmount = 0;
+
+  // ----- hand holding and dances -----
+  let holding = false; // the player asked him to hold her hand
+  let holdAmount = 0; // eased: 0 hand down, 1 hands joined
+  let danceId = -1; // -1 no dance, otherwise an index into DANCE_NAMES
+  let danceT = 0; // time spent in the current dance
+  let danceAmount = 0; // eased: 0 beside her, 1 at the dance spot
+  let liftAmount = 0; // eased: her arm raised for the lifted-hand dance
+  let spinAngle = 0; // how far she has turned in the spin dance
 
   function lerpAngle(a, b, t) {
     let diff = b - a;
@@ -516,7 +533,21 @@ export function createCouple(dressColor) {
     return a + diff * t;
   }
 
-  // The boy keeps his place beside her and catches up if she moves on
+  // A spot on a circle around her, in her space, with him facing her
+  function poseAt(phi) {
+    const R = 0.8;
+    return { x: R * Math.sin(phi), z: R * Math.cos(phi), yaw: phi + Math.PI };
+  }
+
+  // Where he stands for the current dance (in her space). Beside her when there is no dance.
+  function dancePose() {
+    if (danceId === 0) return poseAt(-Math.PI / 2 + 0.55 * Math.sin((danceT * Math.PI * 2) / 3.6)); // waltz sway
+    if (danceId === 1) return poseAt(-Math.PI / 2 + spinAngle); // he circles her as she turns
+    if (danceId === 2) return poseAt(-Math.PI / 2 + 0.25 * Math.sin((danceT * Math.PI * 2) / 1.2)); // lifted-hand sway
+    return poseAt(-Math.PI / 2);
+  }
+
+  // The boy keeps his place beside her, or at the dance spot, and catches up if she moves on
   function followPrincess(dt) {
     root.getWorldPosition(rootPos);
     const yaw = root.rotation.y;
@@ -526,10 +557,19 @@ export function createCouple(dressColor) {
       boyYaw = yaw;
       rootReady = true;
     }
-    boyTarget.copy(rootPos).add(offset.clone().applyAxisAngle(up, yaw));
+    const pose = dancePose();
+    offsetLocal
+      .set(
+        THREE.MathUtils.lerp(-FOLLOW_SIDE, pose.x, danceAmount),
+        0,
+        THREE.MathUtils.lerp(-FOLLOW_BACK, pose.z, danceAmount),
+      )
+      .applyAxisAngle(up, yaw);
+    boyTarget.copy(rootPos).add(offsetLocal);
     boyWorld.lerp(boyTarget, 1 - Math.exp(-dt * FOLLOW_RATE));
     boyWorld.y = 0;
-    boyYaw = lerpAngle(boyYaw, yaw, 1 - Math.exp(-dt * FOLLOW_RATE));
+    const turn = lerpAngle(0, pose.yaw, danceAmount);
+    boyYaw = lerpAngle(boyYaw, yaw + turn, 1 - Math.exp(-dt * FOLLOW_RATE));
     boy.position.copy(root.worldToLocal(boyWorld.clone()));
     boy.rotation.y = boyYaw - yaw;
   }
@@ -543,30 +583,48 @@ export function createCouple(dressColor) {
     if (moving) phase += (walked / STRIDE) * Math.PI * 2;
     amount += ((moving ? 1 : 0) - amount) * Math.min(1, dt * 8);
 
+    // Walking ends a dance; a dance holds hands
+    if (moving) danceId = -1;
+    const dancing = danceId >= 0;
+    if (dancing) danceT += step;
+    danceAmount += ((dancing ? 1 : 0) - danceAmount) * Math.min(1, dt * 4);
+    holdAmount += ((holding || dancing ? 1 : 0) - holdAmount) * Math.min(1, dt * 6);
+    liftAmount += ((danceId === 2 ? 1 : 0) - liftAmount) * Math.min(1, dt * 5);
+
+    // Her turn: she spins during the spin dance, then unwinds to face forward
+    if (danceId === 1) {
+      spinAngle += step * ((Math.PI * 2) / 3);
+    } else {
+      spinAngle = Math.atan2(Math.sin(spinAngle), Math.cos(spinAngle));
+      spinAngle += -spinAngle * Math.min(1, dt * 2);
+    }
+
     // After a few seconds standing still, the boy waves his free hand
-    idleTime = moving ? 0 : idleTime + dt;
+    idleTime = moving || dancing ? 0 : idleTime + dt;
     waveAmount += ((idleTime > 5 ? 1 : 0) - waveAmount) * Math.min(1, dt * 4);
     const idle = 1 - amount;
     const s = Math.sin(phase);
-    const c = Math.cos(phase);
 
     followPrincess(dt);
 
     // Princess: body bobs twice per stride and sways; her feet step under the skirt
-    body.position.y = Math.abs(s) * 0.04 * amount + Math.sin(t * 1.6) * 0.01 * idle;
-    body.rotation.z = s * 0.025 * amount;
+    const beat = Math.abs(Math.sin(danceT * 3.5)) * 0.035 * danceAmount;
+    body.position.y = Math.abs(s) * 0.04 * amount + Math.sin(t * 1.6) * 0.01 * idle + beat;
+    body.rotation.y = spinAngle;
+    body.rotation.z =
+      s * 0.025 * amount + (danceId === 0 ? Math.sin((danceT * Math.PI * 2) / 3.6) * 0.05 * danceAmount : 0);
     skirt.rotation.z = s * 0.05 * amount;
     skirt.rotation.x = Math.abs(s) * 0.03 * amount;
     shoeRest.forEach((x, i) => {
       const f = phase + i * Math.PI;
       feet[i].position.set(x, 0.06 + Math.max(0, Math.cos(f)) * 0.07 * amount, 0.12 + Math.sin(f) * 0.14 * amount);
     });
-    // Her arm on the boy's side stays reaching for his hand; the other arm swings
+    // Her arm on the boy's side hangs by default, reaches for his hand when holding, and is raised for the lifted-hand dance
     arms[0].rotation.x = Math.sin(phase) * 0.04 * amount;
-    arms[0].rotation.z = -0.6;
-    arms[1].rotation.x = -s * 0.35 * amount + 0.15 * idle;
+    arms[0].rotation.z = THREE.MathUtils.lerp(THREE.MathUtils.lerp(-0.12, -0.6, holdAmount), -1.35, liftAmount);
+    arms[1].rotation.x = -Math.sin(phase) * 0.35 * amount + 0.15 * idle;
     head.rotation.y = Math.sin(t * 0.7) * 0.08 * idle;
-    updateHair(dt, s * amount * 0.12 + Math.sin(t * 1.3) * 0.02 * idle);
+    updateHair(dt, Math.sin(phase) * amount * 0.12 + Math.sin(t * 1.3) * 0.02 * idle);
 
     // Boy: legs step in time with hers; knees bend in the forward swing
     legs.forEach((hip, i) => {
@@ -581,7 +639,7 @@ export function createCouple(dressColor) {
     freeArm.rotation.z = wave * (-2.4 + Math.sin(t * 7) * 0.25);
     boyHead.rotation.y = -Math.sin(t * 0.6) * 0.06 * idle;
 
-    stretchInnerArm();
+    stretchInnerArm(holdAmount, s, amount);
   }
 
   function setDress(color) {
@@ -602,5 +660,23 @@ export function createCouple(dressColor) {
     };
   }
 
-  return { root, animate, setDress, measure, feet, stride: () => phase };
+  function toggleHolding() {
+    holding = !holding;
+    return holding;
+  }
+  function isHolding() {
+    return holding;
+  }
+  function danceName() {
+    return danceId >= 0 ? DANCE_NAMES[danceId] : null;
+  }
+  // Cycles: no dance, then each dance in turn, then no dance again
+  function nextDance() {
+    danceId += 1;
+    if (danceId >= DANCE_NAMES.length) danceId = -1;
+    danceT = 0;
+    return danceName();
+  }
+
+  return { root, animate, setDress, measure, feet, stride: () => phase, toggleHolding, isHolding, nextDance, danceName };
 }
