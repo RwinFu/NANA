@@ -7,7 +7,7 @@ import { createStore, formatNumber } from './state.js';
 import { buildWorld, LAYOUT } from './world.js';
 import { createCouple } from './characters.js';
 import { createEnvelope } from './envelope.js';
-import { createControls } from './controls.js';
+import { createControls, isSolid } from './controls.js';
 import { createAudio } from './audio.js';
 import { createFx } from './fx.js';
 import { createTrail } from './trail.js';
@@ -753,5 +753,5 @@ showHowTo({
 
 // Dev-only hook for automated checks
 if (import.meta.env.DEV) {
-  window.__home = { audio, controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), hero: () => hero, cats: () => cats, footprints: () => footprints };
+  window.__home = { audio, controls, camera, isSolid, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), hero: () => hero, cats: () => cats, footprints: () => footprints };
 }
