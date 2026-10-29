@@ -1028,11 +1028,54 @@ dialog h2 {
   pointer-events: none;
   transition: opacity 1.8s ease-in-out;
 }
-.rescue.is-dark .rescue-fade { opacity: 1; }
-.rescue.is-quick .rescue-fade { transition-duration: 0.6s; }
+.rescue.is-dark .rescue-fade { opacity: 1; transition-delay: 0.9s; transition-duration: 0.5s; }
+.rescue.is-quick .rescue-fade { transition-delay: 0.25s; transition-duration: 0.3s; }
 .rescue [hidden] { display: none !important; }
-.rescue.is-leaving { opacity: 0; pointer-events: none; }
 .rescue-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+
+/* TV power-off: the picture jitters, shrinks to a bright line, then to a dot */
+@keyframes crt-off {
+  0% { clip-path: inset(0 0 0 0); filter: brightness(1); transform: none; }
+  12% { transform: translateX(-10px); filter: brightness(1.4); }
+  18% { transform: translateX(7px); }
+  26% { transform: none; filter: brightness(1.2); }
+  55% { clip-path: inset(48.5% 0 48.5% 0); filter: brightness(2.4); transform: none; }
+  72% { clip-path: inset(49.4% 40% 49.4% 40%); filter: brightness(2.8); }
+  100% { clip-path: inset(50% 50% 50% 50%); filter: brightness(0); }
+}
+.rescue.is-dark .rescue-canvas { animation: crt-off 1.1s cubic-bezier(0.6, 0, 0.4, 1) forwards; }
+.rescue.is-quick.is-dark .rescue-canvas { animation-duration: 0.5s; }
+
+/* TV power-on: two black bars part from the middle, flicker, and open onto the intro */
+.rescue.is-leaving:not(.rescue-howto) { pointer-events: none; background: transparent; }
+.rescue.is-leaving:not(.rescue-howto) .rescue-canvas,
+.rescue.is-leaving:not(.rescue-howto) .rescue-fade { display: none; }
+.rescue.is-leaving:not(.rescue-howto)::before,
+.rescue.is-leaving:not(.rescue-howto)::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 50%;
+  background: #000;
+  box-shadow: 0 0 24px 2px rgba(255, 170, 210, 0.5);
+}
+.rescue.is-leaving:not(.rescue-howto)::before { top: 0; animation: shut-top 1.3s cubic-bezier(0.7, 0, 0.3, 1) forwards; }
+.rescue.is-leaving:not(.rescue-howto)::after { bottom: 0; animation: shut-bottom 1.3s cubic-bezier(0.7, 0, 0.3, 1) forwards; }
+@keyframes shut-top {
+  0% { height: 50%; }
+  30% { height: 47%; }
+  38% { height: 50%; }
+  70% { height: 6%; }
+  100% { height: 0; }
+}
+@keyframes shut-bottom {
+  0% { height: 50%; }
+  30% { height: 47%; }
+  38% { height: 50%; }
+  70% { height: 6%; }
+  100% { height: 0; }
+}
 .rescue-card {
   position: absolute;
   inset: 0;

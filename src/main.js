@@ -164,6 +164,7 @@ function beginRescue() {
       audio.static();
       audio.startSong();
     },
+    onPowerOff: () => audio.static(0.7),
   });
   if (import.meta.env.DEV) window.__rescue = rescue;
 }
@@ -177,6 +178,7 @@ function finishRescue() {
   dom.intro.classList.remove('is-ready');
   dom.intro.classList.add('flight-only');
   dom.intro.hidden = false;
+  audio.static(0.9); // the TV-on crackle as the bars part
   rescue.reveal(); // the black screen lifts into the intro
 }
 
