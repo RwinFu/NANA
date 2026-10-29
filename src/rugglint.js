@@ -148,7 +148,7 @@ export function createRugGlint(scene, rug, { x = 0, z = -19, halfW = 1.1, halfD 
 
   function update(dt, t, pos, moving) {
     const on = inside(pos) ? 1 : 0;
-    level += (on - level) * Math.min(1, dt * 3);
+    level += (on - level) * Math.min(1, dt * (on > level ? 6 : 1.2));
     const speed = prev ? Math.hypot(pos.x - prev.x, pos.z - prev.z) / Math.max(dt, 1e-4) : 0;
     if (!prev) prev = new THREE.Vector3();
     prev.copy(pos);
@@ -194,7 +194,7 @@ export function createStoneGlint(scene, stones) {
     stones.forEach((m, i) => {
       const d = Math.hypot(pos.x - m.position.x, pos.z - m.position.z);
       const target = Math.max(0, Math.min(1, 1 - (d - 0.5) / 0.7));
-      weights[i] += (target - weights[i]) * Math.min(1, dt * 4);
+      weights[i] += (target - weights[i]) * Math.min(1, dt * (target > weights[i] ? 6 : 1.2));
       const w = weights[i];
       if (w > near) near = w;
       const mat = m.material;

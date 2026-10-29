@@ -9,7 +9,7 @@ import * as THREE from 'three';
 
 const TRAIL_SAMPLES = 34;
 const TRAIL_SPACING = 0.1;
-const SPARKLE_COUNT = 70;
+const SPARKLE_COUNT = 120;
 const LETTER_FONT = '"Vazirmatn Variable", Vazirmatn, sans-serif';
 const LETTER_LINES = ['سالگردمون مبارک', 'خوشگلترین پرنسس دنیا'];
 const LETTER_LOCAL = new THREE.Vector3(0.56, -0.06, 0.05); // where the card floats, relative to her
@@ -295,8 +295,16 @@ export function createFairy(scene) {
   const figure = new THREE.Group();
   group.add(figure);
 
-  const satin = new THREE.MeshStandardMaterial({ color: '#ff8fb1', roughness: 0.35, emissive: '#ff4f86', emissiveIntensity: 0.12, side: THREE.DoubleSide });
-  const tulle = new THREE.MeshStandardMaterial({ color: '#ffd6ea', transparent: true, opacity: 0.45, roughness: 0.9, side: THREE.DoubleSide, depthWrite: false });
+  const satin = new THREE.MeshPhysicalMaterial({
+    color: '#ff8fb1', roughness: 0.32, emissive: '#ff4f86', emissiveIntensity: 0.12,
+    sheen: 1, sheenRoughness: 0.35, sheenColor: new THREE.Color('#ffd0e6'),
+    clearcoat: 0.4, clearcoatRoughness: 0.2, side: THREE.DoubleSide,
+  });
+  const tulle = new THREE.MeshPhysicalMaterial({
+    color: '#ffd6ea', transparent: true, opacity: 0.5, roughness: 0.85,
+    sheen: 1, sheenRoughness: 0.6, sheenColor: new THREE.Color('#ffffff'),
+    side: THREE.DoubleSide, depthWrite: false,
+  });
   const gold = new THREE.MeshStandardMaterial({ color: '#ffd27a', metalness: 0.8, roughness: 0.25, emissive: '#ffb347', emissiveIntensity: 0.35 });
   const gem = new THREE.MeshPhysicalMaterial({ color: '#ff7aa8', roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.05, emissive: '#ff3d7f', emissiveIntensity: 0.55 });
   const skin = new THREE.MeshStandardMaterial({ color: '#ffe0cc', roughness: 0.55 });
@@ -315,16 +323,16 @@ export function createFairy(scene) {
       new THREE.Vector2(0.078, 0.12),
       new THREE.Vector2(0.082, 0.07),
       new THREE.Vector2(0.1, 0.04),
-    ], 32),
+    ], 48),
     satin,
   );
   figure.add(bodice);
 
   // Skirt: a satin underskirt and a wider tulle layer that flares to the hem
   const skirtPoints = [[0.27, -0.2], [0.22, -0.12], [0.16, -0.04], [0.1, 0.04]];
-  figure.add(new THREE.Mesh(new THREE.LatheGeometry(skirtPoints.map(([r, y]) => new THREE.Vector2(r, y)), 32), satin));
+  figure.add(new THREE.Mesh(new THREE.LatheGeometry(skirtPoints.map(([r, y]) => new THREE.Vector2(r, y)), 48), satin));
   const tulleLayer = new THREE.Mesh(
-    new THREE.LatheGeometry([[0.3, -0.22], [0.25, -0.13], [0.185, -0.05], [0.12, 0.04]].map(([r, y]) => new THREE.Vector2(r, y)), 40),
+    new THREE.LatheGeometry([[0.3, -0.22], [0.25, -0.13], [0.185, -0.05], [0.12, 0.04]].map(([r, y]) => new THREE.Vector2(r, y)), 56),
     tulle,
   );
   figure.add(tulleLayer);
@@ -339,7 +347,7 @@ export function createFairy(scene) {
   const head = new THREE.Group();
   head.position.set(0, 0.36, 0);
   figure.add(head);
-  const face = new THREE.Mesh(new THREE.SphereGeometry(0.1, 26, 20), skin);
+  const face = new THREE.Mesh(new THREE.SphereGeometry(0.1, 40, 30), skin);
   face.scale.set(1, 1.06, 1);
   head.add(face);
 
@@ -352,7 +360,7 @@ export function createFairy(scene) {
 
   // Big shiny eyes with highlights, blush and a smile
   [-1, 1].forEach((side) => {
-    const eye = place(new THREE.Mesh(new THREE.SphereGeometry(0.019, 14, 10), ink), side * 0.036, -0.01, 0.088);
+    const eye = place(new THREE.Mesh(new THREE.SphereGeometry(0.019, 20, 14), ink), side * 0.036, -0.01, 0.088);
     eye.scale.set(0.85, 1.25, 0.5);
     const glint = place(new THREE.Mesh(new THREE.SphereGeometry(0.0055, 8, 6), shine), 0.006, 0.007, 0.008);
     eye.add(glint);
@@ -364,7 +372,7 @@ export function createFairy(scene) {
   head.add(smile);
 
   // Golden hair: a cap, a fringe of bangs, a braid that sways, and a satin bow
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.108, 24, 16, 0, Math.PI * 2, 0, Math.PI * 0.6), hairMat);
+  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.108, 36, 24, 0, Math.PI * 2, 0, Math.PI * 0.6), hairMat);
   cap.position.set(0, 0.01, -0.012);
   head.add(cap);
   [[-0.045, 0.07, 0.085], [0, 0.08, 0.095], [0.045, 0.07, 0.085]].forEach(([x, y, z]) => {
@@ -542,6 +550,9 @@ export function createFairy(scene) {
   }
 
   scene.add(group);
+  // a soft pink light she casts on the room around her, so she lights the castle as she flies
+  const glow = new THREE.PointLight('#ffc6e4', 0, 4, 1.6);
+  scene.add(glow);
   group.visible = false;
   letter.visible = false;
   letterGlow.visible = false;
@@ -556,6 +567,14 @@ export function createFairy(scene) {
   const tangent = new THREE.Vector3();
   const side = new THREE.Vector3();
   const chain = Array.from({ length: TRAIL_SAMPLES + 1 }, () => new THREE.Vector3());
+  const aimM = new THREE.Matrix4();
+  const aimQ = new THREE.Quaternion();
+  const UP = new THREE.Vector3(0, 1, 0);
+  const velocity = new THREE.Vector3();
+  const lastPos = FROM.clone();
+  const tmpRight = new THREE.Vector3();
+  const letterPos = new THREE.Vector3();
+  let bank = 0;
 
   // Where the fairy is on her path at intro time t; p = flight progress 0..1
   function pathAt(t, p, out) {
@@ -567,6 +586,11 @@ export function createFairy(scene) {
       THREE.MathUtils.lerp(FROM.y, HOLD.y, e) + Math.sin(a * 2) * 0.55 * (1 - e * 0.6),
       THREE.MathUtils.lerp(FROM.z, HOLD.z, e) + Math.sin(a) * r * 0.5,
     );
+    // organic wander on top of the orbit: strongest on the way in, calmer at the hold
+    const wander = 1 - e * 0.6;
+    out.x += (Math.sin(t * 0.73) * 0.55 + Math.sin(t * 1.31 + 1.7) * 0.3) * wander;
+    out.y += (Math.sin(t * 0.97 + 0.4) * 0.25 + Math.sin(t * 2.3) * 0.08) * wander;
+    out.z += Math.sin(t * 0.58 + 2.1) * 0.35 * wander;
     return out;
   }
 
@@ -625,6 +649,8 @@ export function createFairy(scene) {
     next.y += rise;
 
     const show = vis > 0.01;
+    glow.intensity = show ? 1.1 * Math.max(0.001, vis) * (0.9 + 0.1 * Math.sin(t * 3)) : 0;
+    glow.position.copy(pos).add(new THREE.Vector3(0, 0.15, 0));
     group.visible = show;
     letter.visible = show;
     letterGlow.visible = show;
@@ -634,11 +660,20 @@ export function createFairy(scene) {
     const s = Math.max(0.001, vis);
     group.position.copy(pos);
     group.scale.setScalar(s);
-    group.lookAt(next);
+    // turn smoothly toward where she is going, instead of snapping
+    aimM.lookAt(next, pos, UP);
+    aimQ.setFromRotationMatrix(aimM);
+    group.quaternion.slerp(aimQ, Math.min(1, dt * 5));
+    // bank into the turn: sideways speed tilts her body
+    velocity.subVectors(pos, lastPos).divideScalar(Math.max(dt, 1e-4));
+    lastPos.copy(pos);
+    const rightAxis = tmpRight.set(1, 0, 0).applyQuaternion(group.quaternion);
+    const wantBank = THREE.MathUtils.clamp(rightAxis.dot(velocity) * 0.08, -0.35, 0.35);
+    bank += (wantBank - bank) * Math.min(1, dt * 4);
 
     // Body motion: a gentle bob and a little bank
     figure.position.y = Math.sin(t * 2.2) * 0.015;
-    figure.rotation.z = Math.sin(t * 1.1) * 0.06;
+    figure.rotation.z = Math.sin(t * 1.1) * 0.05 - bank;
 
     // Wings flap, the lower pair a beat behind the upper pair
     const flap = 0.5 + 0.5 * Math.sin(t * 13);
@@ -646,21 +681,26 @@ export function createFairy(scene) {
     wings.forEach(({ upper, lower, side: sd }) => {
       upper.rotation.z = sd * (0.2 + 0.45 * flap);
       lower.rotation.z = sd * (0.12 + 0.3 * flapLow);
+      upper.rotation.y = sd * 0.12 * flap; // the tips sweep forward on the downstroke
+      lower.rotation.y = sd * 0.08 * flapLow;
     });
 
     // Wand star spins and pulses; braid sways; sparkles orbit
     star.rotation.z = t * 2.4;
     star.scale.setScalar(1 + 0.12 * Math.sin(t * 5));
     braid.forEach((seg, i) => {
-      seg.position.x = Math.sin(t * 2.6 + i * 0.7) * 0.01 * (i + 1);
+      seg.position.x = Math.sin(t * 2.6 + i * 0.7) * 0.01 * (i + 1) - velocity.x * 0.002 * (i + 1);
     });
     updateSparkles(t);
     aura.material.opacity = 0.6 + 0.2 * Math.sin(t * 3);
 
     // The letter floats at her side, in her frame, turned to face the camera
     group.updateMatrixWorld(true);
-    letter.position.copy(group.localToWorld(LETTER_LOCAL.clone()));
-    letter.position.y += Math.sin(t * 1.7) * 0.025 * s;
+    const letterTarget = group.localToWorld(LETTER_LOCAL.clone());
+    letterTarget.y += Math.sin(t * 1.7) * 0.025 * s;
+    if (vis < 0.05) letterPos.copy(letterTarget);
+    letterPos.lerp(letterTarget, Math.min(1, dt * 6));
+    letter.position.copy(letterPos);
     letter.scale.setScalar(s);
     letter.lookAt(camera.position);
     letter.rotateZ(Math.sin(t * 1.3) * 0.05);
