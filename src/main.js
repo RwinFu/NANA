@@ -46,6 +46,7 @@ const dom = {
   promptBtn: $('#prompt-btn'),
   hint: $('#controls-hint'),
   joystick: $('#joystick'),
+  curtain: $('#curtain'),
   jump: $('#jump-btn'),
   knob: $('#joystick-knob'),
   toast: $('#toast'),
@@ -150,6 +151,8 @@ let introPlaying = false; // the flight plays only after the rescue
 let introSettled = false;
 let rescue = null;
 let introT0 = 0;
+let starting = false; // the curtain is falling before the tour starts
+const introLook = new THREE.Vector3(); // where the intro camera looks, for the hand-off
 
 function beginRescue() {
   rescueActive = true;
@@ -570,14 +573,21 @@ function setFormError(message) {
   dom.error.hidden = !message;
 }
 
-dom.setup.addEventListener('submit', (event) => {
+  dom.setup.addEventListener('submit', (event) => {
   event.preventDefault();
-  if (!renderer) return;
+  if (!renderer || starting) return;
   const { patch } = readForm();
   setFormError('');
   const state = store.set(patch);
   audio.unlock();
-  start(state);
+  // Fall to a dark curtain first, so the camera's swing to the tour happens out of sight
+  starting = true;
+  dom.curtain.classList.add('is-on');
+  window.setTimeout(() => {
+    start(state);
+    // Lift the curtain while the camera glides into the tour
+    window.setTimeout(() => dom.curtain.classList.remove('is-on'), 200);
+  }, 850);
 });
 
 function start(state) {
@@ -594,8 +604,8 @@ function start(state) {
     redraw();
   }
 
-  // Glide from the intro view into the follow camera
-  transition = { from: camera.position.clone(), elapsed: 0, duration: 1.6 };
+  // Glide from the intro view into the follow camera: both the position and the look target
+  transition = { from: camera.position.clone(), lookFrom: introLook.clone(), elapsed: 0, duration: 2.2 };
 
   dom.intro.classList.add('is-leaving');
   dom.hud.hidden = false;
@@ -649,6 +659,7 @@ function introCamera(t) {
     THREE.MathUtils.lerp(INTRO_FROM.z, INTRO_TO_Z, e),
   );
   const look = INTRO_LOOK_FROM.clone().lerp(INTRO_LOOK_TO, e);
+  introLook.copy(look);
   camera.lookAt(look);
   return p;
 }
@@ -705,8 +716,10 @@ function frame() {
       transition.elapsed += dt;
       const k = Math.min(1, transition.elapsed / transition.duration);
       const e = k * k * (3 - 2 * k);
-      const target = camera.position.clone();
-      camera.position.lerpVectors(transition.from, target, e);
+      // controls.update has just placed the follow camera; blend from the intro view to it
+      const follow = camera.position.clone();
+      camera.position.lerpVectors(transition.from, follow, e);
+      camera.lookAt(new THREE.Vector3().lerpVectors(transition.lookFrom, controls.focus, e));
       if (k >= 1) transition = null;
     }
   } else if (introPlaying) {

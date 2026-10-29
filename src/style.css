@@ -561,6 +561,26 @@ kbd {
   pointer-events: none;
 }
 
+/* The curtain: a soft dark fade between the intro and the tour */
+.curtain {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  background: radial-gradient(ellipse at center, #1a1030 0%, #07060f 70%);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.8s ease;
+}
+
+.curtain.is-on {
+  opacity: 1;
+  transition-duration: 0.8s;
+}
+
+.curtain:not(.is-on) {
+  transition-duration: 1.8s;
+}
+
 .toast {
   position: fixed;
   top: 92px;

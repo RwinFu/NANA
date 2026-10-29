@@ -359,6 +359,10 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
     update,
     reset,
     jump,
+    // The point the camera looks at, for smooth hand-offs from other camera views
+    get focus() {
+      return new THREE.Vector3(lookAt.x, lookAt.y + 0.2, lookAt.z);
+    },
     setJoystick,
     dispose,
     get position() {
