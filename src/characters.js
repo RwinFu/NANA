@@ -313,7 +313,9 @@ export function createCouple(dressColor) {
   const head = part(new THREE.Mesh(new THREE.SphereGeometry(0.22, 18, 14), skinMat), body, 0, 2.0, 0);
   // Hair covers the crown and the back of the head, so the face stays visible
   part(new THREE.Mesh(new THREE.SphereGeometry(0.245, 18, 14, 0, Math.PI * 2, 0, Math.PI * 0.36), hairMat), head, 0, 0.03, 0);
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.2, 14, 12), hairMat), head, 0, -0.12, -0.11).scale.set(1, 1.2, 0.8);
+  // Back of the head: a hair shell over the back half of the skull, down to the nape.
+  // phi in [PI, 2PI] is the back (z <= 0), so no skin shows from behind.
+  part(new THREE.Mesh(new THREE.SphereGeometry(0.252, 24, 14, Math.PI, Math.PI, 0, Math.PI * 0.62), hairMat), head, 0, 0, 0);
   addBangs(head, hairMat, 0.245);
   addPrincessFace(head, skinMat);
   const tiara = part(new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.025, 8, 24, Math.PI), goldMat), head, 0, 0.2, 0.02);
@@ -322,7 +324,7 @@ export function createCouple(dressColor) {
   // Ponytail: a physics chain, tied with a pink ribbon at the back of the head
   const ponytail = createHairChain({
     parent: head,
-    anchor: { x: 0, y: 0.08, z: -0.2 },
+    anchor: { x: 0, y: 0.05, z: -0.245 },
     lengths: [0.15, 0.14, 0.13, 0.12],
     radii: [0.075, 0.07, 0.063, 0.05],
     rest: { x: 0.55, z: 0 },
@@ -331,7 +333,7 @@ export function createCouple(dressColor) {
     drive: 2.5,
     material: hairMat,
   });
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), new THREE.MeshStandardMaterial({ color: '#ff8fab', roughness: 0.4 })), head, 0, 0.08, -0.2);
+  part(new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), new THREE.MeshStandardMaterial({ color: '#ff8fab', roughness: 0.4 })), head, 0, 0.05, -0.25);
 
   // Two side locks that fall beside her face and swing with the head
   const locks = [-1, 1].map((side) =>
