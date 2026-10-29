@@ -1,13 +1,15 @@
 // Small Web Audio synth: a soft arpeggiated loop plus a few sound effects.
 // Everything is generated in code, so there are no audio files to download.
 
+// The loop is in C# minor, the key of the family song. The melody opens on C# then G#,
+// the first two notes of the song, and moves through its E, D# and F# colour.
 const CHORDS = [
-  [261.63, 329.63, 392.0, 523.25], // C
-  [220.0, 261.63, 329.63, 440.0], // Am
-  [174.61, 220.0, 261.63, 349.23], // F
-  [196.0, 246.94, 293.66, 392.0], // G
+  [277.18, 329.63, 415.3, 554.37], // C#m: C# E G# C#
+  [220.0, 277.18, 329.63, 440.0], // A: A C# E A
+  [164.81, 207.65, 246.94, 329.63], // E: E G# B E
+  [246.94, 311.13, 369.99, 493.88], // B: B D# F# B
 ];
-const PATTERN = [0, 1, 2, 3, 2, 1, 2, 1];
+const PATTERN = [0, 2, 1, 2, 3, 1, 2, 1];
 const BPM = 76;
 const STEP = 60 / BPM / 2; // eighth notes
 const LOOKAHEAD_S = 0.25;
