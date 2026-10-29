@@ -29,6 +29,7 @@ export function createAudio() {
   let song = null;
   let songActive = false;
   let fadeTimer = null;
+  let songTimer = null;
 
   function ensureContext() {
     if (ctx) return ctx;
@@ -130,19 +131,31 @@ export function createAudio() {
         song.preload = 'auto';
         song.volume = 0;
       }
+      // Start the song on the next bar of the synth loop, so its first note lands on the downbeat
+      // the mini-game music was playing on. Waits at most one bar (about 2.8 s).
+      let delayS = 0;
+      if (ctx && playing) {
+        const toBar = (PATTERN.length - (step % PATTERN.length)) % PATTERN.length;
+        delayS = Math.max(0, nextTime + toBar * STEP - ctx.currentTime);
+      }
       stopLoop();
       songActive = true;
       if (!musicOn) return;
-      song.currentTime = 0;
-      song.play().catch(() => {});
-      clearInterval(fadeTimer);
-      const from = 0;
-      const t0 = performance.now();
-      fadeTimer = setInterval(() => {
-        const k = Math.min(1, (performance.now() - t0) / 2200);
-        song.volume = from + (0.7 - from) * k;
-        if (k >= 1) clearInterval(fadeTimer);
-      }, 60);
+      clearTimeout(songTimer);
+      const begin = () => {
+        song.currentTime = 0;
+        song.play().catch(() => {});
+        clearInterval(fadeTimer);
+        const from = 0;
+        const t0 = performance.now();
+        fadeTimer = setInterval(() => {
+          const k = Math.min(1, (performance.now() - t0) / 2200);
+          song.volume = from + (0.7 - from) * k;
+          if (k >= 1) clearInterval(fadeTimer);
+        }, 60);
+      };
+      if (delayS > 0.02) songTimer = setTimeout(begin, delayS * 1000);
+      else begin();
     },
     // A short burst of filtered static for the gate glitch.
     static(duration = 1.2) {
