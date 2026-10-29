@@ -1135,8 +1135,39 @@ dialog h2 {
 .rescue-touch { direction: ltr; }
 .rescue-touch-group { direction: ltr; }
 .rescue-skip {
-  top: 52px;
-  right: 14px;
+  top: 70px;
+  left: 14px;
+  right: auto;
   bottom: auto;
-  left: auto;
+}
+.rescue-steps {
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  text-align: right;
+}
+.rescue-steps li {
+  counter-increment: step;
+  position: relative;
+  padding: 4px 36px 4px 0;
+  margin-bottom: 6px;
+  line-height: 1.8;
+  font-size: 16px;
+  opacity: 0.94;
+}
+.rescue-steps li::before {
+  content: counter(step);
+  position: absolute;
+  right: 0;
+  top: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #2a1530;
+  background: linear-gradient(120deg, #ff8fb8, #ffd66b);
 }

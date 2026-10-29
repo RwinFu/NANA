@@ -157,7 +157,7 @@ function beginRescue(state) {
   pendingState = state;
   rescueActive = true;
   dom.intro.hidden = true;
-  rescue = createRescueGame({ onDone: finishRescue, autoStart: true });
+  rescue = createRescueGame({ onDone: finishRescue, autoStart: false });
   if (import.meta.env.DEV) window.__rescue = rescue;
 }
 
