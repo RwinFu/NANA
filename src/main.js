@@ -14,6 +14,8 @@ import { createFootprints } from './footprints.js';
 import { createSparkles } from './castle.js';
 import { createFairy } from './fairy.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
+import { createRescueGame } from './rescue.js';
+import { createCats } from './cats.js';
 
 const $ = (sel) => document.querySelector(sel);
 const SWATCHES = [
@@ -125,6 +127,7 @@ const scene = new THREE.Scene();
 const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 220);
 let world = null;
 let hero = null;
+let cats = null;
 let trail = null;
 let footprints = null;
 let envelope = null;
@@ -141,6 +144,35 @@ const audio = createAudio();
 const fx = createFx($('#fx'));
 const raycaster = new THREE.Raycaster();
 
+// "Enter the house" starts the rescue mini game. When the boy has saved the princess and both cats,
+// the intro flight plays, then the tour of our home starts by itself.
+let rescueActive = false;
+let introPlaying = false; // the flight plays only after the rescue
+let introSettled = false;
+let rescue = null;
+let introT0 = 0;
+let pendingState = null;
+
+function beginRescue(state) {
+  pendingState = state;
+  rescueActive = true;
+  dom.intro.hidden = true;
+  rescue = createRescueGame({ onDone: finishRescue, autoStart: false });
+  if (import.meta.env.DEV) window.__rescue = rescue;
+}
+
+function finishRescue() {
+  rescueActive = false;
+  introPlaying = true;
+  introFired = false;
+  introReady = false;
+  introT0 = clock.elapsedTime;
+  dom.intro.classList.remove('is-ready');
+  dom.intro.classList.add('flight-only');
+  dom.intro.hidden = false;
+  rescue.reveal(); // the black screen lifts into the intro
+}
+
 if (renderer) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
   renderer.setSize(window.innerWidth, window.innerHeight, false);
@@ -153,6 +185,7 @@ if (renderer) {
   introFairy = createFairy(scene);
   hero = createCouple(store.get().avatarColor);
   scene.add(hero.root);
+  cats = createCats(scene, hero);
   trail = createTrail(scene);
   footprints = createFootprints(scene);
 
@@ -577,7 +610,8 @@ dom.setup.addEventListener('submit', (event) => {
   }
   setFormError('');
   const state = store.set(patch);
-  start(state);
+  audio.unlock();
+  beginRescue(state);
 });
 
 function start(state) {
@@ -663,6 +697,11 @@ function updateSparkles(t, dt, p) {
 
 function updateIntro(t, dt) {
   const p = introCamera(t);
+  if (pendingState && t > INTRO_FLIGHT + 1.2) {
+    const s = pendingState;
+    pendingState = null;
+    start(s);
+  }
   updateSparkles(t, dt, p);
   world.castle.setLit(p);
 
@@ -695,6 +734,7 @@ function frame() {
   const dt = Math.min(0.05, clock.getDelta());
   const t = clock.elapsedTime;
   if (!renderer) return;
+  if (rescueActive) return; // the rescue game is on screen
 
   if (started) {
     controls.update(dt);
@@ -706,12 +746,21 @@ function frame() {
       camera.position.lerpVectors(transition.from, target, e);
       if (k >= 1) transition = null;
     }
+  } else if (introPlaying) {
+    updateIntro(t - introT0, dt);
   } else {
-    updateIntro(t, dt);
+    // Landing page: the castle stays still in its final view until the rescue is over
+    if (!introSettled) {
+      introSettled = true;
+      dom.intro.classList.add('is-ready');
+      world.castle.setLit(1);
+    }
+    introCamera(INTRO_FLIGHT);
   }
   if (started) updateSparkles(t, dt, 1);
 
   hero.animate(dt, t, started && controls.moving);
+  cats?.update(dt, t, hero, started);
   syncCoupleUi();
   trail?.update(dt, hero.root.position, started && controls.moving, camera);
   footprints?.update(dt, hero, started && controls.moving);
@@ -730,5 +779,5 @@ if (renderer) {
 
 // Dev-only hook for automated checks
 if (import.meta.env.DEV) {
-  window.__home = { controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), addLove, hero: () => hero, footprints: () => footprints };
+  window.__home = { controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), addLove, hero: () => hero, cats: () => cats, footprints: () => footprints };
 }

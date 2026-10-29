@@ -1019,3 +1019,155 @@ dialog h2 {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ---------- rescue mini game (plays before the intro) ---------- */
+.rescue {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: #05040d;
+  transition: opacity 1.8s ease;
+}
+.rescue-fade {
+  position: absolute;
+  inset: 0;
+  background: #000;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 1.8s ease-in-out;
+}
+.rescue.is-dark .rescue-fade { opacity: 1; }
+.rescue.is-quick .rescue-fade { transition-duration: 0.6s; }
+.rescue [hidden] { display: none !important; }
+.rescue.is-leaving { opacity: 0; pointer-events: none; }
+.rescue-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; }
+.rescue-card {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 4, 13, 0.62);
+}
+.rescue-card-inner { max-width: 540px; padding: 28px; text-align: center; color: #fff4f8; }
+.rescue-kicker { margin: 0 0 6px; color: var(--lamp); font-size: 15px; }
+.rescue-card h2 {
+  margin: 0 0 12px;
+  font-size: clamp(34px, 6vw, 58px);
+  color: #ffd6e7;
+  text-shadow: 0 0 24px rgba(255, 143, 184, 0.45);
+}
+.rescue-card p { margin: 0 0 16px; line-height: 2; opacity: 0.92; font-size: 17px; }
+.rescue-keys { font-size: 14px !important; opacity: 0.7 !important; }
+.rescue-btn {
+  font: inherit;
+  font-weight: 700;
+  font-size: 18px;
+  padding: 12px 30px;
+  border-radius: 999px;
+  border: 0;
+  cursor: pointer;
+  background: linear-gradient(120deg, #ff8fb8, #ffd66b);
+  color: #2a1020;
+  box-shadow: 0 10px 30px rgba(255, 143, 184, 0.35);
+}
+.rescue-skip {
+  position: absolute;
+  left: 14px;
+  bottom: 14px;
+  font: inherit;
+  font-size: 14px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  background: rgba(10, 6, 20, 0.5);
+  color: #ffe9f2;
+  cursor: pointer;
+}
+.rescue-touch {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 14px;
+  display: flex;
+  justify-content: space-between;
+  padding: 0 16px;
+  pointer-events: none;
+}
+.rescue-touch-group { display: flex; gap: 12px; }
+.rescue-touch button {
+  pointer-events: auto;
+  width: 64px;
+  height: 64px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  background: rgba(10, 6, 20, 0.55);
+  color: #ffe9f2;
+  font-size: 22px;
+  touch-action: none;
+  user-select: none;
+}
+
+/* ---------- intro after the rescue: the flight plays without the form ---------- */
+.intro.flight-only #setup,
+.intro.flight-only #enter-btn {
+  visibility: hidden;
+}
+
+/* ---------- rescue: phones held upright ask for landscape ---------- */
+.rescue-rotate {
+  position: absolute;
+  inset: 0;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(5, 4, 13, 0.9);
+  color: #ffe9f2;
+  text-align: center;
+  padding: 24px;
+  font-size: 18px;
+  line-height: 1.9;
+}
+.rescue-rotate[hidden] { display: none !important; }
+
+/* ---------- rescue touch layout: movement on the left, jump and spark on the right (the page is RTL) ---------- */
+.rescue-touch { direction: ltr; }
+.rescue-touch-group { direction: ltr; }
+.rescue-skip {
+  top: 70px;
+  left: 14px;
+  right: auto;
+  bottom: auto;
+}
+.rescue-steps {
+  margin: 0 0 14px;
+  padding: 0;
+  list-style: none;
+  counter-reset: step;
+  text-align: right;
+}
+.rescue-steps li {
+  counter-increment: step;
+  position: relative;
+  padding: 4px 36px 4px 0;
+  margin-bottom: 6px;
+  line-height: 1.8;
+  font-size: 16px;
+  opacity: 0.94;
+}
+.rescue-steps li::before {
+  content: counter(step);
+  position: absolute;
+  right: 0;
+  top: 4px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: #2a1530;
+  background: linear-gradient(120deg, #ff8fb8, #ffd66b);
+}
