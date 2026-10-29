@@ -14,6 +14,7 @@ import { createFootprints } from './footprints.js';
 import { createSparkles } from './castle.js';
 import { createFairy } from './fairy.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
+import { createRescueGame } from './rescue.js';
 
 const $ = (sel) => document.querySelector(sel);
 const SWATCHES = [
@@ -140,6 +141,19 @@ let nearFrame = -1;
 const audio = createAudio();
 const fx = createFx($('#fx'));
 const raycaster = new THREE.Raycaster();
+
+// The rescue mini game plays first. When the boy has rescued the princess, the intro plays
+// and then the tour of our home begins.
+let rescueActive = true;
+let introT0 = 0;
+dom.intro.hidden = true;
+const rescue = createRescueGame({ onDone: finishRescue });
+
+function finishRescue() {
+  rescueActive = false;
+  introT0 = clock.elapsedTime;
+  dom.intro.hidden = false;
+}
 
 if (renderer) {
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
@@ -695,6 +709,7 @@ function frame() {
   const dt = Math.min(0.05, clock.getDelta());
   const t = clock.elapsedTime;
   if (!renderer) return;
+  if (rescueActive) return; // the rescue game is on screen
 
   if (started) {
     controls.update(dt);
@@ -707,7 +722,7 @@ function frame() {
       if (k >= 1) transition = null;
     }
   } else {
-    updateIntro(t, dt);
+    updateIntro(t - introT0, dt);
   }
   if (started) updateSparkles(t, dt, 1);
 
@@ -731,4 +746,5 @@ if (renderer) {
 // Dev-only hook for automated checks
 if (import.meta.env.DEV) {
   window.__home = { controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), addLove, hero: () => hero, footprints: () => footprints };
+  window.__rescue = rescue;
 }
