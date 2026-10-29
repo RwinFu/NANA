@@ -10,8 +10,8 @@ const ARM_R = 0.07;
 // and every part keeps the same proportions.
 const PRINCESS_SCALE = 0.68;
 // The boy walks beside her on her right side (her -x), a little behind, and follows her
-const FOLLOW_SIDE = 0.85;
-const FOLLOW_BACK = 0.12;
+const FOLLOW_SIDE = 0.95;
+const FOLLOW_BACK = 0.45;
 const FOLLOW_RATE = 16; // higher means the boy keeps closer to his spot
 // Distance (in metres) the couple covers in one full stride cycle (two steps)
 const STRIDE = 3.4;
@@ -76,7 +76,7 @@ function addBoyFace(head) {
 
 // A smooth ribbon that follows a list of points (in the space of its parent). It is rebuilt
 // each frame from the hair joints, so the hair reads as one flowing strand, not as beads.
-function createRibbon(material, radialSegs = 8, spine = 14) {
+function createRibbon(material, radialSegs = 8, spine = 14, braid = null) {
   const geometry = new THREE.BufferGeometry();
   const positions = new Float32Array((spine + 1) * (radialSegs + 1) * 3);
   const indices = [];
@@ -108,8 +108,10 @@ function createRibbon(material, radialSegs = 8, spine = 14) {
       const r = THREE.MathUtils.lerp(r0, r1, i / spine);
       for (let j = 0; j <= radialSegs; j += 1) {
         const a = (j / radialSegs) * Math.PI * 2;
-        const c = Math.cos(a) * r;
-        const d = Math.sin(a) * r;
+        // a braid: the radius swells and thins in two diagonal strands that twist along the hair
+        const rr = braid ? 1 + braid.amp * Math.cos(2 * a + braid.freq * i) : 1;
+        const c = Math.cos(a) * r * rr;
+        const d = Math.sin(a) * r * rr;
         const k = (i * (radialSegs + 1) + j) * 3;
         positions[k] = p.x + c * N.x + d * B.x;
         positions[k + 1] = p.y + c * N.y + d * B.y;
@@ -127,7 +129,7 @@ function createRibbon(material, radialSegs = 8, spine = 14) {
 // A chain of hinged joints that hangs from `anchor`. Each joint is a spring pulled toward its
 // rest angle, damped, and pushed by the head's acceleration, so the hair lags behind every move.
 // The hair itself is a smooth ribbon that follows the joints.
-function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damping, drive, material }) {
+function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damping, drive, material, braid = null }) {
   const base = new THREE.Group();
   base.position.set(anchor.x, anchor.y, anchor.z);
   parent.add(base);
@@ -153,7 +155,7 @@ function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damp
     owner = g;
   });
 
-  const ribbon = createRibbon(material);
+  const ribbon = createRibbon(material, 8, 14, braid);
   base.add(ribbon.mesh);
   const inv = new THREE.Matrix4();
   const tmp = new THREE.Vector3();
@@ -194,7 +196,7 @@ function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damp
     tipCap.scale.setScalar(r1);
   }
 
-  return { step, angles: () => joints.map((j) => [+j.ax.toFixed(3), +j.az.toFixed(3)]) };
+  return { step, end: joints[joints.length - 1].g, angles: () => joints.map((j) => [+j.ax.toFixed(3), +j.az.toFixed(3)]) };
 }
 
 // Curly hair for the boy: a cloud of small curls over the crown, the sides and the nape,
@@ -304,7 +306,7 @@ function addTiara(head, goldMat) {
 }
 
 // The walking princess (you) and the boy who follows her and holds her hand.
-// Her front is +z; the ponytail hangs at -z.
+// Her front is +z; her two braids hang down her back (-z).
 export function createCouple(dressColor) {
   const root = new THREE.Group();
   const body = new THREE.Group(); // bobs and sways while walking
@@ -374,34 +376,27 @@ export function createCouple(dressColor) {
   addPrincessFace(head, skinMat);
   addTiara(head, goldMat);
 
-  // Ponytail: a physics chain, tied with a pink ribbon at the back of the head
-  const ponytail = createHairChain({
-    parent: head,
-    anchor: { x: 0, y: 0.05, z: -0.245 },
-    lengths: [0.15, 0.14, 0.13, 0.12],
-    radii: [0.075, 0.07, 0.063, 0.05],
-    rest: { x: 0.55, z: 0 },
-    stiffness: 28,
-    damping: 4.5,
-    drive: 2.5,
-    material: hairMat,
-  });
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), new THREE.MeshStandardMaterial({ color: '#ff8fab', roughness: 0.4 })), head, 0, 0.05, -0.25);
-
-  // Two side locks that fall beside her face and swing with the head
-  const locks = [-1, 1].map((side) =>
-    createHairChain({
+  // Two braids down her back. Each is a physics chain with a braided ribbon and a pink tie at the end
+  const tieMat = new THREE.MeshStandardMaterial({ color: '#ff8fab', roughness: 0.4 });
+  const braids = [-1, 1].map((side) => {
+    const braid = createHairChain({
       parent: head,
-      anchor: { x: side * 0.2, y: 0.0, z: -0.03 },
-      lengths: [0.16, 0.15, 0.14],
-      radii: [0.062, 0.058, 0.05],
-      rest: { x: 0.15, z: side * 0.22 },
-      stiffness: 36,
-      damping: 5,
-      drive: 1.8,
+      anchor: { x: side * 0.17, y: 0.02, z: -0.13 },
+      lengths: [0.13, 0.13, 0.125, 0.12, 0.115],
+      radii: [0.064, 0.064, 0.061, 0.058, 0.054],
+      rest: { x: 0.1, z: side * 0.12 },
+      stiffness: 30,
+      damping: 4.5,
+      drive: 2.2,
       material: hairMat,
-    }),
-  );
+      braid: { amp: 0.2, freq: 0.9 },
+    });
+    const tie = new THREE.Mesh(new THREE.TorusGeometry(0.066, 0.018, 8, 18), tieMat);
+    tie.rotation.x = Math.PI / 2;
+    tie.position.y = -0.1;
+    braid.end.add(tie);
+    return braid;
+  });
 
   // ----- the boy: his own group, moved to his place beside her each frame -----
   const boy = new THREE.Group();
@@ -499,8 +494,7 @@ export function createCouple(dressColor) {
     prevVel.copy(vel);
     head.getWorldQuaternion(headQ).invert();
     accLocal.copy(smooth).applyQuaternion(headQ);
-    ponytail.step(dt, accLocal, sway);
-    locks.forEach((lock) => lock.step(dt, accLocal, sway));
+    braids.forEach((braid) => braid.step(dt, accLocal, sway));
   }
 
   // ----- movement state -----
@@ -522,9 +516,13 @@ export function createCouple(dressColor) {
   let holdAmount = 0; // eased: 0 hand down, 1 hands joined
   let danceId = -1; // -1 no dance, otherwise an index into DANCE_NAMES
   let danceT = 0; // time spent in the current dance
-  let danceAmount = 0; // eased: 0 beside her, 1 at the dance spot
-  let liftAmount = 0; // eased: her arm raised for the lifted-hand dance
+  let danceAmount = 0; // eased: 0 walking, 1 dancing
   let spinAngle = 0; // how far she has turned in the spin dance
+  // eased dance poses, so switching dances never snaps
+  let armX = 0;
+  let armZ = -0.12;
+  let freeZ = 0;
+  let turn = 0;
 
   function lerpAngle(a, b, t) {
     let diff = b - a;
@@ -533,43 +531,91 @@ export function createCouple(dressColor) {
     return a + diff * t;
   }
 
-  // A spot on a circle around her, in her space, with him facing her
-  function poseAt(phi) {
-    const R = 0.8;
-    return { x: R * Math.sin(phi), z: R * Math.cos(phi), yaw: phi + Math.PI };
-  }
-
-  // Where he stands for the current dance (in her space). Beside her when there is no dance.
-  function dancePose() {
-    if (danceId === 0) return poseAt(-Math.PI / 2 + 0.55 * Math.sin((danceT * Math.PI * 2) / 3.6)); // waltz sway
-    if (danceId === 1) return poseAt(-Math.PI / 2 + spinAngle); // he circles her as she turns
-    if (danceId === 2) return poseAt(-Math.PI / 2 + 0.25 * Math.sin((danceT * Math.PI * 2) / 1.2)); // lifted-hand sway
-    return poseAt(-Math.PI / 2);
+  // Each dance has a rhythm (beats per bar) and its own poses. Times are in seconds.
+  const NEUTRAL = { phi: -Math.PI / 2, R: 0.8, turn: 0, armX: 0, armZ: -0.12, freeZ: 0, roll: 0, bounce: 0, bounceAmt: 0, legRate: 0, legAmp: 0, feetAmp: 0 };
+  function danceMotion() {
+    if (danceId === 0) {
+      // Waltz: 3 beats per bar. He stands in front-left and sways across her front; she turns a little toward him and holds his hand forward at chest height
+      const b = (danceT * Math.PI * 2) / 2.0;
+      return {
+        phi: -Math.PI / 2 + 0.35 * Math.sin(b),
+        R: 0.75,
+        turn: -0.35 + 0.1 * Math.sin(b),
+        armX: -0.9,
+        armZ: -0.3,
+        freeZ: 0,
+        roll: 0.05 * Math.sin(b),
+        bounce: 0.5 - 0.5 * Math.cos(3 * b),
+        bounceAmt: 0.04,
+        legRate: (Math.PI * 2) / 1.33, // one step each beat
+        legAmp: 0.22,
+        feetAmp: 0.6,
+      };
+    }
+    if (danceId === 1) {
+      // Spin: she turns once per bar, her hand held high, and he circles her, facing her. His free arm lifts.
+      const b = (danceT * Math.PI * 2) / 2.4;
+      return {
+        phi: -Math.PI / 2 + spinAngle,
+        R: 0.8,
+        turn: 0,
+        armX: -0.2,
+        armZ: -2.3,
+        freeZ: -1.1 + 0.15 * Math.sin(2 * b),
+        roll: 0,
+        bounce: 0.5 - 0.5 * Math.cos(2 * b),
+        bounceAmt: 0.03,
+        legRate: (Math.PI * 2) / 2.4,
+        legAmp: 0.08,
+        feetAmp: 0.15,
+      };
+    }
+    if (danceId === 2) {
+      // Lifted-hand sway: side steps and a body roll, her hand raised and waving gently
+      const b = (danceT * Math.PI * 2) / 1.6;
+      return {
+        phi: -Math.PI / 2 + 0.3 * Math.sin(b),
+        R: 0.8,
+        turn: 0,
+        armX: 0.3 * Math.sin(b),
+        armZ: -1.35,
+        freeZ: 0,
+        roll: 0.08 * Math.sin(b),
+        bounce: 0.5 - 0.5 * Math.cos(4 * b),
+        bounceAmt: 0.035,
+        legRate: (Math.PI * 2) / 1.6,
+        legAmp: 0.3,
+        feetAmp: 0.7,
+      };
+    }
+    return NEUTRAL;
   }
 
   // The boy keeps his place beside her, or at the dance spot, and catches up if she moves on
-  function followPrincess(dt) {
+  function followPrincess(dt, m) {
     root.getWorldPosition(rootPos);
     const yaw = root.rotation.y;
+    // Holding hands brings him in closer
+    const side = THREE.MathUtils.lerp(FOLLOW_SIDE, 0.75, holdAmount);
+    const back = FOLLOW_BACK * (1 - holdAmount);
     if (!rootReady) {
       prevRoot.copy(rootPos);
       boyWorld.copy(rootPos).add(offset.clone().applyAxisAngle(up, yaw));
       boyYaw = yaw;
       rootReady = true;
     }
-    const pose = dancePose();
     offsetLocal
       .set(
-        THREE.MathUtils.lerp(-FOLLOW_SIDE, pose.x, danceAmount),
+        THREE.MathUtils.lerp(-side, m.R * Math.sin(m.phi), danceAmount),
         0,
-        THREE.MathUtils.lerp(-FOLLOW_BACK, pose.z, danceAmount),
+        THREE.MathUtils.lerp(-back, m.R * Math.cos(m.phi), danceAmount),
       )
       .applyAxisAngle(up, yaw);
     boyTarget.copy(rootPos).add(offsetLocal);
     boyWorld.lerp(boyTarget, 1 - Math.exp(-dt * FOLLOW_RATE));
     boyWorld.y = 0;
-    const turn = lerpAngle(0, pose.yaw, danceAmount);
-    boyYaw = lerpAngle(boyYaw, yaw + turn, 1 - Math.exp(-dt * FOLLOW_RATE));
+    const faceHer = lerpAngle(0, m.phi + Math.PI, danceAmount);
+    boyYaw = lerpAngle(boyYaw, yaw + faceHer, 1 - Math.exp(-dt * FOLLOW_RATE));
     boy.position.copy(root.worldToLocal(boyWorld.clone()));
     boy.rotation.y = boyYaw - yaw;
   }
@@ -589,57 +635,72 @@ export function createCouple(dressColor) {
     if (dancing) danceT += step;
     danceAmount += ((dancing ? 1 : 0) - danceAmount) * Math.min(1, dt * 4);
     holdAmount += ((holding || dancing ? 1 : 0) - holdAmount) * Math.min(1, dt * 6);
-    liftAmount += ((danceId === 2 ? 1 : 0) - liftAmount) * Math.min(1, dt * 5);
 
     // Her turn: she spins during the spin dance, then unwinds to face forward
     if (danceId === 1) {
-      spinAngle += step * ((Math.PI * 2) / 3);
+      spinAngle += step * ((Math.PI * 2) / 2.4);
     } else {
       spinAngle = Math.atan2(Math.sin(spinAngle), Math.cos(spinAngle));
       spinAngle += -spinAngle * Math.min(1, dt * 2);
     }
 
+    const m = danceMotion();
+    const ease = Math.min(1, dt * 5);
+    armX += (m.armX - armX) * ease;
+    armZ += (m.armZ - armZ) * ease;
+    freeZ += (m.freeZ - freeZ) * ease;
+    turn += (m.turn - turn) * ease;
+
     // After a few seconds standing still, the boy waves his free hand
     idleTime = moving || dancing ? 0 : idleTime + dt;
     waveAmount += ((idleTime > 5 ? 1 : 0) - waveAmount) * Math.min(1, dt * 4);
     const idle = 1 - amount;
-    const s = Math.sin(phase);
+    const d = danceAmount;
+    const walk = 1 - d;
+    const s = Math.sin(phase); // walking stride
+    const fd = danceT * m.legRate; // dance step rhythm
+    const bounce = m.bounce * m.bounceAmt * d;
 
-    followPrincess(dt);
+    followPrincess(dt, m);
 
     // Princess: body bobs twice per stride and sways; her feet step under the skirt
-    const beat = Math.abs(Math.sin(danceT * 3.5)) * 0.035 * danceAmount;
-    body.position.y = Math.abs(s) * 0.04 * amount + Math.sin(t * 1.6) * 0.01 * idle + beat;
-    body.rotation.y = spinAngle;
-    body.rotation.z =
-      s * 0.025 * amount + (danceId === 0 ? Math.sin((danceT * Math.PI * 2) / 3.6) * 0.05 * danceAmount : 0);
-    skirt.rotation.z = s * 0.05 * amount;
-    skirt.rotation.x = Math.abs(s) * 0.03 * amount;
+    body.position.y = Math.abs(s) * 0.04 * amount * walk + Math.sin(t * 1.6) * 0.01 * idle + bounce;
+    body.rotation.y = spinAngle + turn * d;
+    body.rotation.z = s * 0.025 * amount * walk + m.roll * d;
+    skirt.rotation.z = s * 0.05 * amount * walk + m.roll * d * 0.6;
+    skirt.rotation.x = Math.abs(s) * 0.03 * amount * walk;
     shoeRest.forEach((x, i) => {
-      const f = phase + i * Math.PI;
-      feet[i].position.set(x, 0.06 + Math.max(0, Math.cos(f)) * 0.07 * amount, 0.12 + Math.sin(f) * 0.14 * amount);
+      const fw = phase + i * Math.PI;
+      const fi = fd + i * Math.PI;
+      feet[i].position.set(
+        x,
+        0.06 + Math.max(0, Math.cos(fw)) * 0.07 * amount * walk + Math.max(0, Math.cos(fi)) * 0.07 * m.feetAmp * d,
+        0.12 + Math.sin(fw) * 0.14 * amount * walk + Math.sin(fi) * 0.14 * m.feetAmp * d,
+      );
     });
-    // Her arm on the boy's side hangs by default, reaches for his hand when holding, and is raised for the lifted-hand dance
-    arms[0].rotation.x = Math.sin(phase) * 0.04 * amount;
-    arms[0].rotation.z = THREE.MathUtils.lerp(THREE.MathUtils.lerp(-0.12, -0.6, holdAmount), -1.35, liftAmount);
-    arms[1].rotation.x = -Math.sin(phase) * 0.35 * amount + 0.15 * idle;
+    // Her arm on his side: hangs by default, reaches for his hand when holding, and takes the dance pose
+    arms[0].rotation.x = Math.sin(phase) * 0.04 * amount * walk + armX * d;
+    arms[0].rotation.z = THREE.MathUtils.lerp(THREE.MathUtils.lerp(-0.12, -0.6, holdAmount), armZ, d);
+    arms[1].rotation.x = -s * 0.35 * amount * walk + 0.15 * idle - 0.15 * d * Math.sin(fd);
     head.rotation.y = Math.sin(t * 0.7) * 0.08 * idle;
-    updateHair(dt, Math.sin(phase) * amount * 0.12 + Math.sin(t * 1.3) * 0.02 * idle);
+    head.rotation.z = m.roll * 0.5 * d;
+    updateHair(dt, Math.sin(phase) * amount * 0.12 + Math.sin(t * 1.3) * 0.02 * idle + m.roll * d);
 
     // Boy: legs step in time with hers; knees bend in the forward swing
     legs.forEach((hip, i) => {
-      const f = phase + i * Math.PI;
-      hip.rotation.x = Math.sin(f) * 0.5 * amount;
-      shins[i].rotation.x = 0.85 * Math.max(0, Math.cos(f)) * amount;
+      const fw = phase + i * Math.PI;
+      const fi = fd + i * Math.PI;
+      hip.rotation.x = Math.sin(fw) * 0.5 * amount * walk + Math.sin(fi) * m.legAmp * d;
+      shins[i].rotation.x = 0.85 * Math.max(0, Math.cos(fw)) * amount * walk + 2 * m.legAmp * Math.max(0, Math.cos(fi)) * d;
     });
-    boyBody.position.y = Math.abs(s) * 0.035 * amount + Math.sin(t * 1.4 + 1) * 0.01 * idle;
-    boyBody.rotation.z = s * 0.025 * amount;
+    boyBody.position.y = Math.abs(s) * 0.035 * amount * walk + Math.sin(t * 1.4 + 1) * 0.01 * idle + bounce;
+    boyBody.rotation.z = s * 0.025 * amount * walk + m.roll * d;
     const wave = waveAmount;
-    freeArm.rotation.x = -s * 0.5 * amount * (1 - wave);
-    freeArm.rotation.z = wave * (-2.4 + Math.sin(t * 7) * 0.25);
+    freeArm.rotation.x = -s * 0.5 * amount * (1 - wave) * walk;
+    freeArm.rotation.z = wave * (-2.4 + Math.sin(t * 7) * 0.25) + freeZ * d;
     boyHead.rotation.y = -Math.sin(t * 0.6) * 0.06 * idle;
 
-    stretchInnerArm(holdAmount, s, amount);
+    stretchInnerArm(holdAmount, s, amount * walk);
   }
 
   function setDress(color) {
@@ -653,8 +714,7 @@ export function createCouple(dressColor) {
     return {
       princessTop: +princessBox.max.y.toFixed(3),
       boyTop: +boyBox.max.y.toFixed(3),
-      ponytail: ponytail.angles(),
-      locks: locks.map((l) => l.angles()),
+      braids: braids.map((b) => b.angles()),
       boyWorld: [+boyWorld.x.toFixed(3), +boyWorld.z.toFixed(3)],
       princessWorld: [+rootPos.x.toFixed(3), +rootPos.z.toFixed(3)],
     };
