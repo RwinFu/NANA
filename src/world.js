@@ -254,7 +254,7 @@ export function buildWorld(scene) {
   });
 
   // The house front becomes a princess castle
-  buildCastle(scene, track);
+  const castle = buildCastle(scene, track);
 
   // Door panels (open) and warm light spilling from the door
   const doorFrameMat = new THREE.MeshStandardMaterial({ color: '#7a4a2e', roughness: 0.6 });
@@ -619,6 +619,7 @@ export function buildWorld(scene) {
   }
 
   function update(t, dt, highlightIndex) {
+    castle.update(t);
     // Lanterns bob gently
     for (let i = 0; i < lanternCount; i += 1) {
       const d = lanternData[i];
@@ -672,6 +673,7 @@ export function buildWorld(scene) {
 
   return {
     frames,
+    castle,
     setDedication,
     burstHearts,
     update,
