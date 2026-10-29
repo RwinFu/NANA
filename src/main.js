@@ -153,6 +153,7 @@ function finishRescue() {
   rescueActive = false;
   introT0 = clock.elapsedTime;
   dom.intro.hidden = false;
+  rescue.reveal(); // the black screen lifts into the intro
 }
 
 if (renderer) {
@@ -746,5 +747,5 @@ if (renderer) {
 // Dev-only hook for automated checks
 if (import.meta.env.DEV) {
   window.__home = { controls, camera, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), addLove, hero: () => hero, footprints: () => footprints };
-  window.__rescue = rescue;
+  if (import.meta.env.DEV) window.__rescue = rescue;
 }

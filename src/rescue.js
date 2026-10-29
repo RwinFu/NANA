@@ -19,7 +19,10 @@ const ARENA_X = 1800;
 const CAGE_X = 2105;
 const BARRIER_X = 2180;
 const GATE_X = 4150;
-const WIN_HOLD = 3.2;
+const EXIT_DELAY = 1.2;
+const FADE_MS = 1800;
+// The golden hair the boy climbs: from the high balcony down to the ground
+const ROPE = { x: 700, top: 150, bottom: GROUND_Y };
 const FONT = '"Vazirmatn Variable", Vazirmatn, sans-serif';
 
 // Solid ground, with pits between the segments
@@ -31,6 +34,7 @@ const LEDGES = [
   { x: 1000, y: 350, w: 140 },
   { x: 1180, y: 280, w: 150 },
   { x: 1420, y: 360, w: 260 }, // bridge over the pit
+  { x: 620, y: 150, w: 200 }, // the high balcony, reached by the golden hair
   { x: 2620, y: 340, w: 160 },
   { x: 3000, y: 280, w: 170 },
   { x: 3500, y: 350, w: 170 },
@@ -84,6 +88,23 @@ const FAR_TOWERS = makeTowers(11, 30, 300, 150, 300);
 const STARS = makeStars();
 const BATS = makeBats();
 
+function makeSkyLanterns() {
+  const r = rng(21);
+  return Array.from({ length: 16 }, () => ({
+    x0: r() * (W + 200), rise: 12 + r() * 16, drift: 4 + r() * 10, ph: r() * 1000, s: 3 + r() * 3,
+  }));
+}
+
+function makeGlimmer() {
+  const r = rng(33);
+  return Array.from({ length: 36 }, () => ({
+    x: r() * W, y: r() * H, sp: 10 + r() * 26, sw: r() * 6, ph: r() * 6, s: 1 + r() * 1.8,
+  }));
+}
+
+const SKY_LANTERNS = makeSkyLanterns();
+const GLIMMER = makeGlimmer();
+
 // ---------- game state ------------------------------------------------------
 
 function newState() {
@@ -101,7 +122,7 @@ function newState() {
     cageOpen: false,
     msg: '',
     msgT: 0,
-    p: { x: 40, y: GROUND_Y, vx: 0, vy: 0, facing: 1, onGround: true, phase: 0, inv: 0, coyote: 0, jumpBuf: 0, fireCd: 0 },
+    p: { x: 40, y: GROUND_Y, vx: 0, vy: 0, facing: 1, onGround: true, phase: 0, inv: 0, coyote: 0, jumpBuf: 0, fireCd: 0, climb: false },
     dragon: { x: 1500, y: 150, hp: DRAGON_HITS, state: 'fight', active: false, alpha: 1, flap: 0, hit: 0, fireT: 1.5 },
     princess: { x: CAGE_X, state: 'captive', facing: 1, phase: 0, moving: 0 },
     fire: [],
@@ -109,6 +130,7 @@ function newState() {
     rocks: [],
     rockT: 1.5,
     parts: [],
+    ropeTaught: false,
   };
 }
 
@@ -147,6 +169,7 @@ function lose(g, why) {
     p.vx = 0;
     p.vy = 0;
     p.onGround = true;
+    p.climb = false;
     p.inv = 1.5;
     say(g, 'مراقب باش! دوباره تلاش کن');
   }
@@ -157,6 +180,7 @@ function hurt(g) {
   if (p.inv > 0 || g.phase !== 'play') return;
   g.shake = 0.35;
   p.inv = 1.3;
+  p.climb = false;
   p.vx = -p.facing * 180;
   p.vy = -300;
   p.onGround = false;
@@ -184,11 +208,7 @@ function update(g, dt, input, pressed) {
 
   const p = g.p;
   const playing = g.phase === 'play';
-  if (!playing) {
-    // Won: the boy stands at the gate
-    p.vx *= 0.9;
-  }
-  if (!playing && g.phase === 'won') g.endT += dt;
+  if (g.phase === 'won') g.endT += dt;
 
   // Flash lightning in the castle
   if (playing) {
@@ -199,18 +219,23 @@ function update(g, dt, input, pressed) {
     }
   }
 
-  // Input
-  const dir = playing ? (input.right ? 1 : 0) - (input.left ? 1 : 0) : 0;
+  // Input. After the win the boy walks in through the gate and stops inside it.
+  let dir = 0;
+  if (playing) dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
+  else if (g.phase === 'won' && p.x < GATE_X + 90) dir = 1;
   p.vx += (dir * RUN_SPEED - p.vx) * Math.min(1, dt * 12);
   if (dir) p.facing = dir;
   p.coyote = p.onGround ? 0.12 : p.coyote - dt;
   p.jumpBuf = pressed.jump && playing ? 0.12 : p.jumpBuf - dt;
-  if (p.jumpBuf > 0 && (p.onGround || p.coyote > 0)) {
-    p.vy = JUMP_V;
-    p.onGround = false;
-    p.coyote = 0;
+
+  // The golden hair: hold jump next to it to climb. Let go to slide down, walk away to drop off.
+  const nearRope = Math.abs(p.x - ROPE.x) < 18 && p.y <= ROPE.bottom + 2 && p.y > ROPE.top + 12;
+  if (p.climb && (!playing || dir !== 0)) p.climb = false;
+  if (!p.climb && playing && dir === 0 && nearRope && input.jump) {
+    p.climb = true;
     p.jumpBuf = 0;
   }
+
   p.fireCd = Math.max(0, p.fireCd - dt);
   if (playing && pressed.fire && p.fireCd <= 0) {
     p.fireCd = 0.35;
@@ -219,40 +244,70 @@ function update(g, dt, input, pressed) {
   p.inv = Math.max(0, p.inv - dt);
   if (p.onGround && Math.abs(p.vx) > 5) p.phase += Math.abs(p.vx) * dt * 0.028;
 
-  // Physics: horizontal, then vertical
-  const solids = solidsFor(g);
-  const prevX = p.x;
-  p.x += p.vx * dt;
-  for (const s of solids) {
-    if (p.x + HALF_W > s.x0 && p.x - HALF_W < s.x1 && p.y > s.y0 + 2 && p.y - BODY_H < s.y1) {
-      if (p.x > prevX) p.x = s.x0 - HALF_W;
-      else p.x = s.x1 + HALF_W;
-      p.vx = 0;
-    }
-  }
-  p.x = Math.max(HALF_W, p.x);
-  p.vy = Math.min(1100, p.vy + GRAVITY * dt);
-  const prevY = p.y;
-  p.y += p.vy * dt;
-  p.onGround = false;
-  for (const s of solids) {
-    if (p.x + HALF_W <= s.x0 || p.x - HALF_W >= s.x1) continue;
-    if (p.vy >= 0 && prevY <= s.y0 + 1 && p.y >= s.y0) {
-      p.y = s.y0;
+  if (p.climb) {
+    p.phase += dt * 9;
+    p.x = ROPE.x;
+    p.vx = 0;
+    p.vy = input.jump ? -230 : 70;
+    p.onGround = false;
+    p.coyote = 0;
+    p.y += p.vy * dt;
+    if (p.y <= ROPE.top) {
+      p.y = ROPE.top;
       p.vy = 0;
+      p.climb = false;
       p.onGround = true;
-    } else if (p.vy < 0 && prevY - BODY_H >= s.y1 && p.y - BODY_H < s.y1) {
-      p.y = s.y1 + BODY_H;
+      burst(g, p.x, p.y, '#ffd66b', 10, 140);
+    } else if (p.y >= GROUND_Y) {
+      p.y = GROUND_Y;
       p.vy = 0;
+      p.climb = false;
+      p.onGround = true;
+    }
+  } else {
+    if (p.jumpBuf > 0 && (p.onGround || p.coyote > 0)) {
+      p.vy = JUMP_V;
+      p.onGround = false;
+      p.coyote = 0;
+      p.jumpBuf = 0;
+    }
+    // Physics: horizontal, then vertical
+    const solids = solidsFor(g);
+    const prevX = p.x;
+    p.x += p.vx * dt;
+    for (const s of solids) {
+      if (p.x + HALF_W > s.x0 && p.x - HALF_W < s.x1 && p.y > s.y0 + 2 && p.y - BODY_H < s.y1) {
+        if (p.x > prevX) p.x = s.x0 - HALF_W;
+        else p.x = s.x1 + HALF_W;
+        p.vx = 0;
+      }
+    }
+    p.x = Math.max(HALF_W, p.x);
+    p.vy = Math.min(1100, p.vy + GRAVITY * dt);
+    const prevY = p.y;
+    p.y += p.vy * dt;
+    p.onGround = false;
+    for (const s of solids) {
+      if (p.x + HALF_W <= s.x0 || p.x - HALF_W >= s.x1) continue;
+      if (p.vy >= 0 && prevY <= s.y0 + 1 && p.y >= s.y0) {
+        p.y = s.y0;
+        p.vy = 0;
+        p.onGround = true;
+      } else if (p.vy < 0 && prevY - BODY_H >= s.y1 && p.y - BODY_H < s.y1) {
+        p.y = s.y1 + BODY_H;
+        p.vy = 0;
+      }
     }
   }
-  if (p.y > 620) {
-    lose(g, 'fall');
-  }
+  if (p.y > 620) lose(g, 'fall');
 
   // Checkpoints: the furthest one reached on the ground
   for (const cp of CHECKPOINTS) {
     if (p.x >= cp && cp > g.checkpoint) g.checkpoint = cp;
+  }
+  if (playing && !g.ropeTaught && Math.abs(p.x - ROPE.x) < 160) {
+    g.ropeTaught = true;
+    say(g, 'موی طلایی را بگیر و دکمه‌ی پرش را نگه دار تا بالا بروی', 3.4);
   }
 
   if (playing) {
@@ -436,9 +491,10 @@ function heartShape(ctx, x, y, s) {
 
 function drawSky(ctx, g, t) {
   const sky = ctx.createLinearGradient(0, 0, 0, H);
-  sky.addColorStop(0, '#05040f');
-  sky.addColorStop(0.55, '#1b0f31');
-  sky.addColorStop(1, '#3b1b3f');
+  sky.addColorStop(0, '#05061a');
+  sky.addColorStop(0.5, '#1d1446');
+  sky.addColorStop(0.85, '#4a2a6a');
+  sky.addColorStop(1, '#8a4a72');
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
@@ -540,6 +596,65 @@ function drawWall(ctx, g, t) {
       ctx.fillStyle = glow;
       ctx.fillRect(x - 10, 100, 180, 200);
     }
+  }
+  // Ivy climbing the stone, with pale blossoms among the leaves
+  for (let x = x0; x < camX + W + 160; x += 160) {
+    const r = rng(Math.abs(Math.floor(x / 160)) * 97 + 5);
+    for (let v = 0; v < 3; v += 1) {
+      const sx = x + 14 + r() * 132;
+      const len = 70 + r() * 150;
+      const sway = r() * 6;
+      ctx.strokeStyle = '#2f6b47';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      for (let q = 0; q <= len; q += 8) {
+        const px = sx + Math.sin(t * 0.9 + q * 0.04 + sway) * 3;
+        if (q === 0) ctx.moveTo(px, 60);
+        else ctx.lineTo(px, 60 + q);
+      }
+      ctx.stroke();
+      for (let q = 12; q < len; q += 14) {
+        const n = Math.round(q / 14);
+        const px = sx + Math.sin(t * 0.9 + q * 0.04 + sway) * 3;
+        const side = n % 2 === 0 ? 1 : -1;
+        ctx.fillStyle = n % 3 === 0 ? '#58a870' : '#3f8a5a';
+        ctx.beginPath();
+        ctx.ellipse(px + side * 5, 60 + q, 5, 2.4, side * 0.6, 0, Math.PI * 2);
+        ctx.fill();
+        if (n % 4 === 2) {
+          ctx.fillStyle = '#ffb3d1';
+          ctx.beginPath();
+          ctx.arc(px - side * 6, 62 + q, 2.2, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      }
+    }
+  }
+  // Lanterns hung on chains from the stone
+  const kl0 = Math.floor((camX - 150) / 380);
+  for (let k = kl0; k * 380 + 340 < camX + W + 150; k += 1) {
+    if (k < 0 || k % 2 === 0) continue;
+    const x = 340 + k * 380;
+    ctx.strokeStyle = '#7a5a3a';
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(x, 60);
+    ctx.lineTo(x, 118);
+    ctx.stroke();
+    const sway = Math.sin(t * 1.4 + k) * 1.5;
+    const glow = ctx.createRadialGradient(x, 132, 4, x, 132, 90);
+    glow.addColorStop(0, 'rgba(255,200,120,0.35)');
+    glow.addColorStop(1, 'rgba(255,200,120,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - 90, 42, 180, 180);
+    ctx.fillStyle = '#ffcf7a';
+    ctx.beginPath();
+    ctx.ellipse(x + sway, 132, 8, 11, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#fff4cf';
+    ctx.beginPath();
+    ctx.ellipse(x + sway, 133, 3.5, 6, 0, 0, Math.PI * 2);
+    ctx.fill();
   }
   // Torches on the wall
   const k0 = Math.floor((camX - 150) / 380);
@@ -768,12 +883,13 @@ function drawBoy(ctx, p, t) {
   // Legs
   ctx.strokeStyle = '#241a36';
   ctx.lineWidth = 6;
-  limb(ctx, -3, -26, 25, air ? -0.45 : run * 0.7);
-  limb(ctx, 3, -26, 25, air ? 0.35 : -run * 0.7);
+  const climbSwing = p.climb ? Math.sin(p.phase) * 0.5 : 0;
+  limb(ctx, -3, -26, 25, p.climb ? climbSwing : air ? -0.45 : run * 0.7);
+  limb(ctx, 3, -26, 25, p.climb ? -climbSwing : air ? 0.35 : -run * 0.7);
   // Back arm
   ctx.strokeStyle = '#2f6fb8';
   ctx.lineWidth = 5;
-  limb(ctx, -5, -42, 16, run ? -run * 0.9 : 0.25);
+  limb(ctx, -5, -42, 16, p.climb ? 3.0 + Math.sin(p.phase) * 0.35 : run ? -run * 0.9 : 0.25);
   // Tunic and gold belt
   ctx.fillStyle = '#2f6fb8';
   ctx.beginPath();
@@ -948,6 +1064,91 @@ function drawDragon(ctx, d, t) {
   ctx.restore();
 }
 
+function drawSkyLanterns(ctx, g, t) {
+  const span = W + 160;
+  const off = g.camX * 0.12;
+  const cycle = H + 120;
+  for (const L of SKY_LANTERNS) {
+    const rising = (L.ph + t * L.rise) % cycle;
+    const y = H + 60 - rising;
+    const x = ((((L.x0 - off - t * L.drift) % span) + span) % span) - 80;
+    const fade = Math.min(1, rising / 60, (cycle - rising) / 60);
+    const s = L.s;
+    ctx.globalAlpha = fade;
+    const glow = ctx.createRadialGradient(x, y, 1, x, y, s * 6);
+    glow.addColorStop(0, 'rgba(255,184,96,0.6)');
+    glow.addColorStop(1, 'rgba(255,184,96,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(x - s * 6, y - s * 6, s * 12, s * 12);
+    ctx.fillStyle = '#ffd08a';
+    ctx.beginPath();
+    ctx.ellipse(x, y, s * 0.8, s, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = '#ff7a4a';
+    ctx.fillRect(x - s * 0.5, y + s * 0.9, s, s * 0.5);
+  }
+  ctx.globalAlpha = 1;
+}
+
+function drawGlimmer(ctx, t) {
+  ctx.fillStyle = '#ffe9a8';
+  for (const q of GLIMMER) {
+    const y = ((q.y - t * q.sp) % H + H) % H;
+    const x = q.x + Math.sin(t * 0.8 + q.ph) * q.sw;
+    ctx.globalAlpha = 0.35 + 0.35 * Math.sin(t * 3 + q.ph);
+    ctx.fillRect(x, y, q.s, q.s);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// The golden hair: a braid tied to a window at the top and hanging down the tower
+function drawRope(ctx, t) {
+  const x = ROPE.x;
+  const top = 60;
+  const bottom = ROPE.bottom;
+  ctx.fillStyle = '#0c0716';
+  ctx.beginPath();
+  ctx.moveTo(x - 16, top + 40);
+  ctx.lineTo(x - 16, top + 6);
+  ctx.arc(x, top + 6, 16, Math.PI, 0);
+  ctx.lineTo(x + 16, top + 40);
+  ctx.closePath();
+  ctx.fill();
+  ctx.strokeStyle = '#d9b35a';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // Two strands twisting around each other
+  ctx.lineWidth = 6;
+  for (let strand = 0; strand < 2; strand += 1) {
+    ctx.strokeStyle = strand ? '#f5d77a' : '#d9a441';
+    ctx.beginPath();
+    for (let y = top + 40; y <= bottom; y += 6) {
+      const px = x + Math.sin(y * 0.09 + strand * Math.PI) * 4;
+      if (y === top + 40) ctx.moveTo(px, y);
+      else ctx.lineTo(px, y);
+    }
+    ctx.stroke();
+  }
+  // A shine that slides down the braid
+  const span = bottom - top;
+  const shine = (t * 220) % span + top;
+  ctx.fillStyle = 'rgba(255,255,230,0.9)';
+  ctx.beginPath();
+  ctx.arc(x + Math.sin(shine * 0.09) * 4, shine, 3.5, 0, Math.PI * 2);
+  ctx.fill();
+  // Pink ribbon at the balcony
+  ctx.fillStyle = '#ff8fb8';
+  ctx.beginPath();
+  ctx.moveTo(x, ROPE.top);
+  ctx.lineTo(x - 12, ROPE.top + 8);
+  ctx.lineTo(x - 6, ROPE.top + 14);
+  ctx.lineTo(x, ROPE.top + 6);
+  ctx.lineTo(x + 6, ROPE.top + 14);
+  ctx.lineTo(x + 12, ROPE.top + 8);
+  ctx.closePath();
+  ctx.fill();
+}
+
 function drawFire(ctx, g) {
   for (const f of g.fire) {
     const glow = ctx.createRadialGradient(f.x, f.y, 2, f.x, f.y, 20);
@@ -1066,6 +1267,7 @@ function drawHud(ctx, g) {
 
 function render(ctx, g, t) {
   drawSky(ctx, g, t);
+  drawSkyLanterns(ctx, g, t);
   drawBats(ctx, t);
   drawTowers(ctx, g, FAR_TOWERS, 0.2, 330, '#170d2a', t);
   drawWall(ctx, g, t);
@@ -1074,6 +1276,7 @@ function render(ctx, g, t) {
   drawFloor(ctx);
   drawGate(ctx, g, t);
   drawBarrier(ctx, g, t);
+  drawRope(ctx, t);
   drawPrincess(ctx, g.princess, t);
   drawCage(ctx, g, t);
   drawDragon(ctx, g.dragon, t);
@@ -1087,6 +1290,7 @@ function render(ctx, g, t) {
     ctx.fillStyle = `rgba(230,220,255,${(g.flash * 0.45).toFixed(3)})`;
     ctx.fillRect(0, 0, W, H);
   }
+  drawGlimmer(ctx, t);
   drawHud(ctx, g);
   if (g.phase === 'lost') {
     ctx.fillStyle = 'rgba(5,4,13,0.6)';
@@ -1109,6 +1313,7 @@ function buildDom() {
   root.setAttribute('aria-label', 'بازی نجات پرنسس');
   root.innerHTML = `
     <canvas class="rescue-canvas" aria-hidden="true"></canvas>
+    <div class="rescue-fade" aria-hidden="true"></div>
     <div class="rescue-card" data-card="title">
       <div class="rescue-card-inner">
         <p class="rescue-kicker">قبل از ورود به خانه</p>
@@ -1140,6 +1345,8 @@ function buildDom() {
   return root;
 }
 
+// Plays the game. onDone() runs once the screen has gone black after the win (or a skip).
+// The caller then shows the next scene and calls reveal() to fade the black away.
 export function createRescueGame({ onDone }) {
   const root = buildDom();
   const canvas = root.querySelector('.rescue-canvas');
@@ -1151,23 +1358,24 @@ export function createRescueGame({ onDone }) {
   const coarse = window.matchMedia('(pointer: coarse)').matches;
   if (coarse) {
     root.querySelector('[data-keys]').textContent = 'دکمه‌های پایین صفحه را برای حرکت و جرقه بزن';
-    touch.hidden = true;
   }
 
   const input = { left: false, right: false, jump: false, fire: false };
   const pressed = { jump: false, fire: false };
+  const pointerKeys = new Map(); // pointer id -> key, so every touch releases the key it pressed
   let g = newState();
   let scale = 1;
   let offX = 0;
   let offY = 0;
-  let finished = false;
+  let exiting = false;
+  let detached = false;
   let raf = 0;
-  let last = performance.now();
+  let last = 0;
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
-    canvas.width = Math.floor(window.innerWidth * dpr);
-    canvas.height = Math.floor(window.innerHeight * dpr);
+    canvas.width = Math.max(1, Math.floor(window.innerWidth * dpr));
+    canvas.height = Math.max(1, Math.floor(window.innerHeight * dpr));
     scale = Math.min(canvas.width / W, canvas.height / H);
     offX = (canvas.width - W * scale) / 2;
     offY = (canvas.height - H * scale) / 2;
@@ -1186,132 +1394,177 @@ export function createRescueGame({ onDone }) {
     ctx.restore();
   }
 
-  function finish() {
-    if (finished) return;
-    finished = true;
-    g.phase = 'done';
-    cancelAnimationFrame(raf);
-    root.classList.add('is-leaving');
-    window.setTimeout(() => root.remove(), 1400);
-    if (onDone) onDone();
-  }
-
-  function advance(dt) {
-    update(g, dt, input, pressed);
-    pressed.jump = false;
-    pressed.fire = false;
-    if (g.phase === 'won' && g.endT >= WIN_HOLD) finish();
-    syncUi();
-  }
-
   function syncUi() {
     const playing = g.phase === 'play';
-    skipBtn.hidden = !(playing || g.phase === 'won');
-    touch.hidden = !(coarse && playing);
+    skipBtn.hidden = exiting || !(playing || g.phase === 'won');
+    touch.hidden = exiting || !(coarse && playing);
     lostCard.hidden = g.phase !== 'lost';
     titleCard.hidden = g.phase !== 'title';
   }
 
+  function setKey(key, down) {
+    input[key] = down;
+    if (down && key === 'jump') pressed.jump = true;
+    if (down && key === 'fire') pressed.fire = true;
+  }
+
+  function releaseAll() {
+    input.left = false;
+    input.right = false;
+    input.jump = false;
+    input.fire = false;
+    pointerKeys.clear();
+  }
+
+  function onKeyDown(e) {
+    if (exiting) return;
+    const isButton = !!e.target && e.target.tagName === 'BUTTON';
+    if (g.phase === 'title' && !isButton && (e.code === 'Enter' || e.code === 'Space')) {
+      e.preventDefault();
+      startGame();
+      return;
+    }
+    if (isButton && (e.code === 'Space' || e.code === 'Enter')) return;
+    const key = KEYMAP[e.code];
+    if (!key) return;
+    e.preventDefault();
+    if (e.repeat) return;
+    setKey(key, true);
+  }
+
+  function onKeyUp(e) {
+    const key = KEYMAP[e.code];
+    if (key) input[key] = false;
+  }
+
+  function onClick(e) {
+    const btn = e.target.closest('button[data-action]');
+    if (!btn) return;
+    const action = btn.dataset.action;
+    if (action === 'start') startGame();
+    else if (action === 'retry') retry();
+    else if (action === 'skip') exitToIntro(true);
+  }
+
+  function onPointerDown(e) {
+    const btn = e.target.closest ? e.target.closest('button[data-key]') : null;
+    if (!btn || exiting) return;
+    e.preventDefault();
+    const key = btn.dataset.key;
+    pointerKeys.set(e.pointerId, key);
+    setKey(key, true);
+  }
+
+  function onPointerUp(e) {
+    const key = pointerKeys.get(e.pointerId);
+    if (!key) return;
+    pointerKeys.delete(e.pointerId);
+    input[key] = false;
+  }
+
+  function onVisibility() {
+    if (document.hidden) releaseAll();
+  }
+
+  const listeners = [
+    [window, 'resize', resize],
+    [window, 'keydown', onKeyDown],
+    [window, 'keyup', onKeyUp],
+    [window, 'blur', releaseAll],
+    [document, 'visibilitychange', onVisibility],
+    [root, 'click', onClick],
+    [root, 'pointerdown', onPointerDown],
+    [root, 'pointerup', onPointerUp],
+    [root, 'pointercancel', onPointerUp],
+  ];
+
+  function detach() {
+    if (detached) return;
+    detached = true;
+    for (const [el, type, fn] of listeners) el.removeEventListener(type, fn);
+  }
+
+  // One simulation step
+  function tick(dt) {
+    update(g, dt, input, pressed);
+    pressed.jump = false;
+    pressed.fire = false;
+    if (g.phase === 'won' && g.endT >= EXIT_DELAY) exitToIntro(false);
+    syncUi();
+  }
+
   function loop(now) {
-    const dt = Math.min(0.033, (now - last) / 1000);
+    if (exiting) return;
+    const dt = Math.min(0.033, Math.max(0, (now - last) / 1000));
     last = now;
-    advance(dt);
+    tick(dt);
     draw();
-    raf = requestAnimationFrame(loop);
+    if (!exiting) raf = requestAnimationFrame(loop);
+  }
+
+  // Fade the screen to black, then hand over to the next scene
+  function exitToIntro(quick) {
+    if (exiting) return;
+    exiting = true;
+    g.phase = 'done';
+    cancelAnimationFrame(raf);
+    releaseAll();
+    detach();
+    root.classList.toggle('is-quick', quick);
+    root.classList.add('is-dark');
+    syncUi();
+    draw();
+    window.setTimeout(() => {
+      if (onDone) onDone();
+    }, quick ? 700 : FADE_MS + 200);
+  }
+
+  // Fade the black away and remove the overlay
+  function reveal() {
+    root.classList.add('is-leaving');
+    window.setTimeout(() => root.remove(), FADE_MS + 300);
   }
 
   function startGame() {
-    if (g.phase !== 'title') return;
+    if (exiting || g.phase !== 'title') return;
     g.phase = 'play';
     say(g, 'با ← و → حرکت کن و با F جرقه بزن', 3.4);
     syncUi();
   }
 
   function retry() {
+    if (exiting) return;
+    releaseAll();
     g = newState();
     g.phase = 'play';
     say(g, 'پرنسس منتظر است!', 2.2);
     syncUi();
   }
 
-  // Keyboard
-  function onKeyDown(e) {
-    if (finished) return;
-    if (e.target && e.target.tagName === 'BUTTON' && (e.code === 'Space' || e.code === 'Enter')) return;
-    const key = KEYMAP[e.code];
-    if (!key) return;
-    e.preventDefault();
-    if (e.repeat) return;
-    input[key] = true;
-    if (key === 'jump') pressed.jump = true;
-    if (key === 'fire') pressed.fire = true;
-  }
-  function onKeyUp(e) {
-    const key = KEYMAP[e.code];
-    if (key) input[key] = false;
-  }
-  function releaseAll() {
-    input.left = input.right = input.jump = input.fire = false;
-  }
-
-  // Buttons (click for start, retry, skip; press-and-hold for the touch controls)
-  function onClick(e) {
-    const btn = e.target.closest('button[data-action]');
-    if (!btn) return;
-    const action = btn.dataset.action;
-    if (action === 'start') startGame();
-    if (action === 'retry') retry();
-    if (action === 'skip') finish();
-  }
-  function onTouchDown(e) {
-    const btn = e.target.closest('button[data-key]');
-    if (!btn) return;
-    e.preventDefault();
-    const key = btn.dataset.key;
-    input[key] = true;
-    if (key === 'jump') pressed.jump = true;
-    if (key === 'fire') pressed.fire = true;
-  }
-  function onTouchUp(e) {
-    const btn = e.target.closest('button[data-key]');
-    if (btn) input[btn.dataset.key] = false;
-  }
-
-  window.addEventListener('resize', resize);
-  window.addEventListener('keydown', onKeyDown);
-  window.addEventListener('keyup', onKeyUp);
-  window.addEventListener('blur', releaseAll);
-  root.addEventListener('click', onClick);
-  root.addEventListener('pointerdown', onTouchDown);
-  root.addEventListener('pointerup', onTouchUp);
-  root.addEventListener('pointercancel', onTouchUp);
-  root.addEventListener('pointerleave', onTouchUp);
+  for (const [el, type, fn] of listeners) el.addEventListener(type, fn);
 
   resize();
   syncUi();
-  requestAnimationFrame((now) => {
-    last = now;
-    loop(now);
-  });
+  last = performance.now();
+  raf = requestAnimationFrame(loop);
 
   return {
     start: startGame,
-    skip: finish,
+    skip: () => exitToIntro(true),
+    reveal,
     // Test hooks: read the state, move the boy, press keys, and step the simulation
     state: () => g,
     setPlayer(partial) {
       Object.assign(g.p, partial);
     },
     press(key) {
-      input[key] = true;
-      if (key === 'jump') pressed.jump = true;
-      if (key === 'fire') pressed.fire = true;
+      setKey(key, true);
     },
     release(key) {
       input[key] = false;
     },
     step(dt = 0.033, n = 1) {
-      for (let i = 0; i < n; i += 1) advance(dt);
+      for (let i = 0; i < n; i += 1) tick(dt);
       draw();
     },
   };
