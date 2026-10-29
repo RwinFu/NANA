@@ -9,13 +9,11 @@ function clampText(value, fallback, max) {
 }
 
 function sanitize(raw) {
-  const count = Math.round(Number(raw.loveCount));
   return {
     fromName: clampText(raw.fromName, defaults.fromName, 24),
     toName: clampText(raw.toName, defaults.toName, 24),
     dedication: clampText(raw.dedication, defaults.dedication, 90),
     anniversaryMsg: clampText(raw.anniversaryMsg, defaults.anniversaryMsg, 120),
-    loveCount: Number.isFinite(count) && count >= 1 && count <= 9999999 ? count : defaults.loveCount,
     avatarColor: HEX.test(raw.avatarColor) ? raw.avatarColor : defaults.avatarColor,
   };
 }
