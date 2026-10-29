@@ -49,6 +49,17 @@ export function createAudio() {
     return ctx;
   }
 
+  // Creates the song element once and starts downloading it early, so it plays right at the gate.
+  function ensureSong() {
+    if (song) return song;
+    song = new Audio(SONG_URL);
+    song.loop = true;
+    song.preload = 'auto';
+    song.volume = 0;
+    song.load();
+    return song;
+  }
+
   function tone(freq, when, duration, volume, dest) {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -111,6 +122,7 @@ export function createAudio() {
     unlock() {
       const context = ensureContext();
       if (context && context.state === 'suspended') context.resume();
+      ensureSong();
       if (musicOn && !songActive) startLoop();
     },
     setMusic(on) {
@@ -125,12 +137,7 @@ export function createAudio() {
     // The family song takes over from the synth loop and loops until the end.
     // Starts the song right away. main.js calls this in the same tick as the static burst.
     startSong() {
-      if (!song) {
-        song = new Audio(SONG_URL);
-        song.loop = true;
-        song.preload = 'auto';
-        song.volume = 0;
-      }
+      ensureSong();
       stopLoop();
       songActive = true;
       if (!musicOn) return;
