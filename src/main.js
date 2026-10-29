@@ -116,7 +116,13 @@ if (!renderer) {
 }
 
 const scene = new THREE.Scene();
-const camera = new THREE.PerspectiveCamera(55, window.innerWidth / window.innerHeight, 0.1, 220);
+// Portrait phones get a wider vertical FOV so the couple fits side by side
+const camera = new THREE.PerspectiveCamera(
+  window.innerWidth / window.innerHeight < 0.8 ? 66 : 55,
+  window.innerWidth / window.innerHeight,
+  0.1,
+  220
+);
 let world = null;
 let hero = null;
 let cats = null;
@@ -671,6 +677,7 @@ function onResize() {
   const w = window.innerWidth;
   const h = window.innerHeight;
   camera.aspect = w / h;
+  camera.fov = w / h < 0.8 ? 66 : 55;
   camera.updateProjectionMatrix();
   if (renderer) renderer.setSize(w, h, false);
 }
