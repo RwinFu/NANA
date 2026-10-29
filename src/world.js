@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { memories as memoryList, soloMemories, soloVideo } from './memories.js';
 import { buildCastle } from './castle.js';
+import { createRugGlint } from './rugglint.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -185,6 +186,7 @@ export function buildWorld(scene) {
   rug.rotation.x = -Math.PI / 2;
   rug.position.set(0, 0.02, -19);
   scene.add(rug);
+  const rugGlint = createRugGlint(scene, rug, { x: 0, z: -19, halfW: 1.1, halfD: 18 });
 
 
   // Hall ceiling and walls
@@ -872,5 +874,6 @@ export function buildWorld(scene) {
     dispose,
     hallLights,
     heartWindow,
+    rugGlint,
   };
 }

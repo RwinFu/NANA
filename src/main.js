@@ -764,6 +764,7 @@ function frame() {
   cats?.update(dt, t, hero, started);
   syncCoupleUi();
   trail?.update(dt, hero.root.position, started && controls.moving, camera);
+  world?.rugGlint?.update(dt, t, hero.root.position, started && controls.moving);
   footprints?.update(dt, hero, started && controls.moving);
   envelope.update(t, dt);
   world.update(t, dt, started ? nearFrame : -1);
