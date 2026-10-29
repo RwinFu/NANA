@@ -249,6 +249,58 @@ function addBangs(head, mat, headR) {
   });
 }
 
+// A princess tiara that wraps across the front of the head, above the bangs: a curved gold band
+// with a row of points (the tallest in the middle, with a pink jewel), blue gems and pearls.
+function addTiara(head, goldMat) {
+  const R = 0.29; // distance from the head centre
+  const TH = 0.6; // polar angle from the crown: it sits above the bangs
+  const onBand = (a, r = R) => {
+    const s = Math.sin(TH);
+    return new THREE.Vector3(r * s * Math.sin(a), r * Math.cos(TH), r * s * Math.cos(a));
+  };
+  const span = 1.5;
+  const band = onBand;
+  const bandPts = [];
+  for (let i = 0; i <= 8; i += 1) bandPts.push(band(-span + (i / 8) * span * 2));
+  head.add(new THREE.Mesh(new THREE.TubeGeometry(new THREE.CatmullRomCurve3(bandPts), 40, 0.013, 8, false), goldMat));
+
+  const gemPink = new THREE.MeshStandardMaterial({ color: '#ff8fab', roughness: 0.2, metalness: 0.1, emissive: '#4a1426' });
+  const gemBlue = new THREE.MeshStandardMaterial({ color: '#8ec5ff', roughness: 0.2, metalness: 0.1 });
+  const pearlMat = new THREE.MeshStandardMaterial({ color: '#fff6ee', roughness: 0.3 });
+  const up = new THREE.Vector3(0, 1, 0);
+  const dir = new THREE.Vector3();
+  const quat = new THREE.Quaternion();
+
+  // Points: tallest in the middle, shorter toward the sides
+  const points = [
+    { a: -0.9, h: 0.075, r: 0.02 },
+    { a: -0.45, h: 0.09, r: 0.022 },
+    { a: 0, h: 0.14, r: 0.03 },
+    { a: 0.45, h: 0.09, r: 0.022 },
+    { a: 0.9, h: 0.075, r: 0.02 },
+  ];
+  points.forEach(({ a, h, r }) => {
+    const base = onBand(a, R - 0.004);
+    dir.copy(base).normalize();
+    const cone = new THREE.Mesh(new THREE.ConeGeometry(r, h, 10).translate(0, h / 2, 0), goldMat);
+    quat.setFromUnitVectors(up, dir);
+    cone.quaternion.copy(quat);
+    cone.position.copy(base);
+    head.add(cone);
+    const tip = base.clone().addScaledVector(dir, h);
+    const gem = new THREE.Mesh(new THREE.SphereGeometry(a === 0 ? 0.022 : 0.012, 12, 10), a === 0 ? gemPink : gemBlue);
+    gem.position.copy(tip);
+    head.add(gem);
+  });
+
+  // Pearls between the points, on the band
+  [-1.12, -0.68, -0.22, 0.22, 0.68, 1.12].forEach((a) => {
+    const pearl = new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 8), pearlMat);
+    pearl.position.copy(onBand(a));
+    head.add(pearl);
+  });
+}
+
 // The walking princess (you) and the boy who follows her and holds her hand.
 // Her front is +z; the ponytail hangs at -z.
 export function createCouple(dressColor) {
@@ -318,8 +370,7 @@ export function createCouple(dressColor) {
   part(new THREE.Mesh(new THREE.SphereGeometry(0.252, 24, 14, Math.PI, Math.PI, 0, Math.PI * 0.62), hairMat), head, 0, 0, 0);
   addBangs(head, hairMat, 0.245);
   addPrincessFace(head, skinMat);
-  const tiara = part(new THREE.Mesh(new THREE.TorusGeometry(0.17, 0.025, 8, 24, Math.PI), goldMat), head, 0, 0.2, 0.02);
-  tiara.rotation.x = -0.2;
+  addTiara(head, goldMat);
 
   // Ponytail: a physics chain, tied with a pink ribbon at the back of the head
   const ponytail = createHairChain({
