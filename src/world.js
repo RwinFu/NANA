@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { memories as memoryList, soloMemories, soloVideo } from './memories.js';
 import { buildCastle } from './castle.js';
 import { createRugGlint, createStoneGlint } from './rugglint.js';
-import { stoneNormal, doorNormal, giltNormal, ribbonNormal } from './architecture.js';
+import { stoneNormal, doorNormal, giltNormal, ribbonNormal, heartGlass } from './architecture.js';
 import { buildTown } from './town.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
@@ -172,11 +172,15 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
   }));
   const panelMat = track(new THREE.MeshStandardMaterial({ color: '#f6c3d6', roughness: 0.4 }));
   const goldMat = track(new THREE.MeshStandardMaterial({ color: '#e9b96a', metalness: 0.7, roughness: 0.3, normalMap: giltNormal(4, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
+  const hg = heartGlass(1.5, 1.5);
   const glassMat = track(
     new THREE.MeshStandardMaterial({
       color: '#ffe3ef',
       emissive: '#ff9fcb',
       emissiveIntensity: 0.55,
+      emissiveMap: hg.emissiveMap,
+      normalMap: hg.normalMap,
+      normalScale: new THREE.Vector2(0.8, 0.8),
       roughness: 0.2,
       side: THREE.DoubleSide,
     })
@@ -294,7 +298,8 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
       winGeo.scale(-side, 1, 1);
       winGeo.translate(0, 0, 0.09);
       face.add(new THREE.Mesh(winGeo, glassMat));
-      const winPts = win.getPoints(28).map((p) => [p.x, p.y]);
+      // Evenly spaced points along the outline, so the gold frame follows the glass edge exactly (sharp bottom corners)
+      const winPts = win.getSpacedPoints(160).map((p) => [p.x, p.y]);
       const first = winPts[0];
       const last = winPts[winPts.length - 1];
       if (Math.abs(last[0] - first[0]) < 1e-6 && Math.abs(last[1] - first[1]) < 1e-6) winPts.pop();

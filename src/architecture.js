@@ -241,6 +241,50 @@ export function leadedGlass(repeatX = 2, repeatY = 3) {
   return result;
 }
 
+// Heart-lead glass for the door windows: raised lead outlines of small hearts on the glass
+function heartLeadHeight() {
+  const { c, g } = canvas();
+  g.fillStyle = 'rgb(110,110,110)';
+  g.fillRect(0, 0, SIZE, SIZE);
+  g.strokeStyle = 'rgb(255,255,255)';
+  g.lineWidth = 6;
+  [64, 192].forEach((cx) => [64, 192].forEach((cy) => {
+    heartPath(g, cx, cy, 22);
+    g.stroke();
+  }));
+  return soften(c, 1);
+}
+
+function heartLeadColour() {
+  const { c, g } = canvas();
+  g.fillStyle = 'rgb(255,255,255)';
+  g.fillRect(0, 0, SIZE, SIZE);
+  g.strokeStyle = 'rgb(120,60,90)';
+  g.lineWidth = 6;
+  [64, 192].forEach((cx) => [64, 192].forEach((cy) => {
+    heartPath(g, cx, cy, 22);
+    g.stroke();
+  }));
+  return c;
+}
+
+const heartGlassCache = new Map();
+
+export function heartGlass(repeatX = 3, repeatY = 3) {
+  const id = `${repeatX}x${repeatY}`;
+  if (heartGlassCache.has(id)) return heartGlassCache.get(id);
+  const normalMap = cachedNormal('heartlead', heartLeadHeight, 3.4, repeatX, repeatY);
+  const colour = new THREE.CanvasTexture(heartLeadColour());
+  colour.colorSpace = THREE.SRGBColorSpace;
+  colour.wrapS = THREE.RepeatWrapping;
+  colour.wrapT = THREE.RepeatWrapping;
+  colour.repeat.set(repeatX, repeatY);
+  colour.anisotropy = 8;
+  const result = { normalMap, emissiveMap: colour };
+  heartGlassCache.set(id, result);
+  return result;
+}
+
 const cache = new Map();
 
 // A tiling normal map from a height field, cached by kind and repeat
