@@ -728,10 +728,11 @@ export function buildWorld(scene) {
   houseArch.position.set(0, dh, 0.34);
   scene.add(houseArch);
 
-  // A stone threshold across the doorway, so the castle has a proper entrance step
+  // A thin stone threshold across the doorway. It is only 4 cm high, so the couple walk on top of it
+  // without their feet sinking into it (a taller step hid their lower bodies).
   const sillMat = track(new THREE.MeshStandardMaterial({ color: '#e9dccb', roughness: 0.8 }));
-  const sill = track(new THREE.Mesh(new THREE.BoxGeometry(dw * 2 + 0.8, 0.14, 1.0), sillMat));
-  sill.position.set(0, 0.07, 0.5);
+  const sill = track(new THREE.Mesh(new THREE.BoxGeometry(dw * 2 + 0.8, 0.04, 1.0), sillMat));
+  sill.position.set(0, 0.0, 0.5);
   scene.add(sill);
 
   // The house front becomes a princess castle
