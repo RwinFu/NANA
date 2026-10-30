@@ -560,8 +560,8 @@ export function buildWorld(scene) {
   rightSkin.position.set(4.18, SPRING / 2, -LAYOUT.hallLength / 2 + 0.1);
   scene.add(rightSkin);
 
-  // Left side: outside the left wall, in two pieces that leave out the photo room's span (z -23.4 to -16.6)
-  [[0.2, -23.4], [-16.6, -LAYOUT.hallLength]].forEach(([za, zb]) => {
+  // Left side: outside the left wall, in two pieces that leave out the photo room's span and its doorway (z -23.4 to -16.6)
+  [[0.2, -16.6], [-23.4, -LAYOUT.hallLength]].forEach(([za, zb]) => {
     const piece = new THREE.Mesh(track(new THREE.PlaneGeometry(za - zb, SPRING)), skinMat);
     piece.rotation.y = -Math.PI / 2;
     piece.position.set(-4.18, SPRING / 2, (za + zb) / 2);
