@@ -1,4 +1,5 @@
 import '@fontsource-variable/vazirmatn';
+import '@fontsource/lalezar/400.css';
 import './style.css';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -192,6 +193,8 @@ if (renderer) {
   introFairy = createFairy(scene);
   hero = createCouple(store.get().avatarColor);
   scene.add(hero.root);
+  // Start in the garden, not at the origin: the origin is the middle of the door, and the couple sank into it before the walk began
+  hero.root.position.copy(LAYOUT.spawn);
   // A soft studio reflection for the characters' glossy parts (hair, eyes, gold, shoes)
   const pmrem = new THREE.PMREMGenerator(renderer);
   hero.setEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture);
@@ -630,6 +633,7 @@ if (world) {
   };
   document.fonts.ready.then(draw);
   document.fonts.load('800 96px "Vazirmatn Variable"').then(draw, draw);
+  document.fonts.load('400 84px "Lalezar"').then(draw, draw);
 }
 
 // ---------- intro camera -------------------------------------------------
@@ -744,7 +748,8 @@ function frame() {
   footprints?.update(dt, hero, started && controls.moving);
   envelope.update(t, dt);
   world.update(t, dt, started ? nearFrame : -1);
-  world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
+  // Only once the walk has started: before that the hero sits at the origin, right by the door, and would latch it open
+  if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
   if (started) updatePrompt();
 
   renderer.render(scene, camera);

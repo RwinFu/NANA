@@ -83,42 +83,129 @@ export function wrapText(ctx, text, maxWidth, maxLines) {
 
 const FONT = '"Vazirmatn Variable", Vazirmatn, sans-serif';
 
+// A heart outline, centred on (x, y) with half-width `size`
+function drawHeartPath(ctx, x, y, size) {
+  ctx.beginPath();
+  for (let i = 0; i <= 48; i += 1) {
+    const t = (i / 48) * Math.PI * 2;
+    const px = x + size * Math.sin(t) ** 3;
+    const py = y - (size / 16) * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
+    if (i === 0) ctx.moveTo(px, py);
+    else ctx.lineTo(px, py);
+  }
+  ctx.closePath();
+}
+
+// The plaque uses a playful display face; Lalezar is loaded in main.js
+const PLAQUE_FONT = '"Lalezar", "Vazirmatn Variable", sans-serif';
+
 function drawPlaque(ctx, w, h, text) {
+  // A rose-cream card with a double gold border, gold hearts in the corners, and a plum title
   const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, '#2a1d35');
-  grad.addColorStop(1, '#17111f');
+  grad.addColorStop(0, '#fff8fb');
+  grad.addColorStop(1, '#f5c2d8');
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = '#ffcf8a';
-  ctx.lineWidth = 10;
-  ctx.strokeRect(22, 22, w - 44, h - 44);
-  ctx.fillStyle = '#ffcf8a';
+  ctx.strokeStyle = '#d9a441';
+  ctx.lineWidth = 12;
+  ctx.strokeRect(24, 24, w - 48, h - 48);
+  ctx.strokeStyle = '#f5d78e';
+  ctx.lineWidth = 4;
+  ctx.strokeRect(48, 48, w - 96, h - 96);
+  ctx.fillStyle = '#e9b96a';
+  [[74, 74], [w - 74, 74], [74, h - 74], [w - 74, h - 74]].forEach(([x, y]) => {
+    drawHeartPath(ctx, x, y, 16);
+    ctx.fill();
+  });
+  ctx.fillStyle = '#6b2d5c';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `800 96px ${FONT}`;
-  ctx.fillText('خانه‌ی ما', w / 2, h * 0.3);
-  ctx.fillStyle = '#fff1e1';
-  ctx.font = `500 46px ${FONT}`;
-  const lines = wrapText(ctx, text, w - 220, 2);
-  lines.forEach((line, i) => ctx.fillText(line, w / 2, h * 0.66 + i * 62));
+  ctx.font = `400 96px ${PLAQUE_FONT}`;
+  ctx.fillText('خانه‌ی ما', w / 2, h * 0.28);
+  // A divider with a heart in the middle
+  ctx.fillStyle = '#d9a441';
+  ctx.fillRect(w / 2 - 190, h * 0.45, 140, 4);
+  ctx.fillRect(w / 2 + 50, h * 0.45, 140, 4);
+  ctx.fillStyle = '#ff7fae';
+  drawHeartPath(ctx, w / 2, h * 0.45 + 2, 14);
+  ctx.fill();
+  ctx.fillStyle = '#7a3a63';
+  ctx.font = `400 44px ${PLAQUE_FONT}`;
+  const lines = wrapText(ctx, text, w - 240, 2);
+  lines.forEach((line, i) => ctx.fillText(line, w / 2, h * 0.58 + i * 46));
+}
+
+// A rounded rectangle centred on the origin, as a Shape (used for the plaque frame)
+function roundedRect(w, h, r) {
+  const shape = new THREE.Shape();
+  const x = -w / 2;
+  const y = -h / 2;
+  shape.moveTo(x + r, y);
+  shape.lineTo(x + w - r, y);
+  shape.quadraticCurveTo(x + w, y, x + w, y + r);
+  shape.lineTo(x + w, y + h - r);
+  shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  shape.lineTo(x + r, y + h);
+  shape.quadraticCurveTo(x, y + h, x, y + h - r);
+  shape.lineTo(x, y + r);
+  shape.quadraticCurveTo(x, y, x + r, y);
+  return shape;
 }
 
 // ---------- world ----------------------------------------------------------
 
-// A pair of doors with round tops, white with pink panels and gold trim. They stand closed by default
-// and swing open while the couple is near. The local frame runs along the wall (x), up (y), and
-// towards the side the doors open (z). The pivots sit at the jambs, so each leaf swings away from the centre.
-function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, onDetail = true }) {
+// The castle doors: cream leaves with round tops, gold piping along the arch, a glowing arched window,
+// a raised pink panel with a gold frame, a gold kick-plate, a pink heart on each leaf, and a gold knob
+// with a pink jewel. They stand closed by default and swing open (90 degrees) once the couple comes near,
+// then stay open. Closed, the leaves meet with no rail or seam between them.
+// Local frame: x runs along the wall, y is up, and z points to the side the doors face.
+function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 1 }) {
   const R = halfWidth;
   const group = new THREE.Group();
   group.position.copy(centre);
   group.rotation.y = rotY;
   scene.add(group);
-  const leafMat = track(new THREE.MeshStandardMaterial({ color: '#fbf1f5', roughness: 0.5, side: THREE.DoubleSide }));
-  const panelMat = track(new THREE.MeshStandardMaterial({ color: '#f6c3d6', roughness: 0.45 }));
+
+  const leafMat = track(new THREE.MeshStandardMaterial({ color: '#fdf4f7', roughness: 0.45, side: THREE.DoubleSide }));
+  const panelMat = track(new THREE.MeshStandardMaterial({ color: '#f6c3d6', roughness: 0.4 }));
   const goldMat = track(new THREE.MeshStandardMaterial({ color: '#e9b96a', metalness: 0.7, roughness: 0.3 }));
-  const panelGeo = track(new THREE.BoxGeometry(1, 1, 0.04));
+  const glassMat = track(
+    new THREE.MeshStandardMaterial({
+      color: '#ffe3ef',
+      emissive: '#ff9fcb',
+      emissiveIntensity: 0.55,
+      roughness: 0.2,
+      side: THREE.DoubleSide,
+    })
+  );
+  const heartMat = track(new THREE.MeshStandardMaterial({ color: '#ff7fae', emissive: '#ff4f8f', emissiveIntensity: 0.25, roughness: 0.35 }));
+  const jewelMat = track(new THREE.MeshStandardMaterial({ color: '#ff9cc2', emissive: '#ff6fa6', emissiveIntensity: 0.3, roughness: 0.2 }));
+  const boxGeo = track(new THREE.BoxGeometry(1, 1, 1));
+  const ballGeo = track(new THREE.SphereGeometry(1, 14, 10));
   const leaves = [];
+
+  // In a leaf's frame, s is the distance from its hinge (0 at the hinge, R at the centre) and v is the height.
+  // The leaf's local x is -side * s, so it runs from its hinge towards the centre.
+  const at = (side, s, v, z) => new THREE.Vector3(-side * s, v, z);
+  // Height of the round top at distance s from the hinge: a half circle centred on the springline
+  const archTop = (s) => spring + Math.sqrt(Math.max(0, R * R - (R - s) * (R - s)));
+
+  // One heart outline, shared by both leaves
+  const heartShape = new THREE.Shape();
+  for (let i = 0; i <= 48; i += 1) {
+    const t = (i / 48) * Math.PI * 2;
+    const hx = 16 * Math.sin(t) ** 3;
+    const hy = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+    if (i === 0) heartShape.moveTo(hx * 0.013, hy * 0.013);
+    else heartShape.lineTo(hx * 0.013, hy * 0.013);
+  }
+  const heartGeo = track(new THREE.ExtrudeGeometry(heartShape, { depth: 0.04, bevelEnabled: false }));
+
+  // A thin gold line that follows points given in the leaf's frame
+  function piping(hinge, pts, side, z, radius, closed) {
+    const curve = new THREE.CatmullRomCurve3(pts.map(([s, v]) => at(side, s, v, z)), closed);
+    hinge.add(new THREE.Mesh(track(new THREE.TubeGeometry(curve, pts.length * 14, radius, 8, closed)), goldMat));
+  }
 
   [-1, 1].forEach((side) => {
     const hinge = new THREE.Group();
@@ -126,85 +213,127 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, onDetail
     group.add(hinge);
     leaves.push({ hinge, side });
 
-    // Leaf outline: straight sides up to the springline, then a round top meeting the centre
+    // The leaf body, with its round top
     const shape = new THREE.Shape();
     shape.moveTo(0, 0);
     shape.lineTo(R, 0);
     shape.lineTo(R, spring + R);
     for (let i = 0; i <= 24; i += 1) {
-      const x = R - (i / 24) * R;
-      shape.lineTo(x, spring + Math.sqrt(Math.max(0, R * R - (R - x) * (R - x))));
+      const s = R - (i / 24) * R;
+      shape.lineTo(s, archTop(s));
     }
     shape.closePath();
-    const geo = new THREE.ExtrudeGeometry(shape, {
-      depth: 0.1,
-      bevelEnabled: true,
-      bevelThickness: 0.02,
-      bevelSize: 0.02,
-      bevelSegments: 2,
-      curveSegments: 24,
-    });
-    geo.translate(0, 0, -0.05);
-    geo.scale(-side, 1, 1); // local x runs from the hinge towards the centre
-    hinge.add(new THREE.Mesh(track(geo), leafMat));
+    const body = track(
+      new THREE.ExtrudeGeometry(shape, {
+        depth: 0.1,
+        bevelEnabled: true,
+        bevelThickness: 0.02,
+        bevelSize: 0.02,
+        bevelSegments: 2,
+        curveSegments: 24,
+      })
+    );
+    body.translate(0, 0, -0.05);
+    body.scale(-side, 1, 1);
+    hinge.add(new THREE.Mesh(body, leafMat));
 
-    if (onDetail) {
-      // Two raised pink panels per leaf
-      [[0.28, 0.42], [0.72, 0.42]].forEach(([fy, fh]) => {
-        const panel = new THREE.Mesh(panelGeo, panelMat);
-        panel.scale.set(R * 0.62, spring * fh, 0.04);
-        panel.position.set(-side * R * 0.5, spring * fy, 0.075);
-        hinge.add(panel);
-      });
-      // Thin gold trim around each raised panel
-      const bar = track(new THREE.BoxGeometry(1, 1, 1));
-      [[0.28, 0.42], [0.72, 0.42]].forEach(([fy, fh]) => {
-        const xc = -side * R * 0.5;
-        const yc = spring * fy;
-        const w = R * 0.62;
-        const h = spring * fh;
-        const t = 0.035;
-        [[xc, yc + h / 2 + t / 2, w + 2 * t, t], [xc, yc - h / 2 - t / 2, w + 2 * t, t],
-          [xc - w / 2 - t / 2, yc, t, h + 2 * t], [xc + w / 2 + t / 2, yc, t, h + 2 * t]].forEach(([x, y, bw, bh]) => {
-          const trim = new THREE.Mesh(bar, goldMat);
-          trim.scale.set(bw, bh, 0.03);
-          trim.position.set(x, y, 0.1);
-          hinge.add(trim);
-        });
-      });
-      // A gold kick-plate along the bottom of each leaf
-      const kick = new THREE.Mesh(bar, goldMat);
-      kick.scale.set(R * 0.9, 0.22, 0.05);
-      kick.position.set(-side * R * 0.5, 0.11, 0.09);
-      hinge.add(kick);
-      // A gold handle near the meeting edge
-      const handle = new THREE.Mesh(track(new THREE.SphereGeometry(0.07, 12, 10)), goldMat);
-      handle.position.set(-side * (R - 0.2), spring * 0.45, 0.14);
-      hinge.add(handle);
-    }
+    // The details are built once for the front (+z) and mirrored for the back (-z), so both faces are decorated
+    [1, -1].forEach((zs) => {
+      const face = new THREE.Group();
+      face.scale.z = zs;
+      hinge.add(face);
+
+      // Gold piping along the round top
+      const arch = [];
+      for (let i = 0; i <= 30; i += 1) {
+        const s = (i / 30) * R;
+        arch.push([s, archTop(s) + 0.03]);
+      }
+      piping(face, arch, side, 0.07, 0.03, false);
+
+      // A raised pink panel in a gold frame, low on the leaf
+      const p0 = R * 0.18;
+      const p1 = R * 0.82;
+      const q0 = spring * 0.09;
+      const q1 = spring * 0.47;
+      const panel = new THREE.Mesh(boxGeo, panelMat);
+      panel.scale.set(p1 - p0, q1 - q0, 0.04);
+      panel.position.copy(at(side, (p0 + p1) / 2, (q0 + q1) / 2, 0.09));
+      face.add(panel);
+      piping(face, [[p0, q0], [p1, q0], [p1, q1], [p0, q1]], side, 0.105, 0.025, true);
+
+      // An arched window that glows, with a gold frame and two gold bars
+      const ww = R * 0.6;
+      const wc = R * 0.5;
+      const wv0 = spring * 0.56;
+      const wv1 = spring * 0.9;
+      const win = new THREE.Shape();
+      win.moveTo(wc - ww / 2, wv0);
+      win.lineTo(wc + ww / 2, wv0);
+      win.lineTo(wc + ww / 2, wv1);
+      win.absarc(wc, wv1, ww / 2, 0, Math.PI, false);
+      win.lineTo(wc - ww / 2, wv0);
+      const winGeo = track(new THREE.ShapeGeometry(win, 24));
+      winGeo.scale(-side, 1, 1);
+      winGeo.translate(0, 0, 0.09);
+      face.add(new THREE.Mesh(winGeo, glassMat));
+      const winPts = win.getPoints(28).map((p) => [p.x, p.y]);
+      const first = winPts[0];
+      const last = winPts[winPts.length - 1];
+      if (Math.abs(last[0] - first[0]) < 1e-6 && Math.abs(last[1] - first[1]) < 1e-6) winPts.pop();
+      piping(face, winPts, side, 0.1, 0.025, true);
+      const mullion = new THREE.Mesh(boxGeo, goldMat);
+      mullion.scale.set(0.035, wv1 - wv0, 0.03);
+      mullion.position.copy(at(side, wc, (wv0 + wv1) / 2, 0.11));
+      face.add(mullion);
+      const transom = new THREE.Mesh(boxGeo, goldMat);
+      transom.scale.set(ww, 0.035, 0.03);
+      transom.position.copy(at(side, wc, wv0 + (wv1 - wv0) * 0.55, 0.11));
+      face.add(transom);
+
+      // A gold kick-plate along the bottom
+      const kick = new THREE.Mesh(boxGeo, goldMat);
+      kick.scale.set(R * 0.9, 0.2, 0.05);
+      kick.position.copy(at(side, R * 0.5, 0.1, 0.085));
+      face.add(kick);
+
+      // A pink heart in the top of each leaf
+      const heart = new THREE.Mesh(heartGeo, heartMat);
+      heart.position.copy(at(side, R * 0.5, spring + R * 0.42, 0.07));
+      face.add(heart);
+
+      // A gold knob with a pink jewel, near the meeting edge
+      const knob = new THREE.Mesh(ballGeo, goldMat);
+      knob.scale.setScalar(0.08);
+      knob.position.copy(at(side, R - 0.2, spring * 0.36, 0.13));
+      face.add(knob);
+      const jewel = new THREE.Mesh(ballGeo, jewelMat);
+      jewel.scale.setScalar(0.035);
+      jewel.position.copy(at(side, R - 0.2, spring * 0.36, 0.2));
+      face.add(jewel);
+    });
   });
 
-  if (onDetail) {
-    // Gold rail where the two leaves meet, and a finial at the crown of the round top
-    const rail = new THREE.Mesh(track(new THREE.BoxGeometry(0.07, spring, 0.16)), goldMat);
-    rail.position.set(0, spring / 2, 0.02);
-    group.add(rail);
-    const finial = new THREE.Mesh(track(new THREE.SphereGeometry(0.12, 14, 12)), goldMat);
-    finial.position.set(0, spring + R + 0.1, 0.02);
-    group.add(finial);
-  }
+  // A gold finial with a pink jewel at the crown
+  const finial = new THREE.Mesh(ballGeo, goldMat);
+  finial.scale.setScalar(0.14);
+  finial.position.set(0, spring + R + 0.14, 0.08);
+  group.add(finial);
+  const crownJewel = new THREE.Mesh(ballGeo, jewelMat);
+  crownJewel.scale.setScalar(0.06);
+  crownJewel.position.set(0, spring + R + 0.32, 0.08);
+  group.add(crownJewel);
 
   let open = 0;
   let latched = false;
-  // Closed by default; they swing open to about 90 degrees when the couple comes within reach,
-  // and then stay open for the rest of the visit
+  // Closed by default. Once the couple comes within reach, the doors swing open and stay open.
   function update(dt, px, pz) {
     if (Math.hypot(px - centre.x, pz - centre.z) < 2.6) latched = true;
     const target = latched ? 1 : 0;
     open += THREE.MathUtils.clamp(target - open, -dt * 2.5, dt * 2.5);
     const k = open * open * (3 - 2 * open);
     leaves.forEach(({ hinge, side }) => {
-      hinge.rotation.y = side * (Math.PI / 2) * k;
+      hinge.rotation.y = swing * side * (Math.PI / 2) * k;
     });
   }
 
@@ -726,15 +855,38 @@ export function buildWorld(scene) {
   const facadeArch = new THREE.Mesh(track(new THREE.ExtrudeGeometry(facadeTop, { depth: 0.6, bevelEnabled: false })), facadeMat);
   facadeArch.position.set(0, 0, -0.3);
   scene.add(facadeArch);
-  const houseArchMat = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
-  const houseArch = new THREE.Mesh(track(new THREE.TorusGeometry(dw, 0.07, 8, 32, Math.PI)), houseArchMat);
-  houseArch.position.set(0, dh, 0.34);
-  scene.add(houseArch);
+  // Pink moulding and gold piping over the doors, with a rosette at each springline and a crown on top
+  const archPinkMat = track(new THREE.MeshStandardMaterial({ color: '#f6c3d6', roughness: 0.45 }));
+  const archGoldMat = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
+  const archJewelMat = track(new THREE.MeshStandardMaterial({ color: '#ff9cc2', emissive: '#ff6fa6', emissiveIntensity: 0.3, roughness: 0.2 }));
+  const archRadius = dw + 0.2;
+  const pinkArch = new THREE.Mesh(track(new THREE.TorusGeometry(archRadius, 0.12, 10, 48, Math.PI)), archPinkMat);
+  pinkArch.position.set(0, dh, 0.3);
+  scene.add(pinkArch);
+  const goldArch = new THREE.Mesh(track(new THREE.TorusGeometry(archRadius, 0.035, 8, 48, Math.PI)), archGoldMat);
+  goldArch.position.set(0, dh, 0.42);
+  scene.add(goldArch);
+  const surroundBallGeo = track(new THREE.SphereGeometry(1, 14, 10));
+  [-1, 1].forEach((side) => {
+    const rosette = new THREE.Mesh(surroundBallGeo, archGoldMat);
+    rosette.scale.setScalar(0.2);
+    rosette.position.set(side * archRadius, dh, 0.42);
+    scene.add(rosette);
+    const rosetteJewel = new THREE.Mesh(surroundBallGeo, archJewelMat);
+    rosetteJewel.scale.setScalar(0.1);
+    rosetteJewel.position.set(side * archRadius, dh, 0.56);
+    scene.add(rosetteJewel);
+  });
+  const crown = new THREE.Mesh(surroundBallGeo, archGoldMat);
+  crown.scale.setScalar(0.16);
+  crown.position.set(0, dh + archRadius, 0.42);
+  scene.add(crown);
 
-  // A stone threshold across the doorway, so the castle has a proper entrance step
+  // A thin stone threshold across the doorway. It is only 4 cm high, so the couple walk on top of it
+  // without their feet sinking into it (a taller step hid their lower bodies).
   const sillMat = track(new THREE.MeshStandardMaterial({ color: '#e9dccb', roughness: 0.8 }));
-  const sill = track(new THREE.Mesh(new THREE.BoxGeometry(dw * 2 + 0.8, 0.14, 1.0), sillMat));
-  sill.position.set(0, 0.07, 0.5);
+  const sill = track(new THREE.Mesh(new THREE.BoxGeometry(dw * 2 + 0.8, 0.04, 1.0), sillMat));
+  sill.position.set(0, 0.0, 0.5);
   scene.add(sill);
 
   // The house front becomes a princess castle
@@ -748,15 +900,22 @@ export function buildWorld(scene) {
     rotY: 0,
     halfWidth: dw,
     spring: dh,
+    swing: -1, // swings into the hall, away from the garden path
   });
   const doors = [frontDoor, roomDoor];
 
-  // Door panels (open) and warm light spilling from the door
-  const doorFrameMat = new THREE.MeshStandardMaterial({ color: '#7a4a2e', roughness: 0.6 });
+  // Door panels (open) and warm light spilling from the door: cream pillars with gold plinths and bands
+  const jambMat = track(new THREE.MeshStandardMaterial({ color: '#fbf1f5', roughness: 0.5 }));
   [-1, 1].forEach((side) => {
-    const jamb = track(new THREE.Mesh(new THREE.BoxGeometry(0.18, dh, 0.5), doorFrameMat));
+    const jamb = new THREE.Mesh(track(new THREE.BoxGeometry(0.18, dh, 0.5)), jambMat);
     jamb.position.set(side * dw, dh / 2, 0.02);
     scene.add(jamb);
+    const plinth = new THREE.Mesh(track(new THREE.BoxGeometry(0.3, 0.4, 0.6)), archGoldMat);
+    plinth.position.set(side * dw, 0.2, 0.02);
+    scene.add(plinth);
+    const band = new THREE.Mesh(track(new THREE.BoxGeometry(0.24, 0.1, 0.56)), archGoldMat);
+    band.position.set(side * dw, dh * 0.6, 0.02);
+    scene.add(band);
   });
 
   const lightShaftMat = new THREE.MeshBasicMaterial({
@@ -776,7 +935,7 @@ export function buildWorld(scene) {
   spill.position.set(0, 0.03, 2.2);
   scene.add(spill);
 
-  // Plaque above the door with the dedication text (redrawn when text changes)
+  // Plaque above the door with the dedication text (redrawn when text changes), in a raised gold frame
   const plaqueCanvas = document.createElement('canvas');
   plaqueCanvas.width = 1024;
   plaqueCanvas.height = 300;
@@ -784,12 +943,29 @@ export function buildWorld(scene) {
   plaqueTex.colorSpace = THREE.SRGBColorSpace;
   const plaque = track(
     new THREE.Mesh(
-      new THREE.PlaneGeometry(4.2, 1.23),
+      new THREE.PlaneGeometry(3.4, 1.0),
       new THREE.MeshBasicMaterial({ map: plaqueTex, toneMapped: false })
     )
   );
-  plaque.position.set(0, 7.25, 0.33);
+  plaque.position.set(0, 7.38, 0.4);
   scene.add(plaque);
+  const plaqueFrameShape = roundedRect(3.6, 1.2, 0.2);
+  plaqueFrameShape.holes.push(roundedRect(3.4, 1.0, 0.1));
+  const plaqueFrame = new THREE.Mesh(
+    track(
+      new THREE.ExtrudeGeometry(plaqueFrameShape, {
+        depth: 0.05,
+        bevelEnabled: true,
+        bevelThickness: 0.02,
+        bevelSize: 0.02,
+        bevelSegments: 2,
+        curveSegments: 12,
+      })
+    ),
+    archGoldMat
+  );
+  plaqueFrame.position.set(0, 7.38, 0.31);
+  scene.add(plaqueFrame);
 
   function setDedication(text) {
     const ctx = plaqueCanvas.getContext('2d');
@@ -1132,6 +1308,21 @@ export function buildWorld(scene) {
   block(ox0, x0, 0, H, oz0, oz1, velvet);
   block(ox0, ox1, 0, H, oz0, z0, velvet);
   block(ox0, ox1, 0, H, z1, oz1, velvet);
+  // Stone skins on the outside faces, so the room reads as part of the castle from outside, not a black box
+  const roomStone = track(new THREE.MeshStandardMaterial({ color: '#cfc0b4', roughness: 0.9 }));
+  const skinW = oz1 - oz0;
+  const skinWide = ox1 - ox0;
+  const westSkin = new THREE.Mesh(track(new THREE.PlaneGeometry(skinW, H)), roomStone);
+  westSkin.rotation.y = -Math.PI / 2;
+  westSkin.position.set(ox0 - 0.03, H / 2, (oz0 + oz1) / 2);
+  roomGroup.add(westSkin);
+  const southSkin = new THREE.Mesh(track(new THREE.PlaneGeometry(skinWide, H)), roomStone);
+  southSkin.rotation.y = Math.PI;
+  southSkin.position.set((ox0 + ox1) / 2, H / 2, oz0 - 0.03);
+  roomGroup.add(southSkin);
+  const northSkin = new THREE.Mesh(track(new THREE.PlaneGeometry(skinWide, H)), roomStone);
+  northSkin.position.set((ox0 + ox1) / 2, H / 2, oz1 + 0.03);
+  roomGroup.add(northSkin);
   block(ox0, ox1, -0.1, 0.01, oz0, oz1, roomFloor);
   block(ox0, ox1, H, H + 0.2, oz0, oz1, roomCeil);
   // Gold trim along the top and the base of the inside walls (broken at the doorway)
