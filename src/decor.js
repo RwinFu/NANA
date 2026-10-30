@@ -85,10 +85,12 @@ function buildDrape(height, width, colour) {
   return new THREE.Mesh(geo, mat);
 }
 
-// The drapes stay closed until the couple comes near the envelope. Then they gather towards the side walls
-// like a theatre curtain, and the gold tie-backs follow them. They stay open afterwards.
+// The drapes start fully closed: their fabric meets across the front of the envelope and hides it.
+// When the couple comes near, they part and gather towards the side walls like a theatre curtain.
+// The gold rod, ball and tie-back move with each drape. They stay open afterwards.
 const REVEAL = { x: LAYOUT.envelope.x, z: LAYOUT.envelope.z, radius: 6 };
-const GATHER = 0.4; // how far each drape moves out towards its wall (metres)
+const CLOSED = { centre: 0.85, scale: 1.8 / DRAPE.width }; // each panel reaches past the centre line
+const OPEN = { centre: 0.4, scale: 0.6 };
 
 function buildDrapes(scene) {
   const goldMat = new THREE.MeshStandardMaterial({ color: GOLD, metalness: 0.85, roughness: 0.28 });
@@ -100,31 +102,45 @@ function buildDrapes(scene) {
     group.position.set(side * DRAPE.x, DRAPE.top, DRAPE.z);
     scene.add(group);
 
-    // the fabric and its tie-back move together when the drape gathers
+    // Everything that moves with the fabric lives in this curtain group, in the frame of its panel
     const curtain = new THREE.Group();
     group.add(curtain);
     const panel = buildDrape(height, DRAPE.width, velvet);
     panel.position.set(0, -height / 2, 0.02);
     curtain.add(panel);
 
-    // the rod across the top, with a gold ball at each end (they stay put)
+    // the rod across the top, with a gold ball at its outer end
     const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, DRAPE.width + 0.3, 10), goldMat);
     rod.rotation.z = Math.PI / 2;
     rod.position.set(0, 0.05, 0.08);
-    group.add(rod);
-    [-1, 1].forEach((k) => {
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.07, 14, 10), goldMat);
-      ball.position.set(k * (DRAPE.width / 2 + 0.17), 0.05, 0.08);
-      group.add(ball);
-    });
+    curtain.add(rod);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.07, 14, 10), goldMat);
+    ball.position.set(0, 0.05, 0.08);
+    curtain.add(ball);
 
     // a gold tie-back holds the fabric at about the height of the couple's heads
     const tie = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.025, 10, 28), goldMat);
-    tie.position.set(-side * 0.42, -2.4, 0.2);
+    tie.position.set(0, -2.4, 0.2);
     tie.rotation.y = side * 0.4;
     curtain.add(tie);
-    curtains.push({ side, panel, tie });
+    curtains.push({ side, curtain, panel, rod, ball, tie });
   });
+
+  const lerp = (a, b, t) => a + (b - a) * t;
+  // k: 0 closed, 1 open
+  function apply(k) {
+    curtains.forEach(({ side, curtain, panel, rod, ball, tie }) => {
+      const centre = lerp(CLOSED.centre, OPEN.centre, k); // world x of this panel's centre (as a distance from the hall centre)
+      const scale = lerp(CLOSED.scale, OPEN.scale, k);
+      const panelW = DRAPE.width * scale;
+      curtain.position.x = side * (centre - DRAPE.x); // the group sits at side * DRAPE.x
+      panel.scale.x = scale;
+      rod.scale.y = (panelW + 0.3) / (DRAPE.width + 0.3);
+      ball.position.x = side * (panelW / 2 + 0.17);
+      tie.position.x = side * lerp(0.35, 0.1, k);
+    });
+  }
+  apply(0);
 
   let open = 0;
   let latched = false;
@@ -133,11 +149,7 @@ function buildDrapes(scene) {
     const target = latched ? 1 : 0;
     open += THREE.MathUtils.clamp(target - open, -dt * 0.7, dt * 0.7);
     const k = open * open * (3 - 2 * open);
-    curtains.forEach(({ side, panel, tie }) => {
-      panel.position.x = side * GATHER * k;
-      panel.scale.x = 1 - 0.4 * k; // the fabric bunches up as it gathers
-      tie.position.x = side * (-0.42 * (1 - k) + 0.1 * k);
-    });
+    apply(k);
   }
   return { update };
 }
