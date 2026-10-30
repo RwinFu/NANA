@@ -105,6 +105,89 @@ function drawPlaque(ctx, w, h, text) {
 
 // ---------- world ----------------------------------------------------------
 
+// A pair of doors with round tops, white with pink panels and gold trim. They stand closed by default
+// and swing open while the couple is near. The local frame runs along the wall (x), up (y), and
+// towards the side the doors open (z). The pivots sit at the jambs, so each leaf swings away from the centre.
+function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, onDetail = true }) {
+  const R = halfWidth;
+  const group = new THREE.Group();
+  group.position.copy(centre);
+  group.rotation.y = rotY;
+  scene.add(group);
+  const leafMat = track(new THREE.MeshStandardMaterial({ color: '#fbf1f5', roughness: 0.5, side: THREE.DoubleSide }));
+  const panelMat = track(new THREE.MeshStandardMaterial({ color: '#f6c3d6', roughness: 0.45 }));
+  const goldMat = track(new THREE.MeshStandardMaterial({ color: '#e9b96a', metalness: 0.7, roughness: 0.3 }));
+  const panelGeo = track(new THREE.BoxGeometry(1, 1, 0.04));
+  const leaves = [];
+
+  [-1, 1].forEach((side) => {
+    const hinge = new THREE.Group();
+    hinge.position.set(side * R, 0, 0);
+    group.add(hinge);
+    leaves.push({ hinge, side });
+
+    // Leaf outline: straight sides up to the springline, then a round top meeting the centre
+    const shape = new THREE.Shape();
+    shape.moveTo(0, 0);
+    shape.lineTo(R, 0);
+    shape.lineTo(R, spring + R);
+    for (let i = 0; i <= 24; i += 1) {
+      const x = R - (i / 24) * R;
+      shape.lineTo(x, spring + Math.sqrt(Math.max(0, R * R - (R - x) * (R - x))));
+    }
+    shape.closePath();
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: 0.1,
+      bevelEnabled: true,
+      bevelThickness: 0.02,
+      bevelSize: 0.02,
+      bevelSegments: 2,
+      curveSegments: 24,
+    });
+    geo.translate(0, 0, -0.05);
+    geo.scale(-side, 1, 1); // local x runs from the hinge towards the centre
+    hinge.add(new THREE.Mesh(track(geo), leafMat));
+
+    if (onDetail) {
+      // Two raised pink panels per leaf
+      [[0.28, 0.42], [0.72, 0.42]].forEach(([fy, fh]) => {
+        const panel = new THREE.Mesh(panelGeo, panelMat);
+        panel.scale.set(R * 0.62, spring * fh, 0.04);
+        panel.position.set(-side * R * 0.5, spring * fy, 0.075);
+        hinge.add(panel);
+      });
+      // A gold handle near the meeting edge
+      const handle = new THREE.Mesh(track(new THREE.SphereGeometry(0.07, 12, 10)), goldMat);
+      handle.position.set(-side * (R - 0.2), spring * 0.45, 0.14);
+      hinge.add(handle);
+    }
+  });
+
+  if (onDetail) {
+    // Gold rail where the two leaves meet, and a finial at the crown of the round top
+    const rail = new THREE.Mesh(track(new THREE.BoxGeometry(0.07, spring, 0.16)), goldMat);
+    rail.position.set(0, spring / 2, 0.02);
+    group.add(rail);
+    const finial = new THREE.Mesh(track(new THREE.SphereGeometry(0.12, 14, 12)), goldMat);
+    finial.position.set(0, spring + R + 0.1, 0.02);
+    group.add(finial);
+  }
+
+  let open = 0;
+  // Closed by default; they swing open to about 90 degrees when the couple is within reach
+  function update(dt, px, pz) {
+    const near = Math.hypot(px - centre.x, pz - centre.z) < 2.6;
+    const target = near ? 1 : 0;
+    open += THREE.MathUtils.clamp(target - open, -dt * 2.5, dt * 2.5);
+    const k = open * open * (3 - 2 * open);
+    leaves.forEach(({ hinge, side }) => {
+      hinge.rotation.y = side * (Math.PI / 2) * k;
+    });
+  }
+
+  return { update };
+}
+
 export function buildWorld(scene) {
   const disposables = [];
   const track = (obj) => {
@@ -414,17 +497,14 @@ export function buildWorld(scene) {
   const doorCrest = new THREE.Mesh(track(new THREE.SphereGeometry(0.13, 12, 10)), doorTrimMat);
   doorCrest.position.set(-3.89, DR.top + 0.12, doorZc);
   scene.add(doorCrest);
-  // Door leaves for the photo room: open against the room's inside, so the doorway stays clear
-  const roomHalf = (DR.z1 - DR.z0) / 2;
-  const roomLeafMat = track(new THREE.MeshStandardMaterial({ color: '#6b3e2a', roughness: 0.6 }));
-  [DR.z0, DR.z1].forEach((hz, i) => {
-    const hinge = new THREE.Group();
-    hinge.position.set(-3.9, 0, hz);
-    hinge.rotation.y = i === 0 ? -Math.PI / 2 : Math.PI / 2;
-    scene.add(hinge);
-    const leaf = new THREE.Mesh(track(new THREE.BoxGeometry(0.06, doorSpring - 0.05, roomHalf)), roomLeafMat);
-    leaf.position.set(0, (doorSpring - 0.05) / 2 + 0.03, i === 0 ? roomHalf / 2 : -roomHalf / 2);
-    hinge.add(leaf);
+  // Photo room door: closed by default, opens as the couple comes near
+  const roomDoor = buildDoorPair({
+    scene,
+    track,
+    centre: new THREE.Vector3(-3.9, 0, doorZc),
+    rotY: -Math.PI / 2,
+    halfWidth: (DR.z1 - DR.z0) / 2,
+    spring: doorSpring,
   });
 
   // Royal hall decoration: gold ribs across the vault and a gold cornice where the walls meet it
@@ -637,21 +717,16 @@ export function buildWorld(scene) {
   // The house front becomes a princess castle
   const castle = buildCastle(scene, track);
 
-  // Door leaves: the castle's entrance doors stand open against the facade, either side of the doorway
-  const leafMat = track(new THREE.MeshStandardMaterial({ color: '#6b3e2a', roughness: 0.6 }));
-  const leafBandMat = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
-  [-1, 1].forEach((side) => {
-    const hinge = new THREE.Group();
-    hinge.position.set(side * dw, 0, 0.12);
-    hinge.rotation.y = side * (Math.PI / 2);
-    scene.add(hinge);
-    const leaf = new THREE.Mesh(track(new THREE.BoxGeometry(dw, dh - 0.1, 0.06)), leafMat);
-    leaf.position.set(-side * dw / 2, (dh - 0.1) / 2 + 0.03, 0);
-    hinge.add(leaf);
-    const band = new THREE.Mesh(track(new THREE.BoxGeometry(dw - 0.2, 0.08, 0.08)), leafBandMat);
-    band.position.set(-side * dw / 2, dh * 0.6, 0.02);
-    hinge.add(band);
+  // Castle entrance: closed by default, opens as the couple comes near
+  const frontDoor = buildDoorPair({
+    scene,
+    track,
+    centre: new THREE.Vector3(0, 0, 0.12),
+    rotY: 0,
+    halfWidth: dw,
+    spring: dh,
   });
+  const doors = [frontDoor, roomDoor];
 
   // Door panels (open) and warm light spilling from the door
   const doorFrameMat = new THREE.MeshStandardMaterial({ color: '#7a4a2e', roughness: 0.6 });
@@ -1111,12 +1186,12 @@ export function buildWorld(scene) {
   roomVideo.preload = 'auto';
   const videoTex = track(new THREE.VideoTexture(roomVideo));
   videoTex.colorSpace = THREE.SRGBColorSpace;
-  // The video fits inside a box of at most 2.2 m wide and 2.4 m high, keeping its own proportions
-  const fitW = 2.2;
-  const fitH = 2.4;
+  // The video fits inside a box of at most 2.8 m wide and 3.0 m high, keeping its own proportions
+  const fitW = 2.8;
+  const fitH = 3.0;
   let screenW = fitW;
   let screenH = fitH;
-  const videoY = 2.35;
+  const videoY = 2.6;
   const screen = new THREE.Mesh(
     track(new THREE.PlaneGeometry(1, 1)),
     new THREE.MeshBasicMaterial({ map: videoTex, toneMapped: false })
@@ -1280,5 +1355,8 @@ export function buildWorld(scene) {
     heartWindow,
     rugGlint,
     stoneGlint,
+    updateDoors(dt, px, pz) {
+      doors.forEach((d) => d.update(dt, px, pz));
+    },
   };
 }
