@@ -285,6 +285,59 @@ export function heartGlass(repeatX = 3, repeatY = 3) {
   return result;
 }
 
+// Envelope paper: fine laid lines, fibres and a small debossed heart lattice (a 256 px tile, seamless)
+function envelopeHeight() {
+  const { c, g } = canvas();
+  g.fillStyle = 'rgb(128,128,128)';
+  g.fillRect(0, 0, SIZE, SIZE);
+  // laid lines: every 8 px, each a little brighter or darker, as on handmade paper
+  for (let y = 0; y < SIZE; y += 8) {
+    const v = 116 + Math.floor(Math.random() * 24);
+    g.strokeStyle = `rgb(${v},${v},${v})`;
+    g.lineWidth = 3;
+    g.beginPath();
+    g.moveTo(0, y + 4);
+    g.lineTo(SIZE, y + 4);
+    g.stroke();
+  }
+  // fibres: short curved strokes, wrapped at the edges so the tile stays seamless
+  for (let n = 0; n < 420; n += 1) {
+    const x = Math.random() * SIZE;
+    const y = Math.random() * SIZE;
+    const len = 6 + Math.random() * 12;
+    const a0 = Math.random() * Math.PI;
+    const v = Math.random() < 0.5 ? 96 : 166;
+    g.strokeStyle = `rgba(${v},${v},${v},0.55)`;
+    g.lineWidth = 1 + Math.random();
+    [-SIZE, 0, SIZE].forEach((dx) => [-SIZE, 0, SIZE].forEach((dy) => {
+      g.beginPath();
+      g.moveTo(x + dx, y + dy);
+      g.quadraticCurveTo(x + dx + Math.cos(a0) * len * 0.5 + 2, y + dy + Math.sin(a0) * len * 0.5 - 2, x + dx + Math.cos(a0) * len, y + dy + Math.sin(a0) * len);
+      g.stroke();
+    }));
+  }
+  // a debossed heart in each cell of a 4 x 4 lattice (raised rim, darker centre)
+  for (let j = 0; j < 4; j += 1) {
+    for (let i = 0; i < 4; i += 1) {
+      const cx = 32 + i * 64;
+      const cy = 32 + j * 64;
+      g.fillStyle = 'rgb(150,150,150)';
+      heartPath(g, cx, cy, 9);
+      g.fill();
+      g.strokeStyle = 'rgb(176,176,176)';
+      g.lineWidth = 2;
+      heartPath(g, cx, cy, 9);
+      g.stroke();
+    }
+  }
+  return soften(c, 0.6);
+}
+
+// The envelope's paper, for the body (UVs 0..1 over the face) and the flap (UVs in metres)
+export function envelopeNormal(repeatX = 8, repeatY = 5) {
+  return cachedNormal('envelope', envelopeHeight, 2.4, repeatX, repeatY);
+}
+
 const cache = new Map();
 
 // A tiling normal map from a height field, cached by kind and repeat

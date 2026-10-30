@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { LAYOUT, wrapText } from './world.js';
+import { envelopeNormal } from './architecture.js';
 
 const FONT = '"Vazirmatn Variable", Vazirmatn, sans-serif';
 const PAPER_W = 2.7;
@@ -39,7 +40,9 @@ export function createEnvelope(scene, { fromName, toName, paragraph }) {
   group.position.set(x, y, z);
   scene.add(group);
 
-  const bodyMat = new THREE.MeshStandardMaterial({ color: '#fbefe0', roughness: 0.75 });
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: '#fbefe0', roughness: 0.75, normalMap: envelopeNormal(8, 5), normalScale: new THREE.Vector2(0.9, 0.9),
+  });
   const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.08), bodyMat);
   body.position.set(0, h / 2, 0);
   group.add(body);
@@ -66,7 +69,9 @@ export function createEnvelope(scene, { fromName, toName, paragraph }) {
   flapShape.lineTo(w / 2, 0);
   flapShape.lineTo(0, -h * 0.6);
   flapShape.closePath();
-  const flapMat = new THREE.MeshStandardMaterial({ color: '#e59aae', roughness: 0.6, side: THREE.DoubleSide });
+  const flapMat = new THREE.MeshStandardMaterial({
+    color: '#e59aae', roughness: 0.6, side: THREE.DoubleSide, normalMap: envelopeNormal(2.4, 2.4), normalScale: new THREE.Vector2(0.9, 0.9),
+  });
   const flapPivot = new THREE.Group();
   flapPivot.position.set(0, h, 0.045);
   group.add(flapPivot);

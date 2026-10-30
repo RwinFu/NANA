@@ -1,6 +1,5 @@
 // Extra decoration for the hall and the garden:
 //   hall: dust in the candle light, soft light shafts under the chandeliers,
-//         velvet drapes framing the heart window,
 //         and a warm glow that draws the eye to the envelope at the end;
 //   garden: a fountain that catches the moon, flower beds, and butterflies and
 //         small birds that circle the princess;
@@ -11,7 +10,6 @@ import { LAYOUT } from './world.js';
 // A round stone fountain in the garden. controls.js treats it as solid so the couple walks around it.
 export const FOUNTAIN = { x: -14, z: 8, r: 1.6 };
 
-const DRAPE = { x: 3.1, z: -39.45, width: 1.05, top: LAYOUT.hallSpring - 0.1 };
 const LIGHT_SPOTS = [-8, -19, -30]; // the chandeliers, see world.js
 const GOLD = '#d9a441';
 
@@ -59,62 +57,73 @@ function additive(map, opacity, color = '#ffffff') {
   });
 }
 
-// ---------- velvet drape -----------------------------------------------------
-// A flat panel with soft vertical folds that hangs from a rod. It is wider at the floor.
-function buildDrape(height, width, colour) {
-  const geo = new THREE.PlaneGeometry(width, height, 24, 48);
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i += 1) {
-    const x = pos.getX(i);
-    const y = pos.getY(i); // 0 at the rod, -height at the floor
-    const down = -y / height; // 0 at the top, 1 at the floor
-    const u = x / width + 0.5;
-    const fold = Math.sin(u * Math.PI * 2 * 4) * 0.055 * (0.5 + 0.5 * down);
-    pos.setZ(i, fold);
-    pos.setX(i, x * (1 + 0.1 * down));
-  }
-  geo.computeVertexNormals();
-  const mat = new THREE.MeshPhysicalMaterial({
-    color: colour,
-    roughness: 0.82,
-    sheen: 1,
-    sheenRoughness: 0.45,
-    sheenColor: new THREE.Color('#ffb3d1'),
-    side: THREE.DoubleSide,
-  });
-  return new THREE.Mesh(geo, mat);
+// ---------- heartbeat and falling hearts -------------------------------------
+// A soft heartbeat (lub-dub) for the light behind the envelope
+function heartbeat(t) {
+  const x = t % 1.2;
+  const beat = (a, w) => Math.exp(-(((x - a) / w) ** 2));
+  return beat(0.08, 0.05) * 0.7 + beat(0.3, 0.06) * 0.45;
 }
 
-function buildDrapes(scene) {
-  const goldMat = new THREE.MeshStandardMaterial({ color: GOLD, metalness: 0.85, roughness: 0.28 });
-  const velvet = '#7d1534';
-  const height = DRAPE.top - 0.05;
-  [-1, 1].forEach((side) => {
-    const group = new THREE.Group();
-    group.position.set(side * DRAPE.x, DRAPE.top, DRAPE.z);
-    scene.add(group);
-
-    const panel = buildDrape(height, DRAPE.width, velvet);
-    panel.position.set(0, -height / 2, 0.02);
-    group.add(panel);
-
-    // the rod across the top, with a gold ball at each end
-    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, DRAPE.width + 0.3, 10), goldMat);
-    rod.rotation.z = Math.PI / 2;
-    rod.position.set(0, 0.05, 0.08);
-    group.add(rod);
-    [-1, 1].forEach((k) => {
-      const ball = new THREE.Mesh(new THREE.SphereGeometry(0.07, 14, 10), goldMat);
-      ball.position.set(k * (DRAPE.width / 2 + 0.17), 0.05, 0.08);
-      group.add(ball);
-    });
-
-    // a gold tie-back holds the fabric at about the height of the couple's heads
-    const tie = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.025, 10, 28), goldMat);
-    tie.position.set(-side * 0.42, -2.4, 0.2);
-    tie.rotation.y = side * 0.4;
-    group.add(tie);
+// Small pink hearts that fall over the envelope when it opens
+function heartTexture() {
+  return canvasTexture(64, 64, (ctx, w, h) => {
+    ctx.fillStyle = '#ffffff';
+    ctx.beginPath();
+    ctx.moveTo(w / 2, h * 0.82);
+    ctx.bezierCurveTo(w * 0.05, h * 0.6, w * 0.1, h * 0.1, w / 2, h * 0.35);
+    ctx.bezierCurveTo(w * 0.9, h * 0.1, w * 0.95, h * 0.6, w / 2, h * 0.82);
+    ctx.fill();
   });
+}
+
+function buildHeartShower(scene) {
+  const count = 40;
+  const pos = new Float32Array(count * 3);
+  const vel = new Float32Array(count * 3);
+  const life = new Float32Array(count);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  for (let i = 0; i < count; i += 1) pos[i * 3 + 1] = -100;
+  const mat = new THREE.PointsMaterial({
+    size: 0.2,
+    map: heartTexture(),
+    color: '#ff8fc0',
+    transparent: true,
+    depthWrite: false,
+    sizeAttenuation: true,
+  });
+  const points = new THREE.Points(geo, mat);
+  points.frustumCulled = false;
+  scene.add(points);
+  let next = 0;
+  return {
+    burst(x, y, z, n) {
+      for (let k = 0; k < n; k += 1) {
+        const i = next;
+        next = (next + 1) % count;
+        pos[i * 3] = x + (Math.random() - 0.5) * 3.2;
+        pos[i * 3 + 1] = y;
+        pos[i * 3 + 2] = z + (Math.random() - 0.5) * 0.6;
+        vel[i * 3] = (Math.random() - 0.5) * 0.3;
+        vel[i * 3 + 1] = -(0.8 + Math.random() * 0.6);
+        life[i] = 4 + Math.random() * 2;
+      }
+    },
+    update(dt) {
+      for (let i = 0; i < count; i += 1) {
+        if (life[i] <= 0) continue;
+        life[i] -= dt;
+        pos[i * 3] += vel[i * 3] * dt + Math.sin(life[i] * 2 + i) * 0.002;
+        pos[i * 3 + 1] += vel[i * 3 + 1] * dt;
+        if (life[i] <= 0 || pos[i * 3 + 1] < 0.2) {
+          life[i] = 0;
+          pos[i * 3 + 1] = -100;
+        }
+      }
+      geo.attributes.position.needsUpdate = true;
+    },
+  };
 }
 
 // ---------- light shafts and dust -------------------------------------------
@@ -522,7 +531,7 @@ function buildPetals(scene) {
 
 // ---------- the whole decoration --------------------------------------------
 export function buildDecor(scene, { hero }) {
-  buildDrapes(scene);
+  const shower = buildHeartShower(scene);
   buildShafts(scene);
   const dust = buildDust(scene);
   const envelopeGlow = buildEnvelopeGlow(scene);
@@ -539,6 +548,10 @@ export function buildDecor(scene, { hero }) {
   const emitTimer = { acc: 0 };
 
   return {
+    // called when the envelope opens: a shower of hearts falls over the envelope
+    celebrate() {
+      shower.burst(LAYOUT.envelope.x, 5.6, LAYOUT.envelope.z + 0.6, 36);
+    },
     update(t, dt, pos, moving, airborne) {
       // dust drifts slowly through the light
       const dp = dust.points.geometry.attributes.position;
@@ -552,7 +565,8 @@ export function buildDecor(scene, { hero }) {
         );
       }
       dp.needsUpdate = true;
-      envelopeGlow.material.opacity = 0.24 + 0.04 * Math.sin(t * 1.1);
+      envelopeGlow.material.opacity = 0.22 + 0.16 * heartbeat(t);
+      shower.update(dt);
 
       fountain.update(t, dt);
 
