@@ -414,6 +414,18 @@ export function buildWorld(scene) {
   const doorCrest = new THREE.Mesh(track(new THREE.SphereGeometry(0.13, 12, 10)), doorTrimMat);
   doorCrest.position.set(-3.89, DR.top + 0.12, doorZc);
   scene.add(doorCrest);
+  // Door leaves for the photo room: open against the room's inside, so the doorway stays clear
+  const roomHalf = (DR.z1 - DR.z0) / 2;
+  const roomLeafMat = track(new THREE.MeshStandardMaterial({ color: '#6b3e2a', roughness: 0.6 }));
+  [DR.z0, DR.z1].forEach((hz, i) => {
+    const hinge = new THREE.Group();
+    hinge.position.set(-3.9, 0, hz);
+    hinge.rotation.y = i === 0 ? -Math.PI / 2 : Math.PI / 2;
+    scene.add(hinge);
+    const leaf = new THREE.Mesh(track(new THREE.BoxGeometry(0.06, doorSpring - 0.05, roomHalf)), roomLeafMat);
+    leaf.position.set(0, (doorSpring - 0.05) / 2 + 0.03, i === 0 ? roomHalf / 2 : -roomHalf / 2);
+    hinge.add(leaf);
+  });
 
   // Royal hall decoration: gold ribs across the vault and a gold cornice where the walls meet it
   const hallGold = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
@@ -560,8 +572,8 @@ export function buildWorld(scene) {
   rightSkin.position.set(4.18, SPRING / 2, -LAYOUT.hallLength / 2 + 0.1);
   scene.add(rightSkin);
 
-  // Left side: outside the left wall, in two pieces that leave out the photo room's span (z -23.4 to -16.6)
-  [[0.2, -23.4], [-16.6, -LAYOUT.hallLength]].forEach(([za, zb]) => {
+  // Left side: outside the left wall, in two pieces that leave out the photo room's span and its doorway (z -23.4 to -16.6)
+  [[0.2, -16.6], [-23.4, -LAYOUT.hallLength]].forEach(([za, zb]) => {
     const piece = new THREE.Mesh(track(new THREE.PlaneGeometry(za - zb, SPRING)), skinMat);
     piece.rotation.y = -Math.PI / 2;
     piece.position.set(-4.18, SPRING / 2, (za + zb) / 2);
@@ -624,6 +636,22 @@ export function buildWorld(scene) {
 
   // The house front becomes a princess castle
   const castle = buildCastle(scene, track);
+
+  // Door leaves: the castle's entrance doors stand open against the facade, either side of the doorway
+  const leafMat = track(new THREE.MeshStandardMaterial({ color: '#6b3e2a', roughness: 0.6 }));
+  const leafBandMat = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
+  [-1, 1].forEach((side) => {
+    const hinge = new THREE.Group();
+    hinge.position.set(side * dw, 0, 0.12);
+    hinge.rotation.y = side * (Math.PI / 2);
+    scene.add(hinge);
+    const leaf = new THREE.Mesh(track(new THREE.BoxGeometry(dw, dh - 0.1, 0.06)), leafMat);
+    leaf.position.set(-side * dw / 2, (dh - 0.1) / 2 + 0.03, 0);
+    hinge.add(leaf);
+    const band = new THREE.Mesh(track(new THREE.BoxGeometry(dw - 0.2, 0.08, 0.08)), leafBandMat);
+    band.position.set(-side * dw / 2, dh * 0.6, 0.02);
+    hinge.add(band);
+  });
 
   // Door panels (open) and warm light spilling from the door
   const doorFrameMat = new THREE.MeshStandardMaterial({ color: '#7a4a2e', roughness: 0.6 });
