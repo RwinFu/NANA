@@ -71,10 +71,24 @@ function buildEye(head, side, o) {
   return eye;
 }
 
-// The brow: a soft arch over each eye (points are in head space, x mirrored by side)
-function buildBrow(head, side, pts, R, material, radius) {
-  const points = pts.map(([x, y]) => new THREE.Vector3(side * x, y, frontZ(x, y, R)));
-  head.add(tubeThrough(points, radius, material, 16));
+// The brow: a row of small soft dabs along an arch. They are thickest in the middle and thin out at
+// both ends, so it reads as fine hair, not as a wire. Points are in head space, x mirrored by side.
+function buildBrow(head, side, pts, R, material, thickness) {
+  const path = new THREE.CatmullRomCurve3(pts.map(([x, y]) => new THREE.Vector3(side * x, y, 0)), false, 'centripetal');
+  const N = 10;
+  const a = new THREE.Vector3();
+  const b = new THREE.Vector3();
+  for (let i = 0; i <= N; i += 1) {
+    const t = i / N;
+    path.getPoint(t, a);
+    path.getPoint(Math.min(1, t + 0.01), b);
+    const r = thickness * (0.5 + 0.5 * Math.sin(Math.PI * t));
+    const dab = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), material);
+    dab.position.set(a.x, a.y, frontZ(a.x, a.y, R) - 0.001);
+    dab.scale.set(1.8, 1, 0.6);
+    dab.rotation.z = Math.atan2(b.y - a.y, b.x - a.x);
+    head.add(dab);
+  }
 }
 
 // A small mouth: an upper and a lower lip and a soft curve between them
@@ -113,7 +127,7 @@ export function addPrincessFace(head) {
       lidRadius: 0.0036, lidMat: lashMat, lowerLine: true, shadow: lidShadow, lashes: true, flick: true,
     });
     blinks.push({ mesh: eye, base: 1 });
-    buildBrow(head, side, [[0.03, 0.09], [0.085, 0.104], [0.15, 0.092]], R, browMat, 0.0032);
+    buildBrow(head, side, [[0.03, 0.086], [0.085, 0.1], [0.15, 0.088]], R, browMat, 0.0042);
     // cheek blush
     const cheek = place(new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10), cheekMat), head, side * 0.14, -0.065, 0.175);
     cheek.scale.set(1, 0.7, 0.4);
@@ -138,7 +152,7 @@ export function addBoyFace(head, skinMat) {
   const iris = physMat({ color: '#2a1a14', roughness: 0.2, clearcoat: 0.8, clearcoatRoughness: 0.06 });
   const pupil = physMat({ color: '#0e0807', roughness: 0.3 });
   const lineMat = physMat({ color: '#1f1412', roughness: 0.5 });
-  const browMat = physMat({ color: '#2a1a14', roughness: 0.6 });
+  const browMat = physMat({ color: '#3a2620', roughness: 0.6 });
   const cheekMat = physMat({ color: '#f58fa6', roughness: 0.7, transparent: true, opacity: 0.55 });
   const lipMat = physMat({ color: '#c96a7e', roughness: 0.4, clearcoat: 0.3, clearcoatRoughness: 0.3 });
   const lipLineMat = physMat({ color: '#8a3446', roughness: 0.5 });
@@ -154,7 +168,7 @@ export function addBoyFace(head, skinMat) {
       lidRadius: 0.0034, lidMat: lineMat, lowerLine: false, shadow: null, lashes: false, flick: false,
     });
     blinks.push({ mesh: eye, base: 1 });
-    buildBrow(head, side, [[0.03, 0.084], [0.085, 0.092], [0.14, 0.086]], R, browMat, 0.0048);
+    buildBrow(head, side, [[0.03, 0.08], [0.085, 0.09], [0.14, 0.082]], R, browMat, 0.0052);
     const cheek = place(new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 8), cheekMat), head, side * 0.12, -0.055, 0.185);
     cheek.scale.set(1, 0.7, 0.4);
     // ears with a darker inner part
