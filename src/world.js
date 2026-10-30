@@ -185,11 +185,7 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
   });
 
   if (onDetail) {
-    // Gold rail where the two leaves meet, and a finial at the crown of the round top
-    const railMat = track(new THREE.MeshStandardMaterial({ color: '#e7c27a', roughness: 0.45 })); // matte: a metal rail reads as black
-    const rail = new THREE.Mesh(track(new THREE.BoxGeometry(0.07, spring, 0.16)), railMat);
-    rail.position.set(0, spring / 2, 0.02);
-    group.add(rail);
+    // A finial at the crown of the round top. No centre rail: it stayed in the doorway when the leaves opened.
     const finial = new THREE.Mesh(track(new THREE.SphereGeometry(0.12, 14, 12)), goldMat);
     finial.position.set(0, spring + R + 0.1, 0.02);
     group.add(finial);
