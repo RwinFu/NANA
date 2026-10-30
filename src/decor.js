@@ -1,6 +1,5 @@
 // Extra decoration for the hall and the garden:
 //   hall: dust in the candle light, soft light shafts under the chandeliers,
-//         velvet drapes framing the heart window,
 //         and a warm glow that draws the eye to the envelope at the end;
 //   garden: a fountain that catches the moon, flower beds, and butterflies and
 //         small birds that circle the princess;
@@ -11,7 +10,6 @@ import { LAYOUT } from './world.js';
 // A round stone fountain in the garden. controls.js treats it as solid so the couple walks around it.
 export const FOUNTAIN = { x: -14, z: 8, r: 1.6 };
 
-const DRAPE = { x: 3.1, z: -39.45, width: 1.05, top: LAYOUT.hallSpring - 0.1 };
 const LIGHT_SPOTS = [-8, -19, -30]; // the chandeliers, see world.js
 const GOLD = '#d9a441';
 
@@ -59,101 +57,7 @@ function additive(map, opacity, color = '#ffffff') {
   });
 }
 
-// ---------- velvet drape -----------------------------------------------------
-// A flat panel with soft vertical folds that hangs from a rod. It is wider at the floor.
-function buildDrape(height, width, colour) {
-  const geo = new THREE.PlaneGeometry(width, height, 24, 48);
-  const pos = geo.attributes.position;
-  for (let i = 0; i < pos.count; i += 1) {
-    const x = pos.getX(i);
-    const y = pos.getY(i); // 0 at the rod, -height at the floor
-    const down = -y / height; // 0 at the top, 1 at the floor
-    const u = x / width + 0.5;
-    const fold = Math.sin(u * Math.PI * 2 * 4) * 0.055 * (0.5 + 0.5 * down);
-    pos.setZ(i, fold);
-    pos.setX(i, x * (1 + 0.1 * down));
-  }
-  geo.computeVertexNormals();
-  const mat = new THREE.MeshPhysicalMaterial({
-    color: colour,
-    roughness: 0.82,
-    sheen: 1,
-    sheenRoughness: 0.45,
-    sheenColor: new THREE.Color('#ffb3d1'),
-    side: THREE.DoubleSide,
-  });
-  return new THREE.Mesh(geo, mat);
-}
-
-// The drapes start fully closed: their fabric meets across the front of the envelope and hides it.
-// When the couple comes near, they part and gather towards the side walls like a theatre curtain.
-// The gold rod, ball and tie-back move with each drape. They stay open afterwards.
-const REVEAL = { x: LAYOUT.envelope.x, z: LAYOUT.envelope.z, radius: 6 };
-const CLOSED = { centre: 0.85, scale: 1.8 / DRAPE.width }; // each panel reaches past the centre line
-const OPEN = { centre: 0.4, scale: 0.6 };
-
-function buildDrapes(scene) {
-  const goldMat = new THREE.MeshStandardMaterial({ color: GOLD, metalness: 0.85, roughness: 0.28 });
-  const velvet = '#7d1534';
-  const height = DRAPE.top - 0.05;
-  const curtains = [];
-  [-1, 1].forEach((side) => {
-    const group = new THREE.Group();
-    group.position.set(side * DRAPE.x, DRAPE.top, DRAPE.z);
-    scene.add(group);
-
-    // Everything that moves with the fabric lives in this curtain group, in the frame of its panel
-    const curtain = new THREE.Group();
-    group.add(curtain);
-    const panel = buildDrape(height, DRAPE.width, velvet);
-    panel.position.set(0, -height / 2, 0.02);
-    curtain.add(panel);
-
-    // the rod across the top, with a gold ball at its outer end
-    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, DRAPE.width + 0.3, 10), goldMat);
-    rod.rotation.z = Math.PI / 2;
-    rod.position.set(0, 0.05, 0.08);
-    curtain.add(rod);
-    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.07, 14, 10), goldMat);
-    ball.position.set(0, 0.05, 0.08);
-    curtain.add(ball);
-
-    // a gold tie-back holds the fabric at about the height of the couple's heads
-    const tie = new THREE.Mesh(new THREE.TorusGeometry(0.11, 0.025, 10, 28), goldMat);
-    tie.position.set(0, -2.4, 0.2);
-    tie.rotation.y = side * 0.4;
-    curtain.add(tie);
-    curtains.push({ side, curtain, panel, rod, ball, tie });
-  });
-
-  const lerp = (a, b, t) => a + (b - a) * t;
-  // k: 0 closed, 1 open
-  function apply(k) {
-    curtains.forEach(({ side, curtain, panel, rod, ball, tie }) => {
-      const centre = lerp(CLOSED.centre, OPEN.centre, k); // world x of this panel's centre (as a distance from the hall centre)
-      const scale = lerp(CLOSED.scale, OPEN.scale, k);
-      const panelW = DRAPE.width * scale;
-      curtain.position.x = side * (centre - DRAPE.x); // the group sits at side * DRAPE.x
-      panel.scale.x = scale;
-      rod.scale.y = (panelW + 0.3) / (DRAPE.width + 0.3);
-      ball.position.x = side * (panelW / 2 + 0.17);
-      tie.position.x = side * lerp(0.35, 0.1, k);
-    });
-  }
-  apply(0);
-
-  let open = 0;
-  let latched = false;
-  function update(dt, pos) {
-    if (!latched && Math.hypot(pos.x - REVEAL.x, pos.z - REVEAL.z) < REVEAL.radius) latched = true;
-    const target = latched ? 1 : 0;
-    open += THREE.MathUtils.clamp(target - open, -dt * 0.7, dt * 0.7);
-    const k = open * open * (3 - 2 * open);
-    apply(k);
-  }
-  return { update };
-}
-
+// ---------- heartbeat and falling hearts -------------------------------------
 // A soft heartbeat (lub-dub) for the light behind the envelope
 function heartbeat(t) {
   const x = t % 1.2;
@@ -161,7 +65,7 @@ function heartbeat(t) {
   return beat(0.08, 0.05) * 0.7 + beat(0.3, 0.06) * 0.45;
 }
 
-// Small pink hearts that fall from the top of the drapes when the envelope opens
+// Small pink hearts that fall over the envelope when it opens
 function heartTexture() {
   return canvasTexture(64, 64, (ctx, w, h) => {
     ctx.fillStyle = '#ffffff';
@@ -627,7 +531,6 @@ function buildPetals(scene) {
 
 // ---------- the whole decoration --------------------------------------------
 export function buildDecor(scene, { hero }) {
-  const drapes = buildDrapes(scene);
   const shower = buildHeartShower(scene);
   buildShafts(scene);
   const dust = buildDust(scene);
@@ -645,7 +548,7 @@ export function buildDecor(scene, { hero }) {
   const emitTimer = { acc: 0 };
 
   return {
-    // called when the envelope opens: a shower of hearts falls from the top of the drapes
+    // called when the envelope opens: a shower of hearts falls over the envelope
     celebrate() {
       shower.burst(LAYOUT.envelope.x, 5.6, LAYOUT.envelope.z + 0.6, 36);
     },
@@ -663,7 +566,6 @@ export function buildDecor(scene, { hero }) {
       }
       dp.needsUpdate = true;
       envelopeGlow.material.opacity = 0.22 + 0.16 * heartbeat(t);
-      drapes.update(dt, pos);
       shower.update(dt);
 
       fountain.update(t, dt);
