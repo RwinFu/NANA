@@ -18,6 +18,7 @@ import { createFairy } from './fairy.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
 import { createRescueGame, showHowTo } from './rescue.js';
 import { createCats } from './cats.js';
+import { buildDecor } from './decor.js';
 
 const $ = (sel) => document.querySelector(sel);
 const SWATCHES = [
@@ -129,6 +130,7 @@ const camera = new THREE.PerspectiveCamera(
 let world = null;
 let hero = null;
 let cats = null;
+let decor = null;
 let trail = null;
 let footprints = null;
 let envelope = null;
@@ -200,6 +202,7 @@ if (renderer) {
   hero.setEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture);
   pmrem.dispose();
   cats = createCats(scene, hero);
+  decor = buildDecor(scene, { hero });
   trail = createTrail(scene);
   footprints = createFootprints(scene);
 
@@ -748,6 +751,7 @@ function frame() {
   footprints?.update(dt, hero, started && controls.moving);
   envelope.update(t, dt);
   world.update(t, dt, started ? nearFrame : -1);
+  decor?.update(t, dt, hero.root.position, started && controls.moving, started && controls.airborne);
   // Only once the walk has started: before that the hero sits at the origin, right by the door, and would latch it open
   if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
   if (started) updatePrompt();

@@ -3,6 +3,8 @@
 // frees the princess and runs with her out of the falling castle to the gate.
 // onDone() is called once the game is won (or skipped); the intro plays after it.
 
+import { sfx } from './sfx.js';
+
 const W = 960;
 const H = 540;
 const LEVEL_W = 4300;
@@ -122,8 +124,14 @@ function makeGlimmer() {
   }));
 }
 
+function makeClouds() {
+  const r = rng(44);
+  return Array.from({ length: 7 }, () => ({ x: r() * W * 1.6, y: 40 + r() * 150, w: 120 + r() * 140, sp: 3 + r() * 6 }));
+}
+
 const SKY_LANTERNS = makeSkyLanterns();
 const GLIMMER = makeGlimmer();
+const CLOUDS = makeClouds();
 
 // ---------- game state ------------------------------------------------------
 
@@ -165,11 +173,11 @@ function say(g, text, secs = 2.6) {
   g.msgT = secs;
 }
 
-function burst(g, x, y, color, n, speed) {
+function burst(g, x, y, color, n, speed, star = false) {
   for (let i = 0; i < n; i += 1) {
     const a = Math.random() * Math.PI * 2;
     const s = Math.random() * speed;
-    g.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - speed * 0.4, life: 0.7 + Math.random() * 0.6, max: 1.3, color, size: 2 + Math.random() * 3 });
+    g.parts.push({ x, y, vx: Math.cos(a) * s, vy: Math.sin(a) * s - speed * 0.4, life: 0.7 + Math.random() * 0.6, max: 1.3, color, size: 2 + Math.random() * 3, star });
   }
 }
 
@@ -211,6 +219,7 @@ function hurt(g) {
   p.vy = -300;
   p.onGround = false;
   burst(g, p.x, p.y - 30, '#ff5c7a', 12, 200);
+  sfx.play('hit');
   lose(g, 'hit');
   if (g.phase === 'play') say(g, 'اوه! مراقب اژدها باش', 1.8);
 }
@@ -305,6 +314,8 @@ function update(g, dt, input, pressed) {
       p.usedDouble = true;
       p.jumpBuf = 0;
       burst(g, p.x, p.y, '#cfe9ff', 8, 120);
+      burst(g, p.x, p.y, '#fff4c2', 10, 220, true);
+      sfx.play('jump2');
     }
     // Physics: horizontal, then vertical
     const solids = solidsFor(g);
@@ -376,6 +387,7 @@ function updateCats(g, dt) {
     an.freed = true;
     g.abilities.rapid = true;
     g.shake = 0.4;
+    sfx.play('chime');
     burst(g, CAT_AT.ani.x, CAT_AT.ani.y - 30, '#ffd66b', 26, 260);
     say(g, 'آنی نجات یافت! جرقه‌هایت سریع‌تر شدند', 3.4);
   }
@@ -383,6 +395,7 @@ function updateCats(g, dt) {
     pa.freed = true;
     g.abilities.doubleJump = true;
     g.shake = 0.4;
+    sfx.play('chime');
     burst(g, CAT_AT.pastil.x, CAT_AT.pastil.y - 30, '#ff8fb8', 26, 260);
     say(g, 'پاستیل نجات یافت! حالا می‌توانی دوباره در هوا بپری', 3.4);
   }
@@ -407,6 +420,7 @@ function updateCats(g, dt) {
 function spark(g) {
   const p = g.p;
   const d = g.dragon;
+  sfx.play('spark');
   const sx = p.x + p.facing * 22;
   const sy = p.y - 34;
   let vx = p.facing * 520;
@@ -445,6 +459,7 @@ function updateDragon(g, dt) {
   d.fireT -= dt;
   if (d.fireT <= 0) {
     d.fireT = inArena ? 1.5 : 2.6;
+    sfx.play('breath');
     const sx = d.x - 80;
     const sy = d.y + 16;
     const dx = p.x - sx;
@@ -478,6 +493,7 @@ function updateSparks(g, dt) {
       s.life = 0;
       d.hp -= 1;
       d.hit = 0.3;
+      sfx.play('clank');
       burst(g, s.x, s.y, '#ffd66b', 14, 260);
       if (d.hp <= 0) {
         d.state = 'fled';
@@ -591,13 +607,51 @@ function drawSky(ctx, g, t) {
   ctx.arc(752, 106, 5, 0, Math.PI * 2);
   ctx.fill();
 
-  // Stars
+  // Stars: they drift very slowly to the left, and twinkle
   for (const s of STARS) {
+    const x = (((s.x - t * 2 * s.s) % W) + W) % W;
     ctx.globalAlpha = 0.5 + 0.5 * Math.sin(t * 2 + s.ph);
     ctx.fillStyle = '#fff4e0';
-    ctx.fillRect(s.x, s.y, s.s, s.s);
+    ctx.fillRect(x, s.y, s.s, s.s);
   }
   ctx.globalAlpha = 1;
+
+  // A shooting star every few seconds: it streaks across the sky in under a second
+  const cycle = 6.5;
+  const k = Math.floor(t / cycle);
+  const ph = t - k * cycle;
+  if (ph < 0.8) {
+    const r = rng(k * 7 + 1);
+    const sx = 60 + r() * (W * 0.55);
+    const sy = 30 + r() * 110;
+    const p = ph / 0.8;
+    const hx = sx + p * 260;
+    const hy = sy + p * 110;
+    const streak = ctx.createLinearGradient(hx - 130, hy - 60, hx, hy);
+    streak.addColorStop(0, 'rgba(255,244,224,0)');
+    streak.addColorStop(1, `rgba(255,244,224,${(Math.sin(p * Math.PI) * 0.9).toFixed(3)})`);
+    ctx.strokeStyle = streak;
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(hx - 130, hy - 60);
+    ctx.lineTo(hx, hy);
+    ctx.stroke();
+  }
+}
+
+// Soft clouds drifting across the sky, moving a little with the camera (a parallax layer)
+function drawClouds(ctx, g, t) {
+  const f = 0.12;
+  const span = W * 1.6;
+  ctx.fillStyle = 'rgba(176,146,206,0.14)';
+  for (const c of CLOUDS) {
+    const x = (((c.x + t * c.sp - g.camX * f) % span) + span) % span - 200;
+    ctx.beginPath();
+    ctx.ellipse(x, c.y, c.w * 0.5, c.w * 0.14, 0, 0, Math.PI * 2);
+    ctx.ellipse(x - c.w * 0.25, c.y + 6, c.w * 0.3, c.w * 0.12, 0, 0, Math.PI * 2);
+    ctx.ellipse(x + c.w * 0.28, c.y + 8, c.w * 0.28, c.w * 0.1, 0, 0, Math.PI * 2);
+    ctx.fill();
+  }
 }
 
 function drawTowers(ctx, g, list, f, baseY, color, t) {
@@ -872,6 +926,12 @@ function drawPrincess(ctx, pr, t) {
   ctx.save();
   ctx.translate(pr.x, pr.y - bob);
   ctx.scale(pr.facing, 1);
+  // A soft pink-gold light around her, so she stands out against the dark tower
+  const halo = ctx.createRadialGradient(0, -36, 6, 0, -36, 70);
+  halo.addColorStop(0, `rgba(255,214,235,${(0.24 + 0.05 * Math.sin(t * 2.4)).toFixed(3)})`);
+  halo.addColorStop(1, 'rgba(255,214,235,0)');
+  ctx.fillStyle = halo;
+  ctx.fillRect(-72, -106, 144, 140);
   // Long hair at the back
   ctx.fillStyle = '#6b3a2a';
   ctx.beginPath();
@@ -1198,6 +1258,19 @@ function drawRope(ctx, t, rope) {
     ctx.lineWidth = 2;
     ctx.stroke();
   }
+  // A warm glow around the golden braid, so it shines in the dark
+  ctx.save();
+  ctx.globalAlpha = 0.22 + 0.06 * Math.sin(t * 3 + x);
+  ctx.strokeStyle = '#ffd98a';
+  ctx.lineWidth = 16;
+  ctx.beginPath();
+  for (let y = start; y <= bottom; y += 6) {
+    const px = x + Math.sin(y * 0.09) * 4;
+    if (y === start) ctx.moveTo(px, y);
+    else ctx.lineTo(px, y);
+  }
+  ctx.stroke();
+  ctx.restore();
   // Two strands twisting around each other
   ctx.lineWidth = 6;
   for (let strand = 0; strand < 2; strand += 1) {
@@ -1477,7 +1550,17 @@ function drawParts(ctx, g) {
     ctx.globalAlpha = Math.max(0, Math.min(1, q.life / q.max));
     ctx.fillStyle = q.color;
     ctx.beginPath();
-    ctx.arc(q.x, q.y, q.size, 0, Math.PI * 2);
+    if (q.star) {
+      // a four-point sparkle
+      const r = q.size * 2.2;
+      ctx.moveTo(q.x, q.y - r);
+      ctx.quadraticCurveTo(q.x, q.y, q.x + r, q.y);
+      ctx.quadraticCurveTo(q.x, q.y, q.x, q.y + r);
+      ctx.quadraticCurveTo(q.x, q.y, q.x - r, q.y);
+      ctx.quadraticCurveTo(q.x, q.y, q.x, q.y - r);
+    } else {
+      ctx.arc(q.x, q.y, q.size, 0, Math.PI * 2);
+    }
     ctx.fill();
   }
   ctx.globalAlpha = 1;
@@ -1502,6 +1585,24 @@ function drawHud(ctx, g) {
   ctx.beginPath();
   ctx.arc(bx + bw * frac, 24, 6, 0, Math.PI * 2);
   ctx.fill();
+  // A heart at the end of the bar fills up as the boy nears the tower
+  const hx = bx + bw + 26;
+  const hy = 26;
+  const hs = 11;
+  const top = hy - hs * 0.45;
+  const bottom = hy + hs;
+  ctx.save();
+  heartShape(ctx, hx, hy - hs * 0.2, hs);
+  ctx.fillStyle = 'rgba(255,255,255,0.14)';
+  ctx.fill();
+  ctx.clip();
+  ctx.fillStyle = '#ff8fb8';
+  ctx.fillRect(hx - hs * 1.5, bottom - (bottom - top) * frac, hs * 3, (bottom - top) * frac + 2);
+  ctx.restore();
+  heartShape(ctx, hx, hy - hs * 0.2, hs);
+  ctx.strokeStyle = 'rgba(255,255,255,0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.stroke();
   // Stage name
   const stage = g.rescued ? 2 : g.p.x >= ARENA_X ? 1 : 0;
   ctx.textAlign = 'right';
@@ -1526,6 +1627,7 @@ function drawHud(ctx, g) {
 
 function render(ctx, g, t) {
   drawSky(ctx, g, t);
+  drawClouds(ctx, g, t);
   drawSkyLanterns(ctx, g, t);
   drawBats(ctx, t);
   drawTowers(ctx, g, FAR_TOWERS, 0.2, 330, '#170d2a', t);

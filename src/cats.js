@@ -4,14 +4,22 @@
 // Both are built from simple shapes, with a striped texture for the coat.
 import * as THREE from 'three';
 
+// Each cat has its own gait:
+//   Pastil, the grey one, is calm: a soft, slow trot with a gentle side sway of the body.
+//   Ani, the brown one, is quick: short bouncy hops, a fast stride and a flicking tail.
 const SPECS = {
-  pastil: { base: '#a7a098', stripe: '#5b5249', eye: '#e8b64c', collar: true, leader: 'princess' },
-  ani: { base: '#8a6a4c', stripe: '#3a2a1e', eye: '#7fa35a', collar: false, leader: 'boy' },
+  pastil: {
+    base: '#a7a098', stripe: '#5b5249', eye: '#e8b64c', collar: true, leader: 'princess',
+    maxSpeed: 2.7, legRate: 0.8, bob: 0.5, sway: 0.05, tailRate: 1.0,
+  },
+  ani: {
+    base: '#8a6a4c', stripe: '#3a2a1e', eye: '#7fa35a', collar: false, leader: 'boy',
+    maxSpeed: 3.8, legRate: 1.3, bob: 1.8, sway: 0.0, tailRate: 2.2,
+  },
 };
 
-// Stop this far from the one we follow, and walk at up to this speed
+// Stop this far from the one we follow
 const STOP_DIST = 1.05;
-const MAX_SPEED = 3.2;
 
 function stripeTexture(base, stripe) {
   const c = document.createElement('canvas');
@@ -104,15 +112,17 @@ function buildCat(key) {
 
 function animateCat(cat, dt, t, speed, idx) {
   const k = Math.min(1, speed / 1.6);
-  cat.phase += dt * (3 + speed * 3.2);
+  const g = cat.gait;
+  cat.phase += dt * (3 + speed * 3.2) * g.legRate;
   cat.legs.forEach((leg) => {
     const swing = Math.sin(cat.phase + leg.diag * Math.PI) * 0.55 * k;
     leg.hip.rotation.x = swing;
   });
-  cat.body.position.y = Math.abs(Math.sin(cat.phase)) * 0.02 * k;
+  cat.body.position.y = Math.abs(Math.sin(cat.phase)) * 0.02 * g.bob * k;
+  cat.body.rotation.z = Math.sin(cat.phase) * g.sway * k;
   // Tail sways and lifts a little when she walks
-  cat.tail.rotation.x = -0.9 + Math.sin(t * 1.3 + idx) * 0.05 - k * 0.2;
-  cat.tail.rotation.y = Math.sin(t * 2 + idx * 2) * 0.3;
+  cat.tail.rotation.x = -0.9 + Math.sin(t * 1.3 * g.tailRate + idx) * 0.05 - k * 0.2;
+  cat.tail.rotation.y = Math.sin(t * 2 * g.tailRate + idx * 2) * 0.3;
   // The head looks around now and then
   cat.head.rotation.y = Math.sin(t * 0.6 + idx * 3) * 0.2 * (1 - k);
 }
@@ -129,7 +139,7 @@ export function createCats(scene, hero) {
   const list = ['pastil', 'ani'].map((key, idx) => {
     const built = buildCat(key);
     group.add(built.root);
-    return { key, idx, ...built, pos: new THREE.Vector3(), yaw: 0, scale: 0, placed: false };
+    return { key, idx, ...built, gait: SPECS[key], pos: new THREE.Vector3(), yaw: 0, scale: 0, placed: false };
   });
 
   function leaderPos(name, out) {
@@ -165,7 +175,7 @@ export function createCats(scene, hero) {
       const dist = Math.hypot(dx, dz);
       let speed = 0;
       if (dist > STOP_DIST) {
-        speed = Math.min(MAX_SPEED, 0.9 + (dist - STOP_DIST) * 2.2);
+        speed = Math.min(cat.gait.maxSpeed, 0.9 + (dist - STOP_DIST) * 2.2);
         const step = Math.min(dist - STOP_DIST, speed * dt);
         cat.pos.x += (dx / dist) * step;
         cat.pos.z += (dz / dist) * step;

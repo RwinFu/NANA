@@ -565,16 +565,55 @@ export function buildWorld(scene) {
   floor.position.set(0, 0.01, -LAYOUT.hallLength / 2);
   scene.add(floor);
 
+  // The runner: a rose-red carpet with gold borders and a diamond pattern, from the front door to the far end.
+  // The texture is one square tile repeated along the length, so the pattern keeps its shape.
+  const RUG = { z0: 0.3, z1: -37.6 };
+  const RUG_W = 2.2;
+  const RUG_LEN = RUG.z0 - RUG.z1;
+  const rugTex = canvasTexture(512, 512, (ctx, w, h) => {
+    ctx.fillStyle = '#7a1d36';
+    ctx.fillRect(0, 0, w, h);
+    // the gold borders along both edges, each with a thin dark line inside
+    ctx.fillStyle = '#e6b660';
+    ctx.fillRect(18, 0, 16, h);
+    ctx.fillRect(w - 34, 0, 16, h);
+    ctx.fillStyle = '#5a1126';
+    ctx.fillRect(38, 0, 4, h);
+    ctx.fillRect(w - 42, 0, 4, h);
+    // a diamond motif down the middle, with a gold centre
+    for (let row = 0; row < 2; row += 1) {
+      const cy = (row + 0.5) * (h / 2);
+      ctx.fillStyle = '#a33a5c';
+      ctx.beginPath();
+      ctx.moveTo(w / 2, cy - 150);
+      ctx.lineTo(w / 2 + 90, cy);
+      ctx.lineTo(w / 2, cy + 150);
+      ctx.lineTo(w / 2 - 90, cy);
+      ctx.closePath();
+      ctx.fill();
+      ctx.fillStyle = '#e6b660';
+      ctx.beginPath();
+      ctx.arc(w / 2, cy, 14, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    // a gold line where the tiles meet, so the repeat is not seen
+    ctx.fillStyle = '#e6b660';
+    ctx.fillRect(0, 0, w, 6);
+    ctx.fillRect(0, h - 6, w, 6);
+  });
+  rugTex.wrapS = THREE.RepeatWrapping;
+  rugTex.wrapT = THREE.RepeatWrapping;
+  rugTex.repeat.set(1, RUG_LEN / RUG_W);
   const rug = track(
     new THREE.Mesh(
-      new THREE.PlaneGeometry(2.2, 36),
-      new THREE.MeshStandardMaterial({ color: '#6e1f37', roughness: 0.9 })
+      new THREE.PlaneGeometry(RUG_W, RUG_LEN),
+      new THREE.MeshStandardMaterial({ map: rugTex, roughness: 0.85 })
     )
   );
   rug.rotation.x = -Math.PI / 2;
-  rug.position.set(0, 0.02, -19);
+  rug.position.set(0, 0.02, (RUG.z0 + RUG.z1) / 2);
   scene.add(rug);
-  const rugGlint = createRugGlint(scene, rug, { x: 0, z: -19, halfW: 1.1, halfD: 18 });
+  const rugGlint = createRugGlint(scene, rug, { x: 0, z: (RUG.z0 + RUG.z1) / 2, halfW: RUG_W / 2, halfD: RUG_LEN / 2 });
 
 
   // Hall walls and a round barrel vault: a half circle across the hall that springs from the wall tops
@@ -1537,8 +1576,10 @@ export function buildWorld(scene) {
     });
 
     // Hall lights flicker very slightly, like candles
+    // The lamp nearest the envelope is a little dimmer, so the envelope's own glow stands out
     hallLights.forEach((light, i) => {
-      light.intensity = 22 + Math.sin(t * 2.1 + i * 1.7) * 0.9 + Math.sin(t * 5.3 + i) * 0.4;
+      const dim = i === 2 ? 0.62 : 1;
+      light.intensity = (22 + Math.sin(t * 2.1 + i * 1.7) * 0.9 + Math.sin(t * 5.3 + i) * 0.4) * dim;
     });
 
     updateHearts(dt);

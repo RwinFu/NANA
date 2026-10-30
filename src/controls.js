@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { isCastleSolid } from './castle.js';
 import { LAYOUT } from './world.js';
+import { FOUNTAIN } from './decor.js';
 
 const PLAYER_RADIUS = 0.3;
 // The boy walks beside the princess, so the hall walls keep this extra distance
@@ -46,6 +47,8 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   if (z <= 0.2 && z > -len && y >= LAYOUT.hallHeight) return true;
   // Hall end wall
   if (z <= -len + margin) return true;
+  // The fountain in the garden: the couple walks around its basin
+  if (Math.hypot(x - FOUNTAIN.x, z - FOUNTAIN.z) < FOUNTAIN.r + margin && y < 1.8) return true;
   // The big envelope at the end of the hall
   const env = LAYOUT.envelope;
   if (Math.abs(x) < env.w / 2 + margin && Math.abs(z - env.z) < 0.1 + margin && y < env.y + env.h + 0.3) {
