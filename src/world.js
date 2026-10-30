@@ -294,11 +294,35 @@ export function buildWorld(scene) {
   grass.position.set(0, 0, -20);
   scene.add(grass);
 
+  // Hall floor: inlaid parquet planks with a gold border line on every tile
+  const parquetTex = canvasTexture(256, 256, (ctx, w, h) => {
+    const plank = 64;
+    for (let row = 0; row < h / plank; row += 1) {
+      ctx.fillStyle = row % 2 ? '#6b4330' : '#5a3726';
+      ctx.fillRect(0, row * plank, w, plank);
+      ctx.strokeStyle = 'rgba(30,15,10,0.65)';
+      ctx.lineWidth = 3;
+      ctx.beginPath();
+      ctx.moveTo(0, row * plank);
+      ctx.lineTo(w, row * plank);
+      const offset = (row % 2) * 96;
+      ctx.moveTo(offset, row * plank);
+      ctx.lineTo(offset, row * plank + plank);
+      ctx.stroke();
+    }
+    ctx.strokeStyle = '#d9a441';
+    ctx.lineWidth = 5;
+    ctx.strokeRect(8, 8, w - 16, h - 16);
+  });
+  parquetTex.wrapS = THREE.RepeatWrapping;
+  parquetTex.wrapT = THREE.RepeatWrapping;
+  parquetTex.repeat.set(2, 20);
+
   // Hall floor and rug
   const floor = track(
     new THREE.Mesh(
       new THREE.PlaneGeometry(LAYOUT.hallHalfWidth * 2, LAYOUT.hallLength),
-      new THREE.MeshStandardMaterial({ color: '#5b3b2b', roughness: 0.55, metalness: 0.05 })
+      new THREE.MeshStandardMaterial({ map: parquetTex, roughness: 0.55, metalness: 0.05 })
     )
   );
   floor.rotation.x = -Math.PI / 2;
@@ -677,7 +701,8 @@ export function buildWorld(scene) {
       blending: THREE.AdditiveBlending,
       fog: false,
     });
-  [[-4.4, 3], [4.4, 3], [-4.4, 14], [4.4, 14]].forEach(([x, z]) => {
+  // Placed wide of the path so the tour start camera never sits beside a bulb
+  [[-9, 3], [9, 3], [-9, 14], [9, 14]].forEach(([x, z]) => {
     const lamp = new THREE.Group();
     const pole = new THREE.Mesh(poleGeo, poleMat);
     pole.position.y = 1.5;
@@ -711,6 +736,56 @@ export function buildWorld(scene) {
     fireflies.setMatrixAt(i, dummy.matrix);
   }
   scene.add(fireflies);
+
+  // Floor medallions beside the rug, and marble pedestals with flower vases along the walls
+  const medallionGold = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
+  const medallionInner = track(new THREE.MeshStandardMaterial({ color: '#7a1f3d', roughness: 0.7 }));
+  const medallionRing = track(new THREE.RingGeometry(0.42, 0.55, 40));
+  const medallionDisc = track(new THREE.CircleGeometry(0.42, 40));
+  [-5, -14, -26, -35].forEach((z) => {
+    [-2.5, 2.5].forEach((x) => {
+      const ring = new THREE.Mesh(medallionRing, medallionGold);
+      ring.rotation.x = -Math.PI / 2;
+      ring.position.set(x, 0.03, z);
+      scene.add(ring);
+      const disc = new THREE.Mesh(medallionDisc, medallionInner);
+      disc.rotation.x = -Math.PI / 2;
+      disc.position.set(x, 0.025, z);
+      scene.add(disc);
+    });
+  });
+  const marble = track(new THREE.MeshStandardMaterial({ color: '#f1e6e6', roughness: 0.35, metalness: 0.05 }));
+  const vaseMat = track(new THREE.MeshStandardMaterial({ color: '#f5c96a', metalness: 0.6, roughness: 0.3 }));
+  const petalMats = ['#ff8fb8', '#ffd1e3', '#fff3c4'].map((c) => track(new THREE.MeshStandardMaterial({ color: c, roughness: 0.7 })));
+  const pedestalGeo = track(new THREE.CylinderGeometry(0.26, 0.32, 1.0, 20));
+  const capGeo = track(new THREE.CylinderGeometry(0.36, 0.3, 0.12, 20));
+  const vaseGeo = track(new THREE.LatheGeometry([
+    new THREE.Vector2(0.001, 0), new THREE.Vector2(0.14, 0), new THREE.Vector2(0.16, 0.1),
+    new THREE.Vector2(0.1, 0.3), new THREE.Vector2(0.07, 0.42), new THREE.Vector2(0.13, 0.58),
+    new THREE.Vector2(0.15, 0.7), new THREE.Vector2(0.12, 0.75),
+  ], 20));
+  const flowerGeo = track(new THREE.SphereGeometry(0.1, 10, 8));
+  [[-3.15, -5], [3.15, -5], [-3.15, -12], [3.15, -12], [-3.15, -27], [3.15, -27], [-3.15, -34], [3.15, -34]]
+    .forEach(([x, z]) => {
+      const group = new THREE.Group();
+      const pedestal = new THREE.Mesh(pedestalGeo, marble);
+      pedestal.position.y = 0.5;
+      group.add(pedestal);
+      const cap = new THREE.Mesh(capGeo, vaseMat);
+      cap.position.y = 1.06;
+      group.add(cap);
+      const vase = new THREE.Mesh(vaseGeo, vaseMat);
+      vase.position.y = 1.12;
+      group.add(vase);
+      for (let k = 0; k < 9; k += 1) {
+        const a = (k / 9) * Math.PI * 2;
+        const flower = new THREE.Mesh(flowerGeo, petalMats[k % 3]);
+        flower.position.set(Math.cos(a) * 0.14, 1.95 + (k % 2) * 0.12, Math.sin(a) * 0.14);
+        group.add(flower);
+      }
+      group.position.set(x, 0, z);
+      scene.add(group);
+    });
 
   // Hanging lanterns in the hall
   const lanternCount = 64;
