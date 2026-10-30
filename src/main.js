@@ -337,6 +337,7 @@ function openEnvelope() {
   if (envelope.isBusy) return;
   envelope.open(() => {
     fx.burst(window.innerWidth / 2, window.innerHeight * 0.4, '#ffd98a', 36);
+    decor?.celebrate();
     openLetter();
   });
 }
