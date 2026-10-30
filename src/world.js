@@ -108,7 +108,7 @@ function drawPlaque(ctx, w, h, text) {
 // A pair of doors with round tops, white with pink panels and gold trim. They stand closed by default
 // and swing open while the couple is near. The local frame runs along the wall (x), up (y), and
 // towards the side the doors open (z). The pivots sit at the jambs, so each leaf swings away from the centre.
-function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, onDetail = true }) {
+function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 1, onDetail = true }) {
   const R = halfWidth;
   const group = new THREE.Group();
   group.position.copy(centre);
@@ -204,7 +204,7 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, onDetail
     open += THREE.MathUtils.clamp(target - open, -dt * 2.5, dt * 2.5);
     const k = open * open * (3 - 2 * open);
     leaves.forEach(({ hinge, side }) => {
-      hinge.rotation.y = side * (Math.PI / 2) * k;
+      hinge.rotation.y = swing * side * (Math.PI / 2) * k;
     });
   }
 
@@ -748,6 +748,7 @@ export function buildWorld(scene) {
     rotY: 0,
     halfWidth: dw,
     spring: dh,
+    swing: -1, // swings into the hall, away from the garden path
   });
   const doors = [frontDoor, roomDoor];
 
