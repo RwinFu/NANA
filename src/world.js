@@ -536,6 +536,52 @@ export function buildWorld(scene) {
   heartWindow.rotation.y = 0;
   scene.add(heartWindow);
 
+  // Outer skins: the outside of the hall is stone, not the dark interior colour, and the back is closed.
+  // Each skin sits just outside the hall's own surface, and is double-sided, so from inside the hall
+  // it is hidden behind the walls, vault and heart window.
+  const skinMat = track(new THREE.MeshStandardMaterial({ color: '#cfc0b4', roughness: 0.9, side: THREE.DoubleSide }));
+  const SKIN_R = R_HALL + 0.22;
+  const skinPos = [];
+  [0.2, -LAYOUT.hallLength].forEach((z) => {
+    for (let i = 0; i <= VSEG; i += 1) {
+      const t = (i / VSEG) * Math.PI;
+      skinPos.push(SKIN_R * Math.cos(t), SPRING + SKIN_R * Math.sin(t), z);
+    }
+  });
+  const skinVaultGeo = track(new THREE.BufferGeometry());
+  skinVaultGeo.setAttribute('position', new THREE.Float32BufferAttribute(skinPos, 3));
+  skinVaultGeo.setIndex(vIdx);
+  skinVaultGeo.computeVertexNormals();
+  scene.add(new THREE.Mesh(skinVaultGeo, skinMat));
+
+  // Right side: just outside the right wall (its outside face is at x = 4.15)
+  const rightSkin = new THREE.Mesh(track(new THREE.PlaneGeometry(LAYOUT.hallLength + 0.4, SPRING)), skinMat);
+  rightSkin.rotation.y = Math.PI / 2;
+  rightSkin.position.set(4.18, SPRING / 2, -LAYOUT.hallLength / 2 + 0.1);
+  scene.add(rightSkin);
+
+  // Left side: outside the left wall, in two pieces that leave out the photo room's span (z -23.4 to -16.6)
+  [[0.2, -23.4], [-16.6, -LAYOUT.hallLength]].forEach(([za, zb]) => {
+    const piece = new THREE.Mesh(track(new THREE.PlaneGeometry(za - zb, SPRING)), skinMat);
+    piece.rotation.y = -Math.PI / 2;
+    piece.position.set(-4.18, SPRING / 2, (za + zb) / 2);
+    scene.add(piece);
+  });
+
+  // Back: a round-topped stone wall behind the heart window, with the same cross-section
+  const backShape = new THREE.Shape();
+  backShape.moveTo(-SKIN_R, 0);
+  backShape.lineTo(SKIN_R, 0);
+  backShape.lineTo(SKIN_R, SPRING);
+  for (let i = 0; i <= 36; i += 1) {
+    const a = (i / 36) * Math.PI;
+    backShape.lineTo(SKIN_R * Math.cos(a), SPRING + SKIN_R * Math.sin(a));
+  }
+  backShape.closePath();
+  const back = new THREE.Mesh(track(new THREE.ShapeGeometry(backShape, 36)), skinMat);
+  back.position.set(0, 0, -LAYOUT.hallLength - 0.04);
+  scene.add(back);
+
   // House front (facade) with the door opening
   const facadeMat = new THREE.MeshStandardMaterial({ color: '#e9dccb', roughness: 0.8 });
   const facadeHeight = 8;
