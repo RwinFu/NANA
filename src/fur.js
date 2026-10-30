@@ -60,7 +60,7 @@ function heightCanvas(r) {
 }
 
 // Sobel filter: the slope of the height field becomes a surface normal (OpenGL convention, +Y up)
-function normalCanvas(heightC, strength) {
+export function normalCanvas(heightC, strength) {
   const src = heightC.getContext('2d').getImageData(0, 0, SIZE, SIZE).data;
   const h = new Float32Array(SIZE * SIZE);
   for (let i = 0; i < h.length; i += 1) h[i] = src[i * 4] / 255;

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { surfaceNormal } from './surface.js';
 
 const SKIN = '#f2c7a3';
 const HAIR = '#3a2220';
@@ -362,10 +363,13 @@ export function createCouple(dressColor) {
   body.scale.setScalar(PRINCESS_SCALE);
   root.add(body);
 
-  const dressMat = physMat({ color: dressColor, roughness: 0.42, side: THREE.DoubleSide, sheen: 1, sheenColor: new THREE.Color('#ffe6f0'), sheenRoughness: 0.35 });
+  const dressMat = physMat({
+    color: dressColor, roughness: 0.42, side: THREE.DoubleSide, sheen: 1, sheenColor: new THREE.Color('#ffe6f0'), sheenRoughness: 0.35,
+    normalMap: surfaceNormal('satin', 5), normalScale: new THREE.Vector2(0.45, 0.45),
+  });
   const pinkGemMatBody = physMat({ color: '#ff5f8f', roughness: 0.08, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.03, emissive: '#3a0f1f' });
   const skinMat = physMat({ color: SKIN, roughness: 0.5, sheen: 0.3, sheenColor: new THREE.Color('#ffd9c2'), sheenRoughness: 0.6, clearcoat: 0.12, clearcoatRoughness: 0.45 });
-  const hairMat = physMat({ color: HAIR, roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.2 });
+  const hairMat = physMat({ color: HAIR, roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.2, normalMap: surfaceNormal('strands', 2), normalScale: new THREE.Vector2(0.5, 0.5) });
   const goldMat = physMat({ color: '#f5c96a', metalness: 1, roughness: 0.2, clearcoat: 0.5, clearcoatRoughness: 0.15 });
   const shoeMat = physMat({ color: '#2a1a24', roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.08 });
 
@@ -500,9 +504,9 @@ export function createCouple(dressColor) {
   const boy = new THREE.Group();
   boy.name = 'boy';
   root.add(boy);
-  const coatMat = physMat({ color: COAT, roughness: 0.6, sheen: 0.7, sheenColor: new THREE.Color('#8e9ad0'), sheenRoughness: 0.5 });
+  const coatMat = physMat({ color: COAT, roughness: 0.6, sheen: 0.7, sheenColor: new THREE.Color('#8e9ad0'), sheenRoughness: 0.5, normalMap: surfaceNormal('knit', 6), normalScale: new THREE.Vector2(0.5, 0.5) });
   const pantsMat = physMat({ color: PANTS, roughness: 0.7, sheen: 0.35, sheenColor: new THREE.Color('#3a3f66'), sheenRoughness: 0.6 });
-  const boyHairMat = physMat({ color: '#1f1412', roughness: 0.4, clearcoat: 0.5, clearcoatRoughness: 0.25 });
+  const boyHairMat = physMat({ color: '#1f1412', roughness: 0.4, clearcoat: 0.5, clearcoatRoughness: 0.25, normalMap: surfaceNormal('curl', 1), normalScale: new THREE.Vector2(0.6, 0.6) });
   const boyBody = new THREE.Group();
   boy.add(boyBody);
   const torso = part(new THREE.Mesh(new THREE.CapsuleGeometry(0.27, 0.55, 12, 32), coatMat), boyBody, 0, 1.05, 0);
@@ -512,7 +516,7 @@ export function createCouple(dressColor) {
   const boyBlinks = addBoyFace(boyHead);
   // Neck, a white collar with a pink bow tie, a dark vest with gold buttons, lapels and a belt
   const boyShirtMat = physMat({ color: '#f7f4ef', roughness: 0.5, sheen: 0.3, sheenColor: new THREE.Color('#ffffff') });
-  const vestMat = physMat({ color: '#3d4a7a', roughness: 0.6, sheen: 0.6, sheenColor: new THREE.Color('#6e7fc0'), sheenRoughness: 0.5 });
+  const vestMat = physMat({ color: '#3d4a7a', roughness: 0.6, sheen: 0.6, sheenColor: new THREE.Color('#6e7fc0'), sheenRoughness: 0.5, normalMap: surfaceNormal('knit', 6), normalScale: new THREE.Vector2(0.4, 0.4) });
   const lapelMat = physMat({ color: '#1f2542', roughness: 0.7 });
   const goldBtnMat = physMat({ color: '#e8c06a', metalness: 1, roughness: 0.2, clearcoat: 0.4 });
   const beltMat = physMat({ color: '#5a3a22', roughness: 0.5, clearcoat: 0.3, clearcoatRoughness: 0.4 });
