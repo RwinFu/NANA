@@ -168,7 +168,7 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
   scene.add(group);
 
   const leafMat = track(new THREE.MeshStandardMaterial({
-    color: '#fdf4f7', roughness: 0.45, side: THREE.DoubleSide, normalMap: doorNormal(2, 2), normalScale: new THREE.Vector2(0.9, 0.9),
+    color: '#fde8f1', roughness: 0.45, side: THREE.DoubleSide, normalMap: doorNormal(2, 2), normalScale: new THREE.Vector2(0.9, 0.9),
   }));
   const panelMat = track(new THREE.MeshStandardMaterial({ color: '#f6c3d6', roughness: 0.4 }));
   const goldMat = track(new THREE.MeshStandardMaterial({ color: '#e9b96a', metalness: 0.7, roughness: 0.3, normalMap: giltNormal(4, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
@@ -182,6 +182,7 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
     })
   );
   const heartMat = track(new THREE.MeshStandardMaterial({ color: '#ff7fae', emissive: '#ff4f8f', emissiveIntensity: 0.25, roughness: 0.35 }));
+  const bowMat = track(new THREE.MeshStandardMaterial({ color: '#ff8cba', emissive: '#ff5c9c', emissiveIntensity: 0.18, roughness: 0.3 }));
   const jewelMat = track(new THREE.MeshStandardMaterial({ color: '#ff9cc2', emissive: '#ff6fa6', emissiveIntensity: 0.3, roughness: 0.2 }));
   const boxGeo = track(new THREE.BoxGeometry(1, 1, 1));
   const ballGeo = track(new THREE.SphereGeometry(1, 14, 10));
@@ -304,6 +305,25 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
       const heart = new THREE.Mesh(heartGeo, heartMat);
       heart.position.copy(at(side, R * 0.5, spring + R * 0.42, 0.07));
       face.add(heart);
+
+      // A pink bow between the lower panel and the window: two loops, a knot and two tails
+      const bowV = spring * 0.515;
+      [-1, 1].forEach((k) => {
+        const loop = new THREE.Mesh(ballGeo, bowMat);
+        loop.scale.set(0.085, 0.06, 0.03);
+        loop.position.copy(at(side, R * 0.5 + k * 0.085, bowV, 0.13));
+        loop.rotation.z = k * 0.45;
+        face.add(loop);
+        const tail = new THREE.Mesh(boxGeo, bowMat);
+        tail.scale.set(0.04, 0.2, 0.025);
+        tail.position.copy(at(side, R * 0.5 + k * 0.05, bowV - 0.13, 0.13));
+        tail.rotation.z = -k * 0.25;
+        face.add(tail);
+      });
+      const knot = new THREE.Mesh(ballGeo, bowMat);
+      knot.scale.setScalar(0.032);
+      knot.position.copy(at(side, R * 0.5, bowV, 0.15));
+      face.add(knot);
 
       // A gold knob with a pink jewel, near the meeting edge
       const knob = new THREE.Mesh(ballGeo, goldMat);

@@ -114,32 +114,36 @@ function doorHeight() {
   const { c, g } = canvas();
   g.fillStyle = 'rgb(128,128,128)';
   g.fillRect(0, 0, SIZE, SIZE);
-  // quilted grooves: diagonal lines, a seamless lattice (spacing 128 divides the tile)
-  g.strokeStyle = 'rgb(70,70,70)';
-  g.lineWidth = 4;
-  for (let k = -1; k <= 2; k += 1) {
-    g.beginPath();
-    g.moveTo(-SIZE, -SIZE + k * 128);
-    g.lineTo(2 * SIZE, 2 * SIZE + k * 128);
-    g.stroke();
-    g.beginPath();
-    g.moveTo(-SIZE, SIZE + k * 128);
-    g.lineTo(2 * SIZE, -2 * SIZE + k * 128);
-    g.stroke();
+  // Puffy quilted cushions on a 4 x 4 grid (cell 64 px, so the tile repeats cleanly).
+  // Every cell is a round, rounded-up cushion. The checkerboard cells carry a raised heart.
+  for (let j = 0; j < 4; j += 1) {
+    for (let i = 0; i < 4; i += 1) {
+      const cx = 32 + i * 64;
+      const cy = 32 + j * 64;
+      const grad = g.createRadialGradient(cx, cy, 0, cx, cy, 29);
+      grad.addColorStop(0, 'rgb(255,255,255)');
+      grad.addColorStop(0.55, 'rgb(226,226,226)');
+      grad.addColorStop(0.86, 'rgb(150,150,150)');
+      grad.addColorStop(1, 'rgb(128,128,128)');
+      g.fillStyle = grad;
+      g.beginPath();
+      g.arc(cx, cy, 29, 0, Math.PI * 2);
+      g.fill();
+    }
   }
-  // a raised heart at the centre and quarter hearts at the corners, so the tile repeats cleanly
-  g.fillStyle = 'rgb(235,235,235)';
-  [[0, 0], [SIZE, 0], [0, SIZE], [SIZE, SIZE], [SIZE / 2, SIZE / 2]].forEach(([x, y]) => {
-    heartPath(g, x, y, 34);
-    g.fill();
-  });
-  // small raised studs where the grooves cross
-  g.fillStyle = 'rgb(210,210,210)';
-  [[64, 64], [192, 64], [64, 192], [192, 192]].forEach(([x, y]) => {
-    g.beginPath();
-    g.arc(x, y, 4, 0, Math.PI * 2);
-    g.fill();
-  });
+  // Raised hearts on the checkerboard cells, drawn with wrap-around so the tile stays seamless
+  g.fillStyle = 'rgb(252,252,252)';
+  for (let j = 0; j < 4; j += 1) {
+    for (let i = 0; i < 4; i += 1) {
+      if ((i + j) % 2 !== 0) continue;
+      const cx = 32 + i * 64;
+      const cy = 32 + j * 64;
+      [-SIZE, 0, SIZE].forEach((dx) => [-SIZE, 0, SIZE].forEach((dy) => {
+        heartPath(g, cx + dx, cy + dy + 2, 11);
+        g.fill();
+      }));
+    }
+  }
   return soften(c, 1);
 }
 
@@ -260,7 +264,7 @@ export function stoneNormal(repeatX = 5, repeatY = 4) {
 
 // The door's quilted pink lacquer, repeated over the leaf in world metres
 export function doorNormal(repeatX = 2, repeatY = 2) {
-  return cachedNormal('door', doorHeight, 2.2, repeatX, repeatY);
+  return cachedNormal('door', doorHeight, 3.6, repeatX, repeatY);
 }
 
 // Engraved gilt beads, for the gold mouldings, arches and door trim
