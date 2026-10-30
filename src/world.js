@@ -186,7 +186,8 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
 
   if (onDetail) {
     // Gold rail where the two leaves meet, and a finial at the crown of the round top
-    const rail = new THREE.Mesh(track(new THREE.BoxGeometry(0.07, spring, 0.16)), goldMat);
+    const railMat = track(new THREE.MeshStandardMaterial({ color: '#e7c27a', roughness: 0.45 })); // matte: a metal rail reads as black
+    const rail = new THREE.Mesh(track(new THREE.BoxGeometry(0.07, spring, 0.16)), railMat);
     rail.position.set(0, spring / 2, 0.02);
     group.add(rail);
     const finial = new THREE.Mesh(track(new THREE.SphereGeometry(0.12, 14, 12)), goldMat);
@@ -1133,6 +1134,21 @@ export function buildWorld(scene) {
   block(ox0, x0, 0, H, oz0, oz1, velvet);
   block(ox0, ox1, 0, H, oz0, z0, velvet);
   block(ox0, ox1, 0, H, z1, oz1, velvet);
+  // Stone skins on the outside faces, so the room reads as part of the castle from outside, not a black box
+  const roomStone = track(new THREE.MeshStandardMaterial({ color: '#cfc0b4', roughness: 0.9 }));
+  const skinW = oz1 - oz0;
+  const skinWide = ox1 - ox0;
+  const westSkin = new THREE.Mesh(track(new THREE.PlaneGeometry(skinW, H)), roomStone);
+  westSkin.rotation.y = -Math.PI / 2;
+  westSkin.position.set(ox0 - 0.03, H / 2, (oz0 + oz1) / 2);
+  roomGroup.add(westSkin);
+  const southSkin = new THREE.Mesh(track(new THREE.PlaneGeometry(skinWide, H)), roomStone);
+  southSkin.rotation.y = Math.PI;
+  southSkin.position.set((ox0 + ox1) / 2, H / 2, oz0 - 0.03);
+  roomGroup.add(southSkin);
+  const northSkin = new THREE.Mesh(track(new THREE.PlaneGeometry(skinWide, H)), roomStone);
+  northSkin.position.set((ox0 + ox1) / 2, H / 2, oz1 + 0.03);
+  roomGroup.add(northSkin);
   block(ox0, ox1, -0.1, 0.01, oz0, oz1, roomFloor);
   block(ox0, ox1, H, H + 0.2, oz0, oz1, roomCeil);
   // Gold trim along the top and the base of the inside walls (broken at the doorway)
