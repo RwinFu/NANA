@@ -192,6 +192,8 @@ if (renderer) {
   introFairy = createFairy(scene);
   hero = createCouple(store.get().avatarColor);
   scene.add(hero.root);
+  // Start in the garden, not at the origin: the origin is the middle of the door, and the couple sank into it before the walk began
+  hero.root.position.copy(LAYOUT.spawn);
   // A soft studio reflection for the characters' glossy parts (hair, eyes, gold, shoes)
   const pmrem = new THREE.PMREMGenerator(renderer);
   hero.setEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture);
