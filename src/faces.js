@@ -56,17 +56,18 @@ function buildEye(head, side, o) {
   }
 
   if (o.lashes) {
-    // five soft strokes along each upper lid, fanning out toward the outer corner
-    [-0.9, -0.45, 0, 0.45, 0.9].forEach((a) => {
-      const len = (0.02 + 0.006 * (1 - Math.abs(a) / 1.2)) * s;
-      const lash = new THREE.Mesh(new THREE.CapsuleGeometry(0.0038 * s, len, 3, 6), o.lashMat);
-      const dx = Math.sin(a) * side;
-      const dy = Math.cos(a);
-      const reach = (0.036 * s) + len / 2;
-      lash.position.set(dx * reach, dy * reach, 0.01 * s);
-      lash.rotation.z = -a * side;
-      eye.add(lash);
-    });
+    // a fan of nine fine lashes along the upper lid: short at the inner corner, longer toward the
+    // outer corner, each one curving up at the tip
+    for (let k = 0; k < 9; k += 1) {
+      const a = -1.05 + (k / 8) * 2.1; // from the inner corner (negative) to the outer one
+      const base = new THREE.Vector3(side * Math.sin(a) * 0.034 * s, Math.cos(a) * 0.036 * s, 0.012 * s);
+      const dir = new THREE.Vector3(side * (0.25 + 0.75 * (a / 1.05)), 0.9 - 0.2 * Math.abs(a) / 1.05, 0.1).normalize();
+      const len = (0.012 + 0.008 * ((a + 1.05) / 2.1)) * s;
+      const mid = base.clone().addScaledVector(dir, len * 0.55);
+      const tip = base.clone().addScaledVector(dir, len);
+      tip.y += 0.003 * s;
+      eye.add(tubeThrough([base, mid, tip], 0.0024 * s, o.lashMat, 6, 4));
+    }
   }
   return eye;
 }
