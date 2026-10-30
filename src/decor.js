@@ -1,18 +1,16 @@
 // Extra decoration for the hall and the garden:
 //   hall: dust in the candle light, soft light shafts under the chandeliers,
-//         velvet drapes framing the heart window, a real mirror on the east wall,
+//         velvet drapes framing the heart window,
 //         and a warm glow that draws the eye to the envelope at the end;
 //   garden: a fountain that catches the moon, flower beds, and butterflies and
 //         small birds that circle the princess;
 //   princess: sparkles drifting from her hair while she walks, and petals when she jumps.
 import * as THREE from 'three';
-import { Reflector } from 'three/examples/jsm/objects/Reflector.js';
 import { LAYOUT } from './world.js';
 
 // A round stone fountain in the garden. controls.js treats it as solid so the couple walks around it.
 export const FOUNTAIN = { x: -14, z: 8, r: 1.6 };
 
-const MIRROR = { x: LAYOUT.hallHalfWidth - 0.08, y: 2.6, z: -3.2, w: 1.5, h: 2.5 };
 const DRAPE = { x: 3.1, z: -39.45, width: 1.05, top: LAYOUT.hallSpring - 0.1 };
 const LIGHT_SPOTS = [-8, -19, -30]; // the chandeliers, see world.js
 const GOLD = '#d9a441';
@@ -117,49 +115,6 @@ function buildDrapes(scene) {
     tie.rotation.y = side * 0.4;
     group.add(tie);
   });
-}
-
-// ---------- mirror -----------------------------------------------------------
-// A real reflection (Reflector renders the hall again, in the mirror), inside a gold frame.
-function buildMirror(scene) {
-  const group = new THREE.Group();
-  // local +z faces into the hall; the wall is on the east side, so turn the mirror to face west
-  group.position.set(MIRROR.x, MIRROR.y, MIRROR.z);
-  group.rotation.y = -Math.PI / 2;
-  scene.add(group);
-
-  const glass = new Reflector(new THREE.PlaneGeometry(MIRROR.w, MIRROR.h), {
-    textureWidth: 512,
-    textureHeight: 860,
-    color: '#8d8aa6', // a little darker than the hall, so it reads as glass
-    clipBias: 0.003,
-  });
-  group.add(glass);
-
-  const goldMat = new THREE.MeshStandardMaterial({ color: GOLD, metalness: 0.85, roughness: 0.28 });
-  const t = 0.1; // frame thickness
-  const bar = (w, h, x, y) => {
-    const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.08), goldMat);
-    m.position.set(x, y, 0.03);
-    group.add(m);
-  };
-  bar(MIRROR.w + t * 2, t, 0, MIRROR.h / 2 + t / 2);
-  bar(MIRROR.w + t * 2, t, 0, -MIRROR.h / 2 - t / 2);
-  bar(t, MIRROR.h, -MIRROR.w / 2 - t / 2, 0);
-  bar(t, MIRROR.h, MIRROR.w / 2 + t / 2, 0);
-
-  // a crest on top: a gold arch with a jewel
-  const arch = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.045, 10, 30, Math.PI), goldMat);
-  arch.position.set(0, MIRROR.h / 2 + t + 0.22, 0.04);
-  arch.rotation.z = Math.PI;
-  group.add(arch);
-  const jewel = new THREE.Mesh(
-    new THREE.OctahedronGeometry(0.09, 0),
-    new THREE.MeshStandardMaterial({ color: '#ffd6ea', emissive: '#c77aa6', emissiveIntensity: 0.6, roughness: 0.15, metalness: 0.1 })
-  );
-  jewel.position.set(0, MIRROR.h / 2 + t + 0.5, 0.06);
-  group.add(jewel);
-  return glass;
 }
 
 // ---------- light shafts and dust -------------------------------------------
@@ -399,7 +354,8 @@ function buildCreatures(scene) {
   butterflyBody.rotateX(Math.PI / 2); // along +z, the way the creature flies
   const bodyMat = new THREE.MeshStandardMaterial({ color: '#2a1f2e', roughness: 0.6 });
   const butterflyColours = ['#ff9ac1', '#ffd3e6', '#c9a7ff', '#fff3c4', '#ffb3d9', '#9fd8ff'];
-  for (let i = 0; i < 6; i += 1) {
+  // three butterflies circle the princess (half as many as before)
+  for (let i = 0; i < 3; i += 1) {
     const wingMat = new THREE.MeshBasicMaterial({ color: butterflyColours[i], side: THREE.DoubleSide, transparent: true, opacity: 0.92, depthWrite: false });
     const built = buildCreature({ wingGeo: butterflyWing, bodyGeo: butterflyBody, bodyMat, wingMat, scale: 0.9 });
     scene.add(built.group);
@@ -567,7 +523,6 @@ function buildPetals(scene) {
 // ---------- the whole decoration --------------------------------------------
 export function buildDecor(scene, { hero }) {
   buildDrapes(scene);
-  const mirrorGlass = buildMirror(scene);
   buildShafts(scene);
   const dust = buildDust(scene);
   const envelopeGlow = buildEnvelopeGlow(scene);
@@ -584,7 +539,6 @@ export function buildDecor(scene, { hero }) {
   const emitTimer = { acc: 0 };
 
   return {
-    mirror: mirrorGlass,
     update(t, dt, pos, moving, airborne) {
       // dust drifts slowly through the light
       const dp = dust.points.geometry.attributes.position;

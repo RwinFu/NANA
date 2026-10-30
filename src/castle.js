@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { stoneNormal, giltNormal, leadedGlass } from './architecture.js';
 
 // The front of the house is a princess castle, in the spirit of a storybook castle:
 // a tall central keep with a spire and a rose window, two tall flanking towers, two low outer
@@ -106,11 +107,13 @@ function makeRoseWindowTexture() {
 }
 
 export function buildCastle(scene, track) {
-  const stone = track(new THREE.MeshStandardMaterial({ color: '#fbf3ea', map: makeStoneTexture(), roughness: 0.85 }));
-  const stoneLight = track(new THREE.MeshStandardMaterial({ color: '#fff8f1', roughness: 0.7 }));
+  const stone = track(new THREE.MeshStandardMaterial({
+    color: '#fbf3ea', map: makeStoneTexture(), normalMap: stoneNormal(5, 4), normalScale: new THREE.Vector2(1, 1), roughness: 0.85,
+  }));
+  const stoneLight = track(new THREE.MeshStandardMaterial({ color: '#fff8f1', roughness: 0.7, normalMap: stoneNormal(2, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
   const roof = track(new THREE.MeshStandardMaterial({ color: '#e98fb1', roughness: 0.45 }));
   const roofDeep = track(new THREE.MeshStandardMaterial({ color: '#b5557a', roughness: 0.5 }));
-  const gold = track(new THREE.MeshStandardMaterial({ color: '#f5c96a', metalness: 0.7, roughness: 0.3 }));
+  const gold = track(new THREE.MeshStandardMaterial({ color: '#f5c96a', metalness: 0.7, roughness: 0.3, normalMap: giltNormal(4, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
   const flagMat = track(new THREE.MeshStandardMaterial({ color: '#ff8fab', roughness: 0.6, side: THREE.DoubleSide }));
   const bannerMat = track(new THREE.MeshStandardMaterial({ color: '#c2456f', roughness: 0.7, side: THREE.DoubleSide }));
   const rose = track(new THREE.MeshStandardMaterial({ color: '#d8577f', roughness: 0.7 }));
@@ -130,7 +133,11 @@ export function buildCastle(scene, track) {
   };
   // A window: a glowing pane, a gold arch above it and a stone sill below it
   const addWindow = (w, h, x, y, z) => {
-    const mat = track(new THREE.MeshBasicMaterial({ color: dimWin.clone(), fog: false, side: THREE.DoubleSide }));
+    const glass = leadedGlass(2, 3);
+    const mat = track(new THREE.MeshStandardMaterial({
+      color: '#120e0c', emissive: dimWin.clone(), emissiveIntensity: 1, emissiveMap: glass.emissiveMap,
+      normalMap: glass.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughness: 0.35, fog: false, side: THREE.DoubleSide,
+    }));
     const pane = track(new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat));
     pane.position.set(x, y, z);
     scene.add(pane);
@@ -313,7 +320,7 @@ export function buildCastle(scene, track) {
     windows.forEach((mat, i) => {
       const start = (i / count) * 0.7;
       const k = THREE.MathUtils.clamp((amount - start) / 0.2, 0, 1);
-      mat.color.copy(dimWin).lerp(brightWin, k);
+      mat.emissive.copy(dimWin).lerp(brightWin, k);
     });
   }
 
