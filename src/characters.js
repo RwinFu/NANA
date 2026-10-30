@@ -1,4 +1,9 @@
 import * as THREE from 'three';
+import { surfaceNormal } from './surface.js';
+import { physMat, charMats } from './charmats.js';
+import { blinkFactor, addPrincessFace, addBoyFace } from './faces.js';
+import { createSkirt, addBodiceDetail, addHemPearls, dressMaterials } from './dress.js';
+import { addPrincessHairDetail, addBoyHair } from './hairdetail.js';
 
 const SKIN = '#f2c7a3';
 const HAIR = '#3a2220';
@@ -27,101 +32,6 @@ function part(mesh, parent, x = 0, y = 0, z = 0) {
 }
 
 const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
-
-// Every material of the two characters goes through here. Physical materials give fabric a soft
-// sheen, hair, eyes and shoes a glossy clearcoat, and the environment map adds real reflections.
-const charMats = [];
-function physMat(opts) {
-  const m = new THREE.MeshPhysicalMaterial({ envMapIntensity: 0.7, ...opts });
-  charMats.push(m);
-  return m;
-}
-
-// Eyes close for a short moment every few seconds. Returns the open amount (1 open, about 0.08 closed).
-function blinkFactor(t, offset, period) {
-  const k = (t + offset) % period;
-  const closed = k < 0.14 ? Math.sin((k / 0.14) * Math.PI) : 0;
-  return 1 - 0.92 * closed;
-}
-
-// Front face: eyes with a dark iris and catch-light, a soft lash line, brows and a small smile.
-// Everything sits on the front of the head (+z), so the face stays visible.
-function addPrincessFace(head, skinMat) {
-  const blinks = [];
-  const irisMat = physMat({ color: '#3b2319', roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.04 });
-  const shineMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
-  const lashMat = physMat({ color: '#1e1210', roughness: 0.5 });
-  const cheekMat = physMat({ color: '#f58fa6', roughness: 0.7, transparent: true, opacity: 0.75 });
-  const lipMat = physMat({ color: '#c93d61', roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.1 });
-  [-1, 1].forEach((side) => {
-    const x = side * 0.08;
-    const eye = part(new THREE.Mesh(new THREE.SphereGeometry(0.03, 24, 18), irisMat), head, x, 0.0, 0.205);
-    eye.scale.set(1, 1.25, 0.6);
-    blinks.push({ mesh: eye, base: 1.25 });
-    const shine = part(new THREE.Mesh(new THREE.SphereGeometry(0.009, 8, 6), shineMat), head, x + side * 0.009, 0.012, 0.228);
-    blinks.push({ mesh: shine, base: 1 });
-    // upper lash line: a half ring over the top of the eye
-    const lash = part(new THREE.Mesh(new THREE.TorusGeometry(0.034, 0.008, 6, 18, Math.PI * 0.9), lashMat), head, x, 0.0, 0.212);
-    lash.rotation.z = Math.PI * 0.05;
-    lash.scale.set(1, 1.1, 0.6);
-    // soft brow, slightly lifted at the outer end
-    const brow = part(new THREE.Mesh(new THREE.CapsuleGeometry(0.007, 0.055, 3, 6), lashMat), head, x, 0.078, 0.2);
-    brow.rotation.z = Math.PI / 2 - side * 0.12;
-    const cheek = part(new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), cheekMat), head, side * 0.13, -0.06, 0.18);
-    cheek.scale.set(1, 0.7, 0.4);
-  });
-  // Eyelashes: five soft strokes along each upper lid, fanning out toward the outer corner
-  [-1, 1].forEach((side) => {
-    const x = side * 0.08;
-    [-0.9, -0.45, 0, 0.45, 0.9].forEach((a) => {
-      const len = 0.02 + 0.006 * (1 - Math.abs(a) / 1.2);
-      const lash = new THREE.Mesh(new THREE.CapsuleGeometry(0.0038, len, 3, 6), lashMat);
-      const dx = Math.sin(a) * side;
-      const dy = Math.cos(a);
-      const reach = 0.036 + len / 2;
-      lash.position.set(x + dx * reach, dy * reach, 0.212);
-      lash.rotation.z = -a * side;
-      head.add(lash);
-    });
-  });
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.016, 10, 8), skinMat), head, 0, -0.03, 0.222).scale.set(1, 1.2, 0.8);
-  // smile: the lower half of a small ring
-  const smile = part(new THREE.Mesh(new THREE.TorusGeometry(0.028, 0.0072, 6, 14, Math.PI), lipMat), head, 0, -0.095, 0.205);
-  smile.rotation.z = Math.PI;
-  return blinks;
-}
-
-// Boy's face: the same eyes and brows, with a simple smile
-function addBoyFace(head) {
-  const blinks = [];
-  const irisMat = physMat({ color: '#1d1410', roughness: 0.2, clearcoat: 0.8, clearcoatRoughness: 0.06 });
-  const browMat = physMat({ color: '#1f1412', roughness: 0.6 });
-  const shineMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
-  [-1, 1].forEach((side) => {
-    const x = side * 0.08;
-    const eye = part(new THREE.Mesh(new THREE.SphereGeometry(0.026, 12, 10), irisMat), head, x, 0.0, 0.2);
-    eye.scale.set(1, 1.25, 0.6);
-    blinks.push({ mesh: eye, base: 1.25 });
-    const shine = part(new THREE.Mesh(new THREE.SphereGeometry(0.007, 8, 6), shineMat), head, x + side * 0.008, 0.01, 0.222);
-    blinks.push({ mesh: shine, base: 1 });
-    const brow = part(new THREE.Mesh(new THREE.CapsuleGeometry(0.006, 0.05, 3, 6), browMat), head, x, 0.068, 0.19);
-    brow.rotation.z = Math.PI / 2;
-  });
-  const smile = part(new THREE.Mesh(new THREE.TorusGeometry(0.024, 0.0065, 6, 12, Math.PI), physMat({ color: '#b5485f', roughness: 0.5 })), head, 0, -0.09, 0.2);
-  smile.rotation.z = Math.PI;
-  // ears, a small nose and soft cheeks
-  const boySkin = physMat({ color: SKIN, roughness: 0.5, sheen: 0.3, sheenColor: new THREE.Color('#ffd9c2'), sheenRoughness: 0.6, clearcoat: 0.12, clearcoatRoughness: 0.45 });
-  [-1, 1].forEach((side) => {
-    part(new THREE.Mesh(new THREE.SphereGeometry(0.048, 10, 8), boySkin), head, side * 0.222, -0.012, 0).scale.set(0.45, 1, 0.8);
-    const cheek = part(
-      new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 8), physMat({ color: '#f58fa6', roughness: 0.7, transparent: true, opacity: 0.55 })),
-      head, side * 0.12, -0.055, 0.185,
-    );
-    cheek.scale.set(1, 0.7, 0.4);
-  });
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), boySkin), head, 0, -0.035, 0.222).scale.set(0.9, 1.1, 0.9);
-  return blinks;
-}
 
 // A smooth ribbon that follows a list of points (in the space of its parent). It is rebuilt
 // each frame from the hair joints, so the hair reads as one flowing strand, not as beads.
@@ -248,60 +158,6 @@ function createHairChain({ parent, anchor, lengths, radii, rest, stiffness, damp
   return { step, end: joints[joints.length - 1].g, angles: () => joints.map((j) => [+j.ax.toFixed(3), +j.az.toFixed(3)]) };
 }
 
-// Curly hair for the boy: a cloud of small curls over the crown, the sides and the nape,
-// sitting on top of the smooth base so there are no bald gaps. Positions are fixed, so the
-// curls stay put on the head and move with it.
-function addCurlyHair(head, mat, headR) {
-  const geometry = new THREE.SphereGeometry(1, 16, 12);
-  const rings = [
-    { theta: 0.26, count: 9, r: 0.043 },
-    { theta: 0.5, count: 13, r: 0.046 },
-    { theta: 0.74, count: 16, r: 0.05 },
-    { theta: 0.95, count: 18, r: 0.048 },
-    { theta: 1.4, count: 14, r: 0.05, back: true },
-  ];
-  rings.forEach((ring, ri) => {
-    for (let i = 0; i < ring.count; i += 1) {
-      const u = i / ring.count;
-      // a fixed, varied jitter so the curls look natural but never change between frames
-      const jitter = Math.abs(Math.sin((i + 1) * 12.9898 + ri * 78.233) * 43758.5453) % 1;
-      const a = ring.back
-        ? Math.PI + (u - 0.5) * 2.2
-        : (u + (ri % 2) * 0.5 / ring.count) * Math.PI * 2;
-      const theta = ring.theta + (jitter - 0.5) * 0.08;
-      const rr = headR + ring.r * 0.55;
-      const sinT = Math.sin(theta);
-      const curl = new THREE.Mesh(geometry, mat);
-      curl.position.set(rr * sinT * Math.sin(a), rr * Math.cos(theta), rr * sinT * Math.cos(a));
-      const size = ring.r * (0.9 + jitter * 0.25);
-      curl.scale.setScalar(size);
-      head.add(curl);
-    }
-  });
-}
-
-// Bangs for the princess: a fringe of tapered strands that starts at the hairline and falls
-// over the forehead, stopping above the eyebrows. Each strand fans out a little, so it reads as
-// soft, swept-aside bangs.
-function addBangs(head, mat, headR) {
-  [-2, -1, 0, 1, 2].forEach((k) => {
-    const a0 = k * 0.2;
-    const sweep = k * 0.08;
-    const pts = [0.5, 0.78, 0.98, 1.1].map((theta, j) => {
-      const rr = headR + 0.012 + 0.012 * j;
-      const a = a0 + sweep * (j / 3);
-      const sinT = Math.sin(theta);
-      return new THREE.Vector3(rr * sinT * Math.sin(a), rr * Math.cos(theta), rr * sinT * Math.cos(a));
-    });
-    const radius = 0.017 + 0.004 * (2 - Math.abs(k));
-    const strand = new THREE.Mesh(
-      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(pts), 12, radius, 6, false),
-      mat,
-    );
-    head.add(strand);
-  });
-}
-
 // A princess tiara that wraps across the front of the head, above the bangs: a curved gold band
 // with a row of points (the tallest in the middle, with a pink jewel), blue gems and pearls.
 function addTiara(head, goldMat) {
@@ -362,10 +218,13 @@ export function createCouple(dressColor) {
   body.scale.setScalar(PRINCESS_SCALE);
   root.add(body);
 
-  const dressMat = physMat({ color: dressColor, roughness: 0.42, side: THREE.DoubleSide, sheen: 1, sheenColor: new THREE.Color('#ffe6f0'), sheenRoughness: 0.35 });
+  const dressMat = physMat({
+    color: dressColor, roughness: 0.42, side: THREE.DoubleSide, sheen: 1, sheenColor: new THREE.Color('#ffe6f0'), sheenRoughness: 0.35,
+    normalMap: surfaceNormal('satin', 5), normalScale: new THREE.Vector2(0.45, 0.45),
+  });
   const pinkGemMatBody = physMat({ color: '#ff5f8f', roughness: 0.08, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.03, emissive: '#3a0f1f' });
   const skinMat = physMat({ color: SKIN, roughness: 0.5, sheen: 0.3, sheenColor: new THREE.Color('#ffd9c2'), sheenRoughness: 0.6, clearcoat: 0.12, clearcoatRoughness: 0.45 });
-  const hairMat = physMat({ color: HAIR, roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.2 });
+  const hairMat = physMat({ color: HAIR, roughness: 0.3, clearcoat: 0.7, clearcoatRoughness: 0.2, normalMap: surfaceNormal('strands', 2), normalScale: new THREE.Vector2(0.5, 0.5) });
   const goldMat = physMat({ color: '#f5c96a', metalness: 1, roughness: 0.2, clearcoat: 0.5, clearcoatRoughness: 0.15 });
   const shoeMat = physMat({ color: '#2a1a24', roughness: 0.3, clearcoat: 1, clearcoatRoughness: 0.08 });
 
@@ -377,7 +236,8 @@ export function createCouple(dressColor) {
     new THREE.Vector2(0.38, 0.98),
     new THREE.Vector2(0.3, 1.1),
   ];
-  const skirt = new THREE.Mesh(new THREE.LatheGeometry(skirtProfile, 112), dressMat);
+  const dressDet = dressMaterials();
+  const skirt = createSkirt(dressMat, dressDet.lace);
   skirt.position.y = 0.12;
   body.add(skirt);
 
@@ -391,6 +251,7 @@ export function createCouple(dressColor) {
   const petLaceMat = physMat({ color: '#fff7fb', roughness: 0.6, sheen: 1, sheenColor: new THREE.Color('#ffffff'), sheenRoughness: 0.5 });
   const hem = part(new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.024, 12, 120), petLaceMat), body, 0, 0.13, 0);
   hem.rotation.x = Math.PI / 2;
+  addHemPearls(body, dressDet.pearl);
 
   // A sash at the waist with a bow at the back
   const sashMat = physMat({ color: '#ff8fb8', roughness: 0.3, sheen: 0.8, sheenColor: new THREE.Color('#ffd0e2'), sheenRoughness: 0.4 });
@@ -413,6 +274,7 @@ export function createCouple(dressColor) {
 
   const bodice = part(new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.31, 0.55, 20), dressMat), body, 0, 1.38, 0);
   bodice.scale.z = 0.8;
+  addBodiceDetail(body, dressDet);
   part(new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.12, 12), skinMat), body, 0, 1.72, 0);
   // A gold choker with a pink pendant
   const choker = part(new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.012, 8, 28), goldMat), body, 0, 1.68, 0);
@@ -455,8 +317,8 @@ export function createCouple(dressColor) {
   // Back of the head: a hair shell over the back half of the skull, down to the nape.
   // phi in [PI, 2PI] is the back (z <= 0), so no skin shows from behind.
   part(new THREE.Mesh(new THREE.SphereGeometry(0.252, 40, 28, Math.PI, Math.PI, 0, Math.PI * 0.62), hairMat), head, 0, 0, 0);
-  addBangs(head, hairMat, 0.245);
-  const princessBlinks = addPrincessFace(head, skinMat);
+  addPrincessHairDetail(head, hairMat, 0.245);
+  const princessBlinks = addPrincessFace(head);
   addTiara(head, goldMat);
 
   // Earrings: gold studs with a pink drop
@@ -500,19 +362,19 @@ export function createCouple(dressColor) {
   const boy = new THREE.Group();
   boy.name = 'boy';
   root.add(boy);
-  const coatMat = physMat({ color: COAT, roughness: 0.6, sheen: 0.7, sheenColor: new THREE.Color('#8e9ad0'), sheenRoughness: 0.5 });
+  const coatMat = physMat({ color: COAT, roughness: 0.6, sheen: 0.7, sheenColor: new THREE.Color('#8e9ad0'), sheenRoughness: 0.5, normalMap: surfaceNormal('knit', 6), normalScale: new THREE.Vector2(0.5, 0.5) });
   const pantsMat = physMat({ color: PANTS, roughness: 0.7, sheen: 0.35, sheenColor: new THREE.Color('#3a3f66'), sheenRoughness: 0.6 });
-  const boyHairMat = physMat({ color: '#1f1412', roughness: 0.4, clearcoat: 0.5, clearcoatRoughness: 0.25 });
+  const boyHairMat = physMat({ color: '#1f1412', roughness: 0.4, clearcoat: 0.5, clearcoatRoughness: 0.25, normalMap: surfaceNormal('curl', 1), normalScale: new THREE.Vector2(0.6, 0.6) });
+  const boyHairLightMat = physMat({ color: '#4b2a20', roughness: 0.4, clearcoat: 0.5, clearcoatRoughness: 0.25, normalMap: surfaceNormal('curl', 1), normalScale: new THREE.Vector2(0.6, 0.6) });
   const boyBody = new THREE.Group();
   boy.add(boyBody);
   const torso = part(new THREE.Mesh(new THREE.CapsuleGeometry(0.27, 0.55, 12, 32), coatMat), boyBody, 0, 1.05, 0);
   const boyHead = part(new THREE.Mesh(new THREE.SphereGeometry(0.23, 40, 28), skinMat), boyBody, 0, 1.75, 0);
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.245, 40, 28, 0, Math.PI * 2, 0, Math.PI * 0.45), boyHairMat), boyHead, 0, 0.03, 0);
-  addCurlyHair(boyHead, boyHairMat, 0.235);
-  const boyBlinks = addBoyFace(boyHead);
+  addBoyHair(boyHead, boyHairMat, boyHairLightMat, 0.235);
+  const boyBlinks = addBoyFace(boyHead, skinMat);
   // Neck, a white collar with a pink bow tie, a dark vest with gold buttons, lapels and a belt
   const boyShirtMat = physMat({ color: '#f7f4ef', roughness: 0.5, sheen: 0.3, sheenColor: new THREE.Color('#ffffff') });
-  const vestMat = physMat({ color: '#3d4a7a', roughness: 0.6, sheen: 0.6, sheenColor: new THREE.Color('#6e7fc0'), sheenRoughness: 0.5 });
+  const vestMat = physMat({ color: '#3d4a7a', roughness: 0.6, sheen: 0.6, sheenColor: new THREE.Color('#6e7fc0'), sheenRoughness: 0.5, normalMap: surfaceNormal('knit', 6), normalScale: new THREE.Vector2(0.4, 0.4) });
   const lapelMat = physMat({ color: '#1f2542', roughness: 0.7 });
   const goldBtnMat = physMat({ color: '#e8c06a', metalness: 1, roughness: 0.2, clearcoat: 0.4 });
   const beltMat = physMat({ color: '#5a3a22', roughness: 0.5, clearcoat: 0.3, clearcoatRoughness: 0.4 });
