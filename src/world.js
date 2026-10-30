@@ -206,8 +206,21 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
   const heartGeo = track(new THREE.ExtrudeGeometry(heartShape, { depth: 0.04, bevelEnabled: false }));
 
   // A thin gold line that follows points given in the leaf's frame
-  function piping(hinge, pts, side, z, radius, closed) {
-    const curve = new THREE.CatmullRomCurve3(pts.map(([s, v]) => at(side, s, v, z)), closed);
+  // straight: true gives straight edges with sharp corners (for the rectangle panel frame)
+  function piping(hinge, pts, side, z, radius, closed, straight = false) {
+    let run = pts;
+    if (straight) {
+      // Dense points along every edge keep the edges straight with sharp corners
+      run = [];
+      pts.forEach((a, i) => {
+        const b = pts[(i + 1) % pts.length];
+        if (!closed && i === pts.length - 1) return;
+        for (let k = 0; k < 10; k += 1) {
+          run.push([a[0] + ((b[0] - a[0]) * k) / 10, a[1] + ((b[1] - a[1]) * k) / 10]);
+        }
+      });
+    }
+    const curve = new THREE.CatmullRomCurve3(run.map(([s, v]) => at(side, s, v, z)), closed, 'centripetal');
     hinge.add(new THREE.Mesh(track(new THREE.TubeGeometry(curve, pts.length * 14, radius, 8, closed)), goldMat));
   }
 
@@ -264,7 +277,7 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
       panel.scale.set(p1 - p0, q1 - q0, 0.04);
       panel.position.copy(at(side, (p0 + p1) / 2, (q0 + q1) / 2, 0.09));
       face.add(panel);
-      piping(face, [[p0, q0], [p1, q0], [p1, q1], [p0, q1]], side, 0.105, 0.025, true);
+      piping(face, [[p0, q0], [p1, q0], [p1, q1], [p0, q1]], side, 0.105, 0.025, true, true);
 
       // An arched window that glows, with a gold frame and two gold bars
       const ww = R * 0.6;
