@@ -143,6 +143,46 @@ function doorHeight() {
   return soften(c, 1);
 }
 
+// Gilt: rows of small raised beads, the engraved edge of gold mouldings (4 beads a tile)
+function giltHeight() {
+  const { c, g } = canvas();
+  g.fillStyle = 'rgb(60,60,60)';
+  g.fillRect(0, 0, SIZE, SIZE);
+  for (let j = 0; j < 4; j += 1) {
+    for (let i = 0; i < 4; i += 1) {
+      const cx = 32 + i * 64 + (j % 2) * 32;
+      const cy = 32 + j * 64;
+      const grad = g.createRadialGradient(cx, cy, 2, cx, cy, 24);
+      grad.addColorStop(0, 'rgb(255,255,255)');
+      grad.addColorStop(0.7, 'rgb(180,180,180)');
+      grad.addColorStop(1, 'rgb(60,60,60)');
+      g.fillStyle = grad;
+      g.beginPath();
+      g.arc(cx, cy, 24, 0, Math.PI * 2);
+      g.fill();
+    }
+  }
+  return soften(c, 0.8);
+}
+
+// Candy stripes: diagonal raised bands, for the pink mouldings and the door jambs
+function ribbonHeight() {
+  const { c, g } = canvas();
+  const img = g.createImageData(SIZE, SIZE);
+  for (let y = 0; y < SIZE; y += 1) {
+    for (let x = 0; x < SIZE; x += 1) {
+      const v = Math.round((0.5 + 0.5 * Math.cos((2 * Math.PI * (x + y)) / 64)) * 255);
+      const k = (y * SIZE + x) * 4;
+      img.data[k] = v;
+      img.data[k + 1] = v;
+      img.data[k + 2] = v;
+      img.data[k + 3] = 255;
+    }
+  }
+  g.putImageData(img, 0, 0);
+  return c;
+}
+
 const cache = new Map();
 
 // A tiling normal map from a height field, cached by kind and repeat
@@ -167,4 +207,14 @@ export function stoneNormal(repeatX = 5, repeatY = 4) {
 // The door's quilted pink lacquer, repeated over the leaf in world metres
 export function doorNormal(repeatX = 2, repeatY = 2) {
   return cachedNormal('door', doorHeight, 2.2, repeatX, repeatY);
+}
+
+// Engraved gilt beads, for the gold mouldings, arches and door trim
+export function giltNormal(repeatX = 4, repeatY = 1) {
+  return cachedNormal('gilt', giltHeight, 2.4, repeatX, repeatY);
+}
+
+// Candy stripes, for the pink mouldings and the door jambs
+export function ribbonNormal(repeatX = 8, repeatY = 1) {
+  return cachedNormal('ribbon', ribbonHeight, 1.8, repeatX, repeatY);
 }

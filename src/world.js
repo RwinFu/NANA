@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { memories as memoryList, soloMemories, soloVideo } from './memories.js';
 import { buildCastle } from './castle.js';
 import { createRugGlint, createStoneGlint } from './rugglint.js';
-import { stoneNormal, doorNormal } from './architecture.js';
+import { stoneNormal, doorNormal, giltNormal, ribbonNormal } from './architecture.js';
 import { buildTown } from './town.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
@@ -171,7 +171,7 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
     color: '#fdf4f7', roughness: 0.45, side: THREE.DoubleSide, normalMap: doorNormal(2, 2), normalScale: new THREE.Vector2(0.9, 0.9),
   }));
   const panelMat = track(new THREE.MeshStandardMaterial({ color: '#f6c3d6', roughness: 0.4 }));
-  const goldMat = track(new THREE.MeshStandardMaterial({ color: '#e9b96a', metalness: 0.7, roughness: 0.3 }));
+  const goldMat = track(new THREE.MeshStandardMaterial({ color: '#e9b96a', metalness: 0.7, roughness: 0.3, normalMap: giltNormal(4, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
   const glassMat = track(
     new THREE.MeshStandardMaterial({
       color: '#ffe3ef',
@@ -678,7 +678,7 @@ export function buildWorld(scene) {
   scene.add(leftWall);
 
   // Gold trim around the doorway: jambs up to the springline, and a round gold arch on top
-  const doorTrimMat = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
+  const doorTrimMat = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3, normalMap: giltNormal(4, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
   [DR.z1, DR.z0].forEach((z) => {
     const jamb = new THREE.Mesh(track(new THREE.BoxGeometry(0.08, doorSpring, 0.14)), doorTrimMat);
     jamb.position.set(-3.89, doorSpring / 2, z);
@@ -898,8 +898,8 @@ export function buildWorld(scene) {
   facadeArch.position.set(0, 0, -0.3);
   scene.add(facadeArch);
   // Pink moulding and gold piping over the doors, with a rosette at each springline and a crown on top
-  const archPinkMat = track(new THREE.MeshStandardMaterial({ color: '#f6c3d6', roughness: 0.45 }));
-  const archGoldMat = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
+  const archPinkMat = track(new THREE.MeshStandardMaterial({ color: '#f6c3d6', roughness: 0.45, normalMap: ribbonNormal(12, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
+  const archGoldMat = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3, normalMap: giltNormal(4, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
   const archJewelMat = track(new THREE.MeshStandardMaterial({ color: '#ff9cc2', emissive: '#ff6fa6', emissiveIntensity: 0.3, roughness: 0.2 }));
   const archRadius = dw + 0.2;
   const pinkArch = new THREE.Mesh(track(new THREE.TorusGeometry(archRadius, 0.12, 10, 48, Math.PI)), archPinkMat);
@@ -947,7 +947,7 @@ export function buildWorld(scene) {
   const doors = [frontDoor, roomDoor];
 
   // Door panels (open) and warm light spilling from the door: cream pillars with gold plinths and bands
-  const jambMat = track(new THREE.MeshStandardMaterial({ color: '#fbf1f5', roughness: 0.5 }));
+  const jambMat = track(new THREE.MeshStandardMaterial({ color: '#fbf1f5', roughness: 0.5, normalMap: ribbonNormal(8, 1), normalScale: new THREE.Vector2(0.7, 0.7) }));
   [-1, 1].forEach((side) => {
     const jamb = new THREE.Mesh(track(new THREE.BoxGeometry(0.18, dh, 0.5)), jambMat);
     jamb.position.set(side * dw, dh / 2, 0.02);
