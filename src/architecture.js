@@ -183,6 +183,60 @@ function ribbonHeight() {
   return c;
 }
 
+// Leaded glass: a diamond lattice. The lead lines are raised (height) and dark (colour).
+// Lines run along x+y and x-y in steps of 128, so the 256 tile repeats cleanly.
+function latticeLines(g, colour, width) {
+  g.strokeStyle = colour;
+  g.lineWidth = width;
+  for (let k = -2; k <= 2; k += 1) {
+    g.beginPath();
+    g.moveTo(-SIZE, -SIZE + k * 128);
+    g.lineTo(2 * SIZE, 2 * SIZE + k * 128);
+    g.stroke();
+  }
+  for (let k = 0; k <= 4; k += 1) {
+    g.beginPath();
+    g.moveTo(-SIZE, SIZE + k * 128);
+    g.lineTo(2 * SIZE, -2 * SIZE + k * 128);
+    g.stroke();
+  }
+}
+
+function leadHeight() {
+  const { c, g } = canvas();
+  g.fillStyle = 'rgb(110,110,110)';
+  g.fillRect(0, 0, SIZE, SIZE);
+  latticeLines(g, 'rgb(255,255,255)', 7);
+  return soften(c, 1);
+}
+
+function leadColour() {
+  const { c, g } = canvas();
+  g.fillStyle = 'rgb(255,255,255)';
+  g.fillRect(0, 0, SIZE, SIZE);
+  latticeLines(g, 'rgb(50,40,40)', 7);
+  return c;
+}
+
+const glassCache = new Map();
+
+// The leaded glass of the windows: a normal map for the raised lead, and an emissive map that keeps
+// the lead lines dark while the glass glows
+export function leadedGlass(repeatX = 2, repeatY = 3) {
+  const id = `${repeatX}x${repeatY}`;
+  if (glassCache.has(id)) return glassCache.get(id);
+  const normalMap = cachedNormal('lead', leadHeight, 2.2, repeatX, repeatY);
+  const colour = new THREE.CanvasTexture(leadColour());
+  colour.colorSpace = THREE.SRGBColorSpace;
+  colour.wrapS = THREE.RepeatWrapping;
+  colour.wrapT = THREE.RepeatWrapping;
+  colour.repeat.set(repeatX, repeatY);
+  colour.anisotropy = 8;
+  const result = { normalMap, emissiveMap: colour };
+  glassCache.set(id, result);
+  return result;
+}
+
 const cache = new Map();
 
 // A tiling normal map from a height field, cached by kind and repeat

@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { stoneNormal, giltNormal } from './architecture.js';
+import { stoneNormal, giltNormal, leadedGlass } from './architecture.js';
 
 // The front of the house is a princess castle, in the spirit of a storybook castle:
 // a tall central keep with a spire and a rose window, two tall flanking towers, two low outer
@@ -133,7 +133,11 @@ export function buildCastle(scene, track) {
   };
   // A window: a glowing pane, a gold arch above it and a stone sill below it
   const addWindow = (w, h, x, y, z) => {
-    const mat = track(new THREE.MeshBasicMaterial({ color: dimWin.clone(), fog: false, side: THREE.DoubleSide }));
+    const glass = leadedGlass(2, 3);
+    const mat = track(new THREE.MeshStandardMaterial({
+      color: '#120e0c', emissive: dimWin.clone(), emissiveIntensity: 1, emissiveMap: glass.emissiveMap,
+      normalMap: glass.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughness: 0.35, fog: false, side: THREE.DoubleSide,
+    }));
     const pane = track(new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat));
     pane.position.set(x, y, z);
     scene.add(pane);
@@ -316,7 +320,7 @@ export function buildCastle(scene, track) {
     windows.forEach((mat, i) => {
       const start = (i / count) * 0.7;
       const k = THREE.MathUtils.clamp((amount - start) / 0.2, 0, 1);
-      mat.color.copy(dimWin).lerp(brightWin, k);
+      mat.emissive.copy(dimWin).lerp(brightWin, k);
     });
   }
 
