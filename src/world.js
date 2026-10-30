@@ -7,9 +7,10 @@ import { createRugGlint, createStoneGlint } from './rugglint.js';
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
 export const LAYOUT = {
   hallHalfWidth: 3.85,
+  hallHeight: 10,
   hallLength: 40,
   doorHalfWidth: 1.5,
-  doorHeight: 4.4,
+  doorHeight: 6.4,
   gardenHalfWidth: 22,
   gardenDepth: 26,
   spawn: new THREE.Vector3(0, 0, 19),
@@ -17,13 +18,15 @@ export const LAYOUT = {
   envelope: { x: 0, y: 0.6, z: -38.9, w: 3.4, h: 2.2 },
   // The photo room: a bigger chamber west of the gallery hall, in the middle of the hall, entered through a doorway in its west wall.
   room: {
-    height: 4.6,
+    height: 6.4,
     ox0: -16.0, ox1: -3.85, oz0: -23.4, oz1: -16.6, // outside faces (the hall wall is its east side)
     x0: -15.6, x1: -4.15, z0: -23.0, z1: -17.0, // inside faces: 11.5 m long, 6 m wide
-    door: { z0: -21.3, z1: -18.7, top: 4.4 }, // doorway in the hall's west wall, centred on the hall's middle (z0 is the far edge)
+    door: { z0: -21.3, z1: -18.7, top: 6.0 }, // doorway in the hall's west wall, centred on the hall's middle (z0 is the far edge)
   },
 };
 
+// Chandeliers hang at this height; the hall lights sit just under them
+const CHANDELIER_Y = 7.7;
 const FRAME_Z_STEP = 3.6;
 const FRAME_Z_START = -8.5;
 const MAX_FRAME_H = 1.9;
@@ -150,7 +153,7 @@ export function buildWorld(scene) {
   const hallLights = [];
   [-8, -19, -30].forEach((z) => {
     const light = new THREE.PointLight('#ffb771', 22, 15, 1.6);
-    light.position.set(0, 4.6, z);
+    light.position.set(0, CHANDELIER_Y - 0.5, z);
     scene.add(light);
     hallLights.push(light);
   });
@@ -193,19 +196,19 @@ export function buildWorld(scene) {
   const ceiling = track(
     new THREE.Mesh(
       new THREE.PlaneGeometry(LAYOUT.hallHalfWidth * 2, LAYOUT.hallLength),
-      new THREE.MeshStandardMaterial({ color: '#211a2e', roughness: 0.9, side: THREE.DoubleSide })
+      new THREE.MeshStandardMaterial({ color: '#2a1f3d', roughness: 0.9, side: THREE.DoubleSide })
     )
   );
   ceiling.rotation.x = Math.PI / 2;
-  ceiling.position.set(0, 6, -LAYOUT.hallLength / 2);
+  ceiling.position.set(0, LAYOUT.hallHeight, -LAYOUT.hallLength / 2);
   scene.add(ceiling);
 
   const wallMat = new THREE.MeshStandardMaterial({ color: '#3a2a3f', roughness: 0.85 });
   const wallThickness = 0.3;
   // Right wall: one solid piece. Left wall: split around the doorway into the chamber.
-  const sideWallGeo = track(new THREE.BoxGeometry(wallThickness, 6, LAYOUT.hallLength));
+  const sideWallGeo = track(new THREE.BoxGeometry(wallThickness, LAYOUT.hallHeight, LAYOUT.hallLength));
   const rightWall = new THREE.Mesh(sideWallGeo, wallMat);
-  rightWall.position.set(LAYOUT.hallHalfWidth + wallThickness / 2, 3, -LAYOUT.hallLength / 2);
+  rightWall.position.set(LAYOUT.hallHalfWidth + wallThickness / 2, LAYOUT.hallHeight / 2, -LAYOUT.hallLength / 2);
   scene.add(rightWall);
   const DR = LAYOUT.room.door;
   const leftX = -(LAYOUT.hallHalfWidth + wallThickness / 2);
@@ -214,9 +217,9 @@ export function buildWorld(scene) {
     piece.position.set(leftX, (y0 + y1) / 2, (zFront + zBack) / 2);
     scene.add(piece);
   };
-  wallPiece(0.2, DR.z1, 0, 6); // solid, up to the doorway
-  wallPiece(DR.z1, DR.z0, DR.top, 6); // lintel over the doorway
-  wallPiece(DR.z0, -LAYOUT.hallLength, 0, 6); // the rest of the wall
+  wallPiece(0.2, DR.z1, 0, LAYOUT.hallHeight); // solid, up to the doorway
+  wallPiece(DR.z1, DR.z0, DR.top, LAYOUT.hallHeight); // lintel over the doorway
+  wallPiece(DR.z0, -LAYOUT.hallLength, 0, LAYOUT.hallHeight); // the rest of the wall
   // Gold trim around the doorway
   const doorTrimMat = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
   [DR.z1, DR.z0].forEach((z) => {
@@ -227,6 +230,90 @@ export function buildWorld(scene) {
   const doorTop = new THREE.Mesh(track(new THREE.BoxGeometry(0.08, 0.14, DR.z1 - DR.z0 + 0.14)), doorTrimMat);
   doorTop.position.set(-3.89, DR.top + 0.07, (DR.z0 + DR.z1) / 2);
   scene.add(doorTop);
+
+  // Royal arch over the photo-room doorway, with a crest at its top
+  const doorZc = (DR.z0 + DR.z1) / 2;
+  const doorArch = new THREE.Mesh(track(new THREE.TorusGeometry((DR.z1 - DR.z0) / 2, 0.07, 8, 32, Math.PI)), doorTrimMat);
+  doorArch.rotation.y = Math.PI / 2;
+  doorArch.position.set(-3.89, DR.top - (DR.z1 - DR.z0) / 2, doorZc);
+  scene.add(doorArch);
+  const doorCrest = new THREE.Mesh(track(new THREE.SphereGeometry(0.13, 12, 10)), doorTrimMat);
+  doorCrest.position.set(-3.89, DR.top + 0.12, doorZc);
+  scene.add(doorCrest);
+
+  // Royal hall decoration: gold ribs under the high ceiling and a gold cornice where the walls meet it
+  const hallGold = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
+  const ribAlong = track(new THREE.BoxGeometry(0.16, 0.22, LAYOUT.hallLength));
+  [-1.9, 0, 1.9].forEach((x) => {
+    const rib = new THREE.Mesh(ribAlong, hallGold);
+    rib.position.set(x, LAYOUT.hallHeight - 0.11, -LAYOUT.hallLength / 2);
+    scene.add(rib);
+  });
+  const ribAcross = track(new THREE.BoxGeometry(LAYOUT.hallHalfWidth * 2, 0.22, 0.16));
+  for (let k = 0; k < 8; k += 1) {
+    const rib = new THREE.Mesh(ribAcross, hallGold);
+    rib.position.set(0, LAYOUT.hallHeight - 0.11, -2.5 - k * 5);
+    scene.add(rib);
+  }
+  const cornice = track(new THREE.BoxGeometry(0.22, 0.4, LAYOUT.hallLength));
+  [-1, 1].forEach((side) => {
+    const piece = new THREE.Mesh(cornice, hallGold);
+    piece.position.set(side * (LAYOUT.hallHalfWidth - 0.11), LAYOUT.hallHeight - 0.2, -LAYOUT.hallLength / 2);
+    scene.add(piece);
+  });
+
+  // Crystal chandeliers: a gold chain, two tiers of candle bulbs and pink crystal drops
+  const chandBulbMat = track(new THREE.MeshBasicMaterial({ color: '#ffe2a8', fog: false }));
+  const crystalMat = track(new THREE.MeshStandardMaterial({ color: '#ffd6ea', emissive: '#c77aa6', emissiveIntensity: 0.6, roughness: 0.15, metalness: 0.1 }));
+  const chainGeo = track(new THREE.CylinderGeometry(0.025, 0.025, 1, 6));
+  const ringGeo = track(new THREE.TorusGeometry(1, 0.045, 8, 40));
+  const bulbGeo = track(new THREE.SphereGeometry(0.075, 10, 8));
+  const dropGeo = track(new THREE.ConeGeometry(0.06, 0.22, 8));
+  const hubGeo = track(new THREE.SphereGeometry(0.32, 16, 12));
+  const canopyGeo = track(new THREE.CylinderGeometry(0.22, 0.3, 0.22, 16));
+  const addChandelier = (z) => {
+    const group = new THREE.Group();
+    group.position.set(0, CHANDELIER_Y, z);
+    scene.add(group);
+    const drop = LAYOUT.hallHeight - CHANDELIER_Y; // from the chandelier up to the ceiling
+    const chain = new THREE.Mesh(chainGeo, hallGold);
+    chain.scale.y = drop;
+    chain.position.y = drop / 2;
+    group.add(chain);
+    const canopy = new THREE.Mesh(canopyGeo, hallGold);
+    canopy.position.y = drop - 0.1;
+    group.add(canopy);
+    group.add(new THREE.Mesh(hubGeo, hallGold));
+    const tiers = [
+      { r: 1.15, y: -0.55, bulbs: 12 },
+      { r: 0.75, y: -1.1, bulbs: 8 },
+    ];
+    tiers.forEach((tier) => {
+      const ring = new THREE.Mesh(ringGeo, hallGold);
+      ring.scale.setScalar(tier.r);
+      ring.rotation.x = Math.PI / 2;
+      ring.position.y = tier.y;
+      group.add(ring);
+      for (let k = 0; k < tier.bulbs; k += 1) {
+        const a = (k / tier.bulbs) * Math.PI * 2;
+        const bulb = new THREE.Mesh(bulbGeo, chandBulbMat);
+        bulb.position.set(Math.cos(a) * tier.r, tier.y + 0.08, Math.sin(a) * tier.r);
+        group.add(bulb);
+        if (tier.bulbs === 12) {
+          const crystal = new THREE.Mesh(dropGeo, crystalMat);
+          crystal.rotation.x = Math.PI;
+          crystal.position.set(Math.cos(a) * tier.r, tier.y - 0.16, Math.sin(a) * tier.r);
+          group.add(crystal);
+        }
+      }
+    });
+    const pear = new THREE.Mesh(dropGeo, crystalMat);
+    pear.scale.setScalar(1.8);
+    pear.rotation.x = Math.PI;
+    pear.position.y = -1.55;
+    group.add(pear);
+  };
+  [-8, -19, -30].forEach(addChandelier);
 
   // Back wall of the hall: a glowing heart window with a night sky
   const heartWindow = track(
@@ -324,7 +411,7 @@ export function buildWorld(scene) {
       new THREE.MeshBasicMaterial({ map: plaqueTex, toneMapped: false })
     )
   );
-  plaque.position.set(0, 6.6, 0.33);
+  plaque.position.set(0, 7.25, 0.33);
   scene.add(plaque);
 
   function setDedication(text) {
