@@ -701,7 +701,8 @@ export function buildWorld(scene) {
       blending: THREE.AdditiveBlending,
       fog: false,
     });
-  [[-4.4, 3], [4.4, 3], [-4.4, 14], [4.4, 14]].forEach(([x, z]) => {
+  // Placed wide of the path so the tour start camera never sits beside a bulb
+  [[-9, 3], [9, 3], [-9, 14], [9, 14]].forEach(([x, z]) => {
     const lamp = new THREE.Group();
     const pole = new THREE.Mesh(poleGeo, poleMat);
     pole.position.y = 1.5;
