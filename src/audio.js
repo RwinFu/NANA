@@ -28,7 +28,8 @@ export function createAudio() {
   let step = 0;
   let song = null;
   let songActive = false;
-  let fadeTimer = null;
+  let loopEndTimer = null;
+  let songRamp = null;
 
   function ensureContext() {
     if (ctx) return ctx;
@@ -111,12 +112,45 @@ export function createAudio() {
     master.gain.setTargetAtTime(0, ctx.currentTime, 0.2);
   }
 
+  // Slowly lowers the synth loop, keeping the notes going, then stops the scheduler.
+  function fadeLoopOut(seconds) {
+    if (!ctx || !playing) return;
+    const now = ctx.currentTime;
+    master.gain.cancelScheduledValues(now);
+    master.gain.setValueAtTime(master.gain.value, now);
+    master.gain.linearRampToValueAtTime(0, now + seconds);
+    window.clearTimeout(loopEndTimer);
+    loopEndTimer = window.setTimeout(() => {
+      playing = false;
+      window.clearInterval(timer);
+      timer = null;
+    }, seconds * 1000 + 100);
+  }
+
+  // Eases the song's volume toward `to` over `seconds` (smoothstep, so it starts and ends softly).
+  function rampSong(to, seconds) {
+    if (!song) return;
+    window.cancelAnimationFrame(songRamp);
+    const from = song.volume;
+    const t0 = performance.now();
+    const frame = () => {
+      const k = Math.min(1, (performance.now() - t0) / (seconds * 1000));
+      const e = k * k * (3 - 2 * k);
+      song.volume = from + (to - from) * e;
+      if (k < 1) songRamp = window.requestAnimationFrame(frame);
+    };
+    songRamp = window.requestAnimationFrame(frame);
+  }
+
   return {
     get musicOn() {
       return musicOn;
     },
     get songPlaying() {
       return !!song && !song.paused;
+    },
+    get songVolume() {
+      return song ? song.volume : 0;
     },
     // Called from a user gesture (the start button) so browsers allow audio.
     unlock() {
@@ -136,20 +170,16 @@ export function createAudio() {
     },
     // The family song takes over from the synth loop and loops until the end.
     // Starts the song right away. main.js calls this in the same tick as the static burst.
+    // The synth loop fades out slowly while the song fades in, so the two overlap softly.
     startSong() {
       ensureSong();
-      stopLoop();
       songActive = true;
+      fadeLoopOut(3.2);
       if (!musicOn) return;
+      song.volume = 0;
       song.currentTime = 0;
       song.play().catch(() => {});
-      clearInterval(fadeTimer);
-      const t0 = performance.now();
-      fadeTimer = setInterval(() => {
-        const k = Math.min(1, (performance.now() - t0) / 2200);
-        song.volume = 0.7 * k;
-        if (k >= 1) clearInterval(fadeTimer);
-      }, 60);
+      rampSong(0.7, 3.8);
     },
     // A short burst of filtered static for the gate glitch.
     static(duration = 1.2) {

@@ -23,7 +23,6 @@ const PRINCESS_AT = { x: 2180, y: 150 };
 const GATE_X = 4150;
 const EXIT_DELAY = 1.2;
 const GLITCH_S = 1.2; // the broken-signal burst at the gate, before the fade
-const FADE_MS = 1800;
 // The golden hair the boy climbs: from the high balcony down to the ground
 // Two golden braids to climb: the first up the stage-1 tower to the balcony,
 // the second up the princess's tower
@@ -1841,14 +1840,14 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null, onP
     draw();
     window.setTimeout(() => {
       if (onDone) onDone();
-    }, quick ? 700 : FADE_MS + 200);
+    }, quick ? 700 : 1500);
   }
 
   // Fade the black away and remove the overlay
   // The TV-on: two black bars part from the middle and open onto the intro
   function reveal() {
     root.classList.add('is-leaving');
-    window.setTimeout(() => root.remove(), 1500);
+    window.setTimeout(() => root.remove(), 1600);
   }
 
   function startGame() {
