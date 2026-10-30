@@ -156,6 +156,27 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, onDetail
         panel.position.set(-side * R * 0.5, spring * fy, 0.075);
         hinge.add(panel);
       });
+      // Thin gold trim around each raised panel
+      const bar = track(new THREE.BoxGeometry(1, 1, 1));
+      [[0.28, 0.42], [0.72, 0.42]].forEach(([fy, fh]) => {
+        const xc = -side * R * 0.5;
+        const yc = spring * fy;
+        const w = R * 0.62;
+        const h = spring * fh;
+        const t = 0.035;
+        [[xc, yc + h / 2 + t / 2, w + 2 * t, t], [xc, yc - h / 2 - t / 2, w + 2 * t, t],
+          [xc - w / 2 - t / 2, yc, t, h + 2 * t], [xc + w / 2 + t / 2, yc, t, h + 2 * t]].forEach(([x, y, bw, bh]) => {
+          const trim = new THREE.Mesh(bar, goldMat);
+          trim.scale.set(bw, bh, 0.03);
+          trim.position.set(x, y, 0.1);
+          hinge.add(trim);
+        });
+      });
+      // A gold kick-plate along the bottom of each leaf
+      const kick = new THREE.Mesh(bar, goldMat);
+      kick.scale.set(R * 0.9, 0.22, 0.05);
+      kick.position.set(-side * R * 0.5, 0.11, 0.09);
+      hinge.add(kick);
       // A gold handle near the meeting edge
       const handle = new THREE.Mesh(track(new THREE.SphereGeometry(0.07, 12, 10)), goldMat);
       handle.position.set(-side * (R - 0.2), spring * 0.45, 0.14);
@@ -174,10 +195,12 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, onDetail
   }
 
   let open = 0;
-  // Closed by default; they swing open to about 90 degrees when the couple is within reach
+  let latched = false;
+  // Closed by default; they swing open to about 90 degrees when the couple comes within reach,
+  // and then stay open for the rest of the visit
   function update(dt, px, pz) {
-    const near = Math.hypot(px - centre.x, pz - centre.z) < 2.6;
-    const target = near ? 1 : 0;
+    if (Math.hypot(px - centre.x, pz - centre.z) < 2.6) latched = true;
+    const target = latched ? 1 : 0;
     open += THREE.MathUtils.clamp(target - open, -dt * 2.5, dt * 2.5);
     const k = open * open * (3 - 2 * open);
     leaves.forEach(({ hinge, side }) => {
