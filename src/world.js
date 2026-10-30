@@ -111,38 +111,162 @@ export function buildWorld(scene) {
     return obj;
   };
 
-  // Sky, stars, moon, fog
-  scene.background = new THREE.Color('#0b0c1c');
-  scene.fog = new THREE.Fog('#0b0c1c', 34, 110);
-
-  const starGeo = new THREE.BufferGeometry();
-  const starCount = 700;
-  const starPos = new Float32Array(starCount * 3);
-  for (let i = 0; i < starCount; i += 1) {
-    const theta = Math.random() * Math.PI * 2;
-    const phi = Math.acos(0.15 + Math.random() * 0.85);
-    const r = 150;
-    starPos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
-    starPos[i * 3 + 1] = r * Math.cos(phi);
-    starPos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
-  }
-  starGeo.setAttribute('position', new THREE.BufferAttribute(starPos, 3));
-  const stars = track(
-    new THREE.Points(
-      starGeo,
-      new THREE.PointsMaterial({ color: '#fff4e0', size: 0.9, sizeAttenuation: true, fog: false })
-    )
+  // Sky: a night gradient dome that fades to a plum horizon behind the castle
+  const HORIZON = '#2c1f4a';
+  scene.background = new THREE.Color(HORIZON);
+  scene.fog = new THREE.Fog(HORIZON, 34, 110);
+  const domeMat = track(
+    new THREE.ShaderMaterial({
+      side: THREE.BackSide,
+      depthWrite: false,
+      fog: false,
+      uniforms: {
+        topColor: { value: new THREE.Color('#05061a') },
+        midColor: { value: new THREE.Color('#15133a') },
+        horizonColor: { value: new THREE.Color(HORIZON) },
+        glowColor: { value: new THREE.Color('#5a2a5e') },
+      },
+      vertexShader: `
+        varying vec3 vDir;
+        void main() {
+          vDir = normalize(position);
+          gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+        }`,
+      fragmentShader: `
+        uniform vec3 topColor;
+        uniform vec3 midColor;
+        uniform vec3 horizonColor;
+        uniform vec3 glowColor;
+        varying vec3 vDir;
+        void main() {
+          float h = clamp(vDir.y, 0.0, 1.0);
+          vec3 c = mix(horizonColor, midColor, smoothstep(0.0, 0.3, h));
+          c = mix(c, topColor, smoothstep(0.25, 0.85, h));
+          // a soft rose glow low in the sky, behind the castle
+          c += glowColor * exp(-h * 9.0) * 0.55;
+          gl_FragColor = vec4(c, 1.0);
+          #include <colorspace_fragment>
+        }`,
+    })
   );
-  scene.add(stars);
+  const dome = new THREE.Mesh(track(new THREE.SphereGeometry(190, 40, 20)), domeMat);
+  dome.renderOrder = -10;
+  scene.add(dome);
 
+  // Stars: a round soft sprite, in warm, cool and pink colours, in two sizes
+  const starTex = canvasTexture(64, 64, (ctx, w, h) => {
+    const g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.22, 'rgba(255,255,255,0.85)');
+    g.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  });
+  const starTints = [new THREE.Color('#fff4e0'), new THREE.Color('#cfe0ff'), new THREE.Color('#ffc2e0')];
+  const addStarLayer = (count, size, opacity) => {
+    const geo = new THREE.BufferGeometry();
+    const pos = new Float32Array(count * 3);
+    const col = new Float32Array(count * 3);
+    for (let i = 0; i < count; i += 1) {
+      const theta = Math.random() * Math.PI * 2;
+      const phi = Math.acos(0.12 + Math.random() * 0.88);
+      const r = 150 + Math.random() * 10;
+      pos[i * 3] = r * Math.sin(phi) * Math.cos(theta);
+      pos[i * 3 + 1] = r * Math.cos(phi);
+      pos[i * 3 + 2] = r * Math.sin(phi) * Math.sin(theta);
+      const tint = starTints[Math.random() < 0.6 ? 0 : Math.random() < 0.6 ? 1 : 2];
+      const k = 0.7 + Math.random() * 0.3;
+      col[i * 3] = tint.r * k;
+      col[i * 3 + 1] = tint.g * k;
+      col[i * 3 + 2] = tint.b * k;
+    }
+    geo.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+    geo.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    const points = track(
+      new THREE.Points(
+        geo,
+        new THREE.PointsMaterial({
+          size,
+          map: starTex,
+          vertexColors: true,
+          transparent: true,
+          opacity,
+          depthWrite: false,
+          sizeAttenuation: true,
+          fog: false,
+        })
+      )
+    );
+    scene.add(points);
+    return points;
+  };
+  addStarLayer(900, 1.6, 0.95); // bright, larger stars
+  addStarLayer(1400, 0.8, 0.7); // a fine field of smaller stars
+
+  // Moon: a cratered disc with a soft halo
+  const moonTex = canvasTexture(512, 512, (ctx, w, h) => {
+    ctx.fillStyle = '#f3e3c3';
+    ctx.fillRect(0, 0, w, h);
+    const craters = [
+      [0.32, 0.38, 0.12], [0.62, 0.3, 0.08], [0.55, 0.62, 0.14],
+      [0.28, 0.7, 0.07], [0.74, 0.56, 0.06], [0.45, 0.2, 0.05],
+    ];
+    craters.forEach(([x, y, r]) => {
+      const g = ctx.createRadialGradient(x * w, y * h, r * w * 0.2, x * w, y * h, r * w);
+      g.addColorStop(0, 'rgba(170,140,110,0.55)');
+      g.addColorStop(1, 'rgba(170,140,110,0)');
+      ctx.fillStyle = g;
+      ctx.beginPath();
+      ctx.arc(x * w, y * h, r * w, 0, Math.PI * 2);
+      ctx.fill();
+    });
+  });
   const moon = track(
     new THREE.Mesh(
-      new THREE.SphereGeometry(5, 32, 24),
-      new THREE.MeshBasicMaterial({ color: '#f6e7c8', fog: false })
+      new THREE.SphereGeometry(5, 48, 32),
+      new THREE.MeshBasicMaterial({ map: moonTex, fog: false, toneMapped: false })
     )
   );
   moon.position.set(-40, 62, -90);
   scene.add(moon);
+  const haloTex = canvasTexture(256, 256, (ctx, w, h) => {
+    const g = ctx.createRadialGradient(w / 2, h / 2, w * 0.12, w / 2, h / 2, w / 2);
+    g.addColorStop(0, 'rgba(255,236,200,0.9)');
+    g.addColorStop(0.35, 'rgba(255,200,225,0.28)');
+    g.addColorStop(1, 'rgba(255,200,225,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  });
+  const halo = new THREE.Sprite(
+    track(new THREE.SpriteMaterial({ map: haloTex, transparent: true, depthWrite: false, fog: false, blending: THREE.AdditiveBlending }))
+  );
+  halo.scale.set(40, 40, 1);
+  halo.position.copy(moon.position);
+  scene.add(halo);
+
+  // A few soft clouds drifting low behind the castle
+  const cloudTex = canvasTexture(256, 128, (ctx, w, h) => {
+    const g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    g.addColorStop(0, 'rgba(190,150,200,0.9)');
+    g.addColorStop(1, 'rgba(190,150,200,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+  });
+  const cloudMat = track(
+    new THREE.SpriteMaterial({ map: cloudTex, transparent: true, opacity: 0.16, depthWrite: false, fog: false })
+  );
+  [
+    [-70, 16, -120, 60, 14],
+    [40, 12, -135, 80, 16],
+    [-10, 22, -150, 100, 18],
+    [95, 14, -95, 50, 12],
+    [-110, 18, -100, 60, 13],
+  ].forEach(([x, y, z, w, hgt]) => {
+    const cloud = new THREE.Sprite(cloudMat);
+    cloud.position.set(x, y, z);
+    cloud.scale.set(w, hgt, 1);
+    scene.add(cloud);
+  });
 
   // Lights
   const hemi = new THREE.HemisphereLight('#a9b8f0', '#3a2a30', 1.25);
