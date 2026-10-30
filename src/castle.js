@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { stoneNormal } from './architecture.js';
 
 // The front of the house is a princess castle, in the spirit of a storybook castle:
 // a tall central keep with a spire and a rose window, two tall flanking towers, two low outer
@@ -106,7 +107,9 @@ function makeRoseWindowTexture() {
 }
 
 export function buildCastle(scene, track) {
-  const stone = track(new THREE.MeshStandardMaterial({ color: '#fbf3ea', map: makeStoneTexture(), roughness: 0.85 }));
+  const stone = track(new THREE.MeshStandardMaterial({
+    color: '#fbf3ea', map: makeStoneTexture(), normalMap: stoneNormal(5, 4), normalScale: new THREE.Vector2(1, 1), roughness: 0.85,
+  }));
   const stoneLight = track(new THREE.MeshStandardMaterial({ color: '#fff8f1', roughness: 0.7 }));
   const roof = track(new THREE.MeshStandardMaterial({ color: '#e98fb1', roughness: 0.45 }));
   const roofDeep = track(new THREE.MeshStandardMaterial({ color: '#b5557a', roughness: 0.5 }));

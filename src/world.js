@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { memories as memoryList, soloMemories, soloVideo } from './memories.js';
 import { buildCastle } from './castle.js';
 import { createRugGlint, createStoneGlint } from './rugglint.js';
+import { stoneNormal, doorNormal } from './architecture.js';
 import { buildTown } from './town.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
@@ -166,7 +167,9 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
   group.rotation.y = rotY;
   scene.add(group);
 
-  const leafMat = track(new THREE.MeshStandardMaterial({ color: '#fdf4f7', roughness: 0.45, side: THREE.DoubleSide }));
+  const leafMat = track(new THREE.MeshStandardMaterial({
+    color: '#fdf4f7', roughness: 0.45, side: THREE.DoubleSide, normalMap: doorNormal(2, 2), normalScale: new THREE.Vector2(0.9, 0.9),
+  }));
   const panelMat = track(new THREE.MeshStandardMaterial({ color: '#f6c3d6', roughness: 0.4 }));
   const goldMat = track(new THREE.MeshStandardMaterial({ color: '#e9b96a', metalness: 0.7, roughness: 0.3 }));
   const glassMat = track(
@@ -866,7 +869,7 @@ export function buildWorld(scene) {
   scene.add(back);
 
   // House front (facade) with the door opening
-  const facadeMat = new THREE.MeshStandardMaterial({ color: '#e9dccb', roughness: 0.8 });
+  const facadeMat = new THREE.MeshStandardMaterial({ color: '#e9dccb', roughness: 0.8, normalMap: stoneNormal(3, 4), normalScale: new THREE.Vector2(1, 1) });
   const facadeHeight = 8;
   const halfW = 10;
   const dw = LAYOUT.doorHalfWidth;

@@ -1,0 +1,170 @@
+// Normal maps for the castle: the cut-stone walls and the entrance door.
+// Each map starts from a height field (brighter = higher), turned into surface directions by the
+// same Sobel filter used for the cats' fur (see fur.js).
+//   stone: ashlar blocks with bevelled edges, chisel grain, a few chips, and a small carved heart
+//          on every fifth block. Its block layout uses the same seed and order as the castle's
+//          colour stone, so the joints line up with the colour map.
+//   door:  pink lacquer with quilted grooves and a lattice of raised hearts.
+import * as THREE from 'three';
+import { normalCanvas } from './fur.js';
+
+const SIZE = 256;
+
+// The same seeded generator as the castle's stone, so the block widths match
+function seeded(seed) {
+  let s = seed;
+  return () => {
+    s = (s * 16807) % 2147483647;
+    return s / 2147483647;
+  };
+}
+
+function canvas() {
+  const c = document.createElement('canvas');
+  c.width = SIZE;
+  c.height = SIZE;
+  return { c, g: c.getContext('2d') };
+}
+
+// A heart outline centred at (cx, cy), `s` pixels from tip to lobe, as a path
+function heartPath(g, cx, cy, s) {
+  g.beginPath();
+  for (let i = 0; i <= 60; i += 1) {
+    const t = (i / 60) * Math.PI * 2;
+    const hx = 16 * Math.sin(t) ** 3;
+    const hy = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+    const x = cx + (hx * s) / 16;
+    const y = cy - (hy * s) / 16;
+    if (i === 0) g.moveTo(x, y);
+    else g.lineTo(x, y);
+  }
+  g.closePath();
+}
+
+// Blurs a height canvas a little, so slopes are soft and do not alias
+function soften(src, px) {
+  const { c, g } = canvas();
+  g.filter = `blur(${px}px)`;
+  g.drawImage(src, 0, 0);
+  g.filter = 'none';
+  return c;
+}
+
+function stoneHeight() {
+  const { c, g } = canvas();
+  const rand = seeded(7);
+  const detail = seeded(99);
+  g.fillStyle = '#3a3a3a'; // the mortar sits low
+  g.fillRect(0, 0, SIZE, SIZE);
+  const rows = 8;
+  const rowH = SIZE / rows;
+  let index = 0;
+  for (let r = 0; r < rows; r += 1) {
+    const y = r * rowH;
+    let x = (r % 2) * -(SIZE / 8);
+    while (x < SIZE) {
+      const w = (SIZE / 4) * (0.8 + rand() * 0.5);
+      rand(); // the colour map's tone, drawn here too so the layout stays in step
+      const bx = x + 3;
+      const by = y + 3;
+      const bw = w - 6;
+      const bh = rowH - 6;
+      const level = 196 + Math.floor(detail() * 30);
+      g.fillStyle = `rgb(${level},${level},${level})`;
+      g.fillRect(bx, by, bw, bh);
+      // bevel: bright on the top and left edges, dark on the bottom and right
+      g.fillStyle = 'rgb(255,255,255)';
+      g.fillRect(bx, by, bw, 3);
+      g.fillRect(bx, by, 3, bh);
+      g.fillStyle = 'rgb(70,70,70)';
+      g.fillRect(bx, by + bh - 3, bw, 3);
+      g.fillRect(bx + bw - 3, by, 3, bh);
+      // chisel grain: short diagonal strokes across the face
+      for (let k = 0; k < 12; k += 1) {
+        const sx = bx + 4 + detail() * (bw - 8);
+        const sy = by + 4 + detail() * (bh - 8);
+        g.strokeStyle = detail() < 0.5 ? 'rgba(255,255,255,0.22)' : 'rgba(0,0,0,0.18)';
+        g.lineWidth = 1;
+        g.beginPath();
+        g.moveTo(sx, sy);
+        g.lineTo(sx + 6 + detail() * 6, sy + 2);
+        g.stroke();
+      }
+      // a few chips near the edges
+      for (let k = 0; k < 2; k += 1) {
+        g.fillStyle = 'rgb(120,120,120)';
+        g.beginPath();
+        g.ellipse(bx + 3 + detail() * (bw - 6), by + 3 + detail() * (bh - 6), 2 + detail() * 2, 1.5, 0, 0, Math.PI * 2);
+        g.fill();
+      }
+      // a carved heart on every fifth block: raised, so it catches the light
+      if (index % 5 === 2) {
+        g.fillStyle = 'rgb(255,255,255)';
+        heartPath(g, bx + bw / 2, by + bh / 2, 10);
+        g.fill();
+      }
+      index += 1;
+      x += w;
+    }
+  }
+  return soften(c, 0.8);
+}
+
+function doorHeight() {
+  const { c, g } = canvas();
+  g.fillStyle = 'rgb(128,128,128)';
+  g.fillRect(0, 0, SIZE, SIZE);
+  // quilted grooves: diagonal lines, a seamless lattice (spacing 128 divides the tile)
+  g.strokeStyle = 'rgb(70,70,70)';
+  g.lineWidth = 4;
+  for (let k = -1; k <= 2; k += 1) {
+    g.beginPath();
+    g.moveTo(-SIZE, -SIZE + k * 128);
+    g.lineTo(2 * SIZE, 2 * SIZE + k * 128);
+    g.stroke();
+    g.beginPath();
+    g.moveTo(-SIZE, SIZE + k * 128);
+    g.lineTo(2 * SIZE, -2 * SIZE + k * 128);
+    g.stroke();
+  }
+  // a raised heart at the centre and quarter hearts at the corners, so the tile repeats cleanly
+  g.fillStyle = 'rgb(235,235,235)';
+  [[0, 0], [SIZE, 0], [0, SIZE], [SIZE, SIZE], [SIZE / 2, SIZE / 2]].forEach(([x, y]) => {
+    heartPath(g, x, y, 34);
+    g.fill();
+  });
+  // small raised studs where the grooves cross
+  g.fillStyle = 'rgb(210,210,210)';
+  [[64, 64], [192, 64], [64, 192], [192, 192]].forEach(([x, y]) => {
+    g.beginPath();
+    g.arc(x, y, 4, 0, Math.PI * 2);
+    g.fill();
+  });
+  return soften(c, 1);
+}
+
+const cache = new Map();
+
+// A tiling normal map from a height field, cached by kind and repeat
+function cachedNormal(key, height, strength, repeatX, repeatY) {
+  const id = `${key}:${repeatX}x${repeatY}`;
+  if (cache.has(id)) return cache.get(id);
+  const tex = new THREE.CanvasTexture(normalCanvas(height(), strength));
+  tex.colorSpace = THREE.NoColorSpace; // a normal map is data, not colour
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(repeatX, repeatY);
+  tex.anisotropy = 8;
+  cache.set(id, tex);
+  return tex;
+}
+
+// The cut-stone normal map, repeated as the castle's colour stone is
+export function stoneNormal(repeatX = 5, repeatY = 4) {
+  return cachedNormal('stone', stoneHeight, 2.6, repeatX, repeatY);
+}
+
+// The door's quilted pink lacquer, repeated over the leaf in world metres
+export function doorNormal(repeatX = 2, repeatY = 2) {
+  return cachedNormal('door', doorHeight, 2.2, repeatX, repeatY);
+}

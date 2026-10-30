@@ -354,7 +354,8 @@ function buildCreatures(scene) {
   butterflyBody.rotateX(Math.PI / 2); // along +z, the way the creature flies
   const bodyMat = new THREE.MeshStandardMaterial({ color: '#2a1f2e', roughness: 0.6 });
   const butterflyColours = ['#ff9ac1', '#ffd3e6', '#c9a7ff', '#fff3c4', '#ffb3d9', '#9fd8ff'];
-  for (let i = 0; i < 6; i += 1) {
+  // three butterflies circle the princess (half as many as before)
+  for (let i = 0; i < 3; i += 1) {
     const wingMat = new THREE.MeshBasicMaterial({ color: butterflyColours[i], side: THREE.DoubleSide, transparent: true, opacity: 0.92, depthWrite: false });
     const built = buildCreature({ wingGeo: butterflyWing, bodyGeo: butterflyBody, bodyMat, wingMat, scale: 0.9 });
     scene.add(built.group);
