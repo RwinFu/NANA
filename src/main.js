@@ -744,6 +744,7 @@ function frame() {
   footprints?.update(dt, hero, started && controls.moving);
   envelope.update(t, dt);
   world.update(t, dt, started ? nearFrame : -1);
+  world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
   if (started) updatePrompt();
 
   renderer.render(scene, camera);
