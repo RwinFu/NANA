@@ -42,7 +42,7 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   const throughDoor = x < 0 && z <= R.door.z1 - margin && z >= R.door.z0 + margin && y < R.door.top;
   // This band only applies inside the hall (|x| < hall); the photo room beyond the wall has its own walls below.
   const inHall = Math.abs(x) < hall + 0.3;
-  if (inHall && z <= 0.2 && z > -len - margin && Math.abs(x) > hall - margin - BOY_REACH && !throughDoor && y < LAYOUT.hallHeight) return true;
+  if (inHall && z <= 0.2 && z > -len - margin && Math.abs(x) > hall - margin - BOY_REACH && !throughDoor && y < LAYOUT.hallSpring) return true;
   if (z <= 0.2 && z > -len && y >= LAYOUT.hallHeight) return true;
   // Hall end wall
   if (z <= -len + margin) return true;
