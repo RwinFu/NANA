@@ -7,10 +7,11 @@ import { createRugGlint, createStoneGlint } from './rugglint.js';
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
 export const LAYOUT = {
   hallHalfWidth: 3.85,
-  hallHeight: 10,
+  hallHeight: 10, // the crown of the round vault
+  hallSpring: 6.15, // where the vault starts (hallHeight - hallHalfWidth)
   hallLength: 40,
   doorHalfWidth: 1.5,
-  doorHeight: 6.4,
+  doorHeight: 4.9, // springline of the round top; the crown is 1.5 m higher
   gardenHalfWidth: 22,
   gardenDepth: 26,
   spawn: new THREE.Vector3(0, 0, 19),
@@ -192,73 +193,91 @@ export function buildWorld(scene) {
   const rugGlint = createRugGlint(scene, rug, { x: 0, z: -19, halfW: 1.1, halfD: 18 });
 
 
-  // Hall ceiling and walls
-  const ceiling = track(
-    new THREE.Mesh(
-      new THREE.PlaneGeometry(LAYOUT.hallHalfWidth * 2, LAYOUT.hallLength),
-      new THREE.MeshStandardMaterial({ color: '#2a1f3d', roughness: 0.9, side: THREE.DoubleSide })
-    )
-  );
-  ceiling.rotation.x = Math.PI / 2;
-  ceiling.position.set(0, LAYOUT.hallHeight, -LAYOUT.hallLength / 2);
-  scene.add(ceiling);
+  // Hall walls and a round barrel vault: a half circle across the hall that springs from the wall tops
+  const R_HALL = LAYOUT.hallHalfWidth;
+  const SPRING = LAYOUT.hallSpring;
+  const vaultMat = track(new THREE.MeshStandardMaterial({ color: '#2a1f3d', roughness: 0.9, side: THREE.DoubleSide }));
+  const vaultGeo = track(new THREE.BufferGeometry());
+  const VSEG = 36;
+  const vPos = [];
+  [0.2, -LAYOUT.hallLength].forEach((z) => {
+    for (let i = 0; i <= VSEG; i += 1) {
+      const t = (i / VSEG) * Math.PI;
+      vPos.push(R_HALL * Math.cos(t), SPRING + R_HALL * Math.sin(t), z);
+    }
+  });
+  const vIdx = [];
+  for (let i = 0; i < VSEG; i += 1) {
+    const a = i;
+    const b = i + 1;
+    const c = VSEG + 1 + i;
+    const d = VSEG + 2 + i;
+    vIdx.push(a, c, b, b, c, d);
+  }
+  vaultGeo.setAttribute('position', new THREE.Float32BufferAttribute(vPos, 3));
+  vaultGeo.setIndex(vIdx);
+  vaultGeo.computeVertexNormals();
+  scene.add(new THREE.Mesh(vaultGeo, vaultMat));
 
   const wallMat = new THREE.MeshStandardMaterial({ color: '#3a2a3f', roughness: 0.85 });
   const wallThickness = 0.3;
-  // Right wall: one solid piece. Left wall: split around the doorway into the chamber.
-  const sideWallGeo = track(new THREE.BoxGeometry(wallThickness, LAYOUT.hallHeight, LAYOUT.hallLength));
+  // Right wall: one solid piece up to the springline of the vault
+  const sideWallGeo = track(new THREE.BoxGeometry(wallThickness, SPRING, LAYOUT.hallLength));
   const rightWall = new THREE.Mesh(sideWallGeo, wallMat);
-  rightWall.position.set(LAYOUT.hallHalfWidth + wallThickness / 2, LAYOUT.hallHeight / 2, -LAYOUT.hallLength / 2);
+  rightWall.position.set(LAYOUT.hallHalfWidth + wallThickness / 2, SPRING / 2, -LAYOUT.hallLength / 2);
   scene.add(rightWall);
+  // Left wall: one shape with a round-topped doorway cut into it (the photo room)
   const DR = LAYOUT.room.door;
+  const doorR = (DR.z1 - DR.z0) / 2;
+  const doorZc = (DR.z0 + DR.z1) / 2;
+  const doorSpring = DR.top - doorR;
   const leftX = -(LAYOUT.hallHalfWidth + wallThickness / 2);
-  const wallPiece = (zFront, zBack, y0, y1) => {
-    const piece = new THREE.Mesh(track(new THREE.BoxGeometry(wallThickness, y1 - y0, zFront - zBack)), wallMat);
-    piece.position.set(leftX, (y0 + y1) / 2, (zFront + zBack) / 2);
-    scene.add(piece);
-  };
-  wallPiece(0.2, DR.z1, 0, LAYOUT.hallHeight); // solid, up to the doorway
-  wallPiece(DR.z1, DR.z0, DR.top, LAYOUT.hallHeight); // lintel over the doorway
-  wallPiece(DR.z0, -LAYOUT.hallLength, 0, LAYOUT.hallHeight); // the rest of the wall
-  // Gold trim around the doorway
+  // Shape x is -z, so the extruded wall faces the hall after it is turned
+  const wallShape = new THREE.Shape();
+  wallShape.moveTo(-0.2, 0);
+  wallShape.lineTo(-DR.z1, 0);
+  wallShape.lineTo(-DR.z1, doorSpring);
+  for (let i = 0; i <= 24; i += 1) {
+    const a = (i / 24) * Math.PI;
+    wallShape.lineTo(-(doorZc + doorR * Math.cos(a)), doorSpring + doorR * Math.sin(a));
+  }
+  wallShape.lineTo(-DR.z0, 0);
+  wallShape.lineTo(LAYOUT.hallLength, 0);
+  wallShape.lineTo(LAYOUT.hallLength, SPRING);
+  wallShape.lineTo(-0.2, SPRING);
+  wallShape.closePath();
+  const leftWall = new THREE.Mesh(track(new THREE.ExtrudeGeometry(wallShape, { depth: wallThickness, bevelEnabled: false })), wallMat);
+  leftWall.rotation.y = Math.PI / 2;
+  leftWall.position.set(leftX - wallThickness / 2, 0, 0);
+  scene.add(leftWall);
+
+  // Gold trim around the doorway: jambs up to the springline, and a round gold arch on top
   const doorTrimMat = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
   [DR.z1, DR.z0].forEach((z) => {
-    const jamb = new THREE.Mesh(track(new THREE.BoxGeometry(0.08, DR.top, 0.14)), doorTrimMat);
-    jamb.position.set(-3.89, DR.top / 2, z);
+    const jamb = new THREE.Mesh(track(new THREE.BoxGeometry(0.08, doorSpring, 0.14)), doorTrimMat);
+    jamb.position.set(-3.89, doorSpring / 2, z);
     scene.add(jamb);
   });
-  const doorTop = new THREE.Mesh(track(new THREE.BoxGeometry(0.08, 0.14, DR.z1 - DR.z0 + 0.14)), doorTrimMat);
-  doorTop.position.set(-3.89, DR.top + 0.07, (DR.z0 + DR.z1) / 2);
-  scene.add(doorTop);
-
-  // Royal arch over the photo-room doorway, with a crest at its top
-  const doorZc = (DR.z0 + DR.z1) / 2;
-  const doorArch = new THREE.Mesh(track(new THREE.TorusGeometry((DR.z1 - DR.z0) / 2, 0.07, 8, 32, Math.PI)), doorTrimMat);
+  const doorArch = new THREE.Mesh(track(new THREE.TorusGeometry(doorR, 0.07, 8, 32, Math.PI)), doorTrimMat);
   doorArch.rotation.y = Math.PI / 2;
-  doorArch.position.set(-3.89, DR.top - (DR.z1 - DR.z0) / 2, doorZc);
+  doorArch.position.set(-3.89, doorSpring, doorZc);
   scene.add(doorArch);
   const doorCrest = new THREE.Mesh(track(new THREE.SphereGeometry(0.13, 12, 10)), doorTrimMat);
   doorCrest.position.set(-3.89, DR.top + 0.12, doorZc);
   scene.add(doorCrest);
 
-  // Royal hall decoration: gold ribs under the high ceiling and a gold cornice where the walls meet it
+  // Royal hall decoration: gold ribs across the vault and a gold cornice where the walls meet it
   const hallGold = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
-  const ribAlong = track(new THREE.BoxGeometry(0.16, 0.22, LAYOUT.hallLength));
-  [-1.9, 0, 1.9].forEach((x) => {
-    const rib = new THREE.Mesh(ribAlong, hallGold);
-    rib.position.set(x, LAYOUT.hallHeight - 0.11, -LAYOUT.hallLength / 2);
-    scene.add(rib);
-  });
-  const ribAcross = track(new THREE.BoxGeometry(LAYOUT.hallHalfWidth * 2, 0.22, 0.16));
+  const ribRadius = LAYOUT.hallHalfWidth - 0.06;
   for (let k = 0; k < 8; k += 1) {
-    const rib = new THREE.Mesh(ribAcross, hallGold);
-    rib.position.set(0, LAYOUT.hallHeight - 0.11, -2.5 - k * 5);
+    const rib = new THREE.Mesh(track(new THREE.TorusGeometry(ribRadius, 0.1, 8, 40, Math.PI)), hallGold);
+    rib.position.set(0, LAYOUT.hallSpring, -2.5 - k * 5);
     scene.add(rib);
   }
   const cornice = track(new THREE.BoxGeometry(0.22, 0.4, LAYOUT.hallLength));
   [-1, 1].forEach((side) => {
     const piece = new THREE.Mesh(cornice, hallGold);
-    piece.position.set(side * (LAYOUT.hallHalfWidth - 0.11), LAYOUT.hallHeight - 0.2, -LAYOUT.hallLength / 2);
+    piece.position.set(side * (LAYOUT.hallHalfWidth - 0.11), LAYOUT.hallSpring - 0.2, -LAYOUT.hallLength / 2);
     scene.add(piece);
   });
 
@@ -316,11 +335,28 @@ export function buildWorld(scene) {
   [-8, -19, -30].forEach(addChandelier);
 
   // Back wall of the hall: a glowing heart window with a night sky
+  // The back wall is a round-topped window with the same cross-section as the hall
+  const WR = LAYOUT.hallHalfWidth;
+  const windowShape = new THREE.Shape();
+  windowShape.moveTo(-WR, 0);
+  windowShape.lineTo(WR, 0);
+  windowShape.lineTo(WR, LAYOUT.hallSpring);
+  for (let i = 0; i <= 36; i += 1) {
+    const a = (i / 36) * Math.PI;
+    windowShape.lineTo(WR * Math.cos(a), LAYOUT.hallSpring + WR * Math.sin(a));
+  }
+  windowShape.closePath();
+  const windowGeo = track(new THREE.ShapeGeometry(windowShape, 36));
+  const wpos = windowGeo.attributes.position;
+  const wuv = windowGeo.attributes.uv;
+  for (let i = 0; i < wpos.count; i += 1) {
+    wuv.setXY(i, (wpos.getX(i) + WR) / (2 * WR), wpos.getY(i) / (LAYOUT.hallSpring + WR));
+  }
   const heartWindow = track(
     new THREE.Mesh(
-      new THREE.PlaneGeometry(LAYOUT.hallHalfWidth * 2, LAYOUT.hallHalfWidth * 2 * 0.75),
+      windowGeo,
       new THREE.MeshBasicMaterial({
-        map: canvasTexture(1024, 768, (ctx, w, h) => {
+        map: canvasTexture(1024, 820, (ctx, w, h) => {
           const g = ctx.createRadialGradient(w / 2, h * 0.55, 40, w / 2, h / 2, w * 0.7);
           g.addColorStop(0, '#5a2350');
           g.addColorStop(0.6, '#1d1433');
@@ -347,7 +383,7 @@ export function buildWorld(scene) {
       })
     )
   );
-  heartWindow.position.set(0, 2.9, -LAYOUT.hallLength + 0.16);
+  heartWindow.position.set(0, 0, -LAYOUT.hallLength + 0.16);
   heartWindow.rotation.y = 0;
   scene.add(heartWindow);
 
@@ -360,13 +396,30 @@ export function buildWorld(scene) {
   const facadeParts = [
     [-(halfW + dw) / 2, facadeHeight / 2, halfW - dw, facadeHeight],
     [(halfW + dw) / 2, facadeHeight / 2, halfW - dw, facadeHeight],
-    [0, (dh + facadeHeight) / 2, dw * 2, facadeHeight - dh],
   ];
   facadeParts.forEach(([x, y, w, h]) => {
     const part = track(new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.6), facadeMat));
     part.position.set(x, y, 0);
     scene.add(part);
   });
+
+  // Round-topped doorway: the solid facade above the door is cut with a half circle
+  const facadeTop = new THREE.Shape();
+  facadeTop.moveTo(-dw, dh);
+  facadeTop.lineTo(-dw, facadeHeight);
+  facadeTop.lineTo(dw, facadeHeight);
+  facadeTop.lineTo(dw, dh);
+  for (let i = 0; i <= 24; i += 1) {
+    const a = (i / 24) * Math.PI;
+    facadeTop.lineTo(Math.cos(a) * dw, dh + Math.sin(a) * dw);
+  }
+  const facadeArch = new THREE.Mesh(track(new THREE.ExtrudeGeometry(facadeTop, { depth: 0.6, bevelEnabled: false })), facadeMat);
+  facadeArch.position.set(0, 0, -0.3);
+  scene.add(facadeArch);
+  const houseArchMat = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
+  const houseArch = new THREE.Mesh(track(new THREE.TorusGeometry(dw, 0.07, 8, 32, Math.PI)), houseArchMat);
+  houseArch.position.set(0, dh, 0.34);
+  scene.add(houseArch);
 
   // The house front becomes a princess castle
   const castle = buildCastle(scene, track);
@@ -378,9 +431,6 @@ export function buildWorld(scene) {
     jamb.position.set(side * dw, dh / 2, 0.02);
     scene.add(jamb);
   });
-  const lintel = track(new THREE.Mesh(new THREE.BoxGeometry(dw * 2 + 0.36, 0.18, 0.5), doorFrameMat));
-  lintel.position.set(0, dh + 0.09, 0.02);
-  scene.add(lintel);
 
   const lightShaftMat = new THREE.MeshBasicMaterial({
     color: '#ffc57a',
