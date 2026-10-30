@@ -231,6 +231,22 @@ export function buildCastle(scene, track) {
     add(new THREE.BoxGeometry(0.55, 0.6, 0.6), stone, x, 8.3, 0.2);
   }
 
+  // Filler stone where the facade meets the outer towers, with a cap of cornice on top
+  [-10.5, 10.5].forEach((x) => {
+    add(new THREE.BoxGeometry(1.6, 8, 0.85), stone, x, 4, 0.2);
+    add(new THREE.BoxGeometry(1.8, 0.25, 1.0), stoneLight, x, 8.1, 0.2);
+  });
+
+  // Side wings: stone walls that run back from the outer towers, with merlons along the top
+  [-1, 1].forEach((side) => {
+    const wx = side * TOWERS[0].x;
+    add(new THREE.BoxGeometry(2.2, 8, 6), stone, wx, 4, -3);
+    add(new THREE.BoxGeometry(2.5, 0.25, 6.2), stoneLight, wx, 8.1, -3);
+    for (let z = -5.5; z <= -0.5; z += 1) {
+      add(new THREE.BoxGeometry(0.6, 0.6, 0.55), stone, wx, 8.4, z);
+    }
+  });
+
   // Arched windows on the front wall, either side of the door
   [-8.2, -5.6, -3.4, 3.4, 5.6, 8.2].forEach((x) => {
     addWindow(0.85, 1.6, x, 4.9, 0.335);

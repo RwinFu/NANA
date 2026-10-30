@@ -570,6 +570,12 @@ export function buildWorld(scene) {
   houseArch.position.set(0, dh, 0.34);
   scene.add(houseArch);
 
+  // A stone threshold across the doorway, so the castle has a proper entrance step
+  const sillMat = track(new THREE.MeshStandardMaterial({ color: '#e9dccb', roughness: 0.8 }));
+  const sill = track(new THREE.Mesh(new THREE.BoxGeometry(dw * 2 + 0.8, 0.14, 1.0), sillMat));
+  sill.position.set(0, 0.07, 0.5);
+  scene.add(sill);
+
   // The house front becomes a princess castle
   const castle = buildCastle(scene, track);
 
