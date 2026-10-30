@@ -738,7 +738,7 @@ export function buildWorld(scene) {
   }
   scene.add(fireflies);
 
-  // Floor medallions beside the rug, and marble pedestals along the walls
+  // Floor medallions beside the rug
   const medallionGold = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3 }));
   const medallionInner = track(new THREE.MeshStandardMaterial({ color: '#7a1f3d', roughness: 0.7 }));
   const medallionRing = track(new THREE.RingGeometry(0.42, 0.55, 40));
@@ -755,23 +755,6 @@ export function buildWorld(scene) {
       scene.add(disc);
     });
   });
-  const marble = track(new THREE.MeshStandardMaterial({ color: '#f1e6e6', roughness: 0.35, metalness: 0.05 }));
-  const goldMat = track(new THREE.MeshStandardMaterial({ color: '#f5c96a', metalness: 0.6, roughness: 0.3 }));
-  const pedestalGeo = track(new THREE.CylinderGeometry(0.26, 0.32, 1.0, 20));
-  const capGeo = track(new THREE.CylinderGeometry(0.36, 0.3, 0.12, 20));
-  [[-3.15, -5], [3.15, -5], [-3.15, -12], [3.15, -12], [-3.15, -27], [3.15, -27], [-3.15, -34], [3.15, -34]]
-    .forEach(([x, z]) => {
-      const group = new THREE.Group();
-      const pedestal = new THREE.Mesh(pedestalGeo, marble);
-      pedestal.position.y = 0.5;
-      group.add(pedestal);
-      const cap = new THREE.Mesh(capGeo, goldMat);
-      cap.position.y = 1.06;
-      group.add(cap);
-      group.position.set(x, 0, z);
-      scene.add(group);
-    });
-
   // The town beyond the castle, with its skyline, landmarks and drifting lanterns
   const town = buildTown(scene, track);
 
