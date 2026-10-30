@@ -237,74 +237,81 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
     body.scale(-side, 1, 1);
     hinge.add(new THREE.Mesh(body, leafMat));
 
-    // Gold piping along the round top
-    const arch = [];
-    for (let i = 0; i <= 30; i += 1) {
-      const s = (i / 30) * R;
-      arch.push([s, archTop(s) + 0.03]);
-    }
-    piping(hinge, arch, side, 0.07, 0.03, false);
+    // The details are built once for the front (+z) and mirrored for the back (-z), so both faces are decorated
+    [1, -1].forEach((zs) => {
+      const face = new THREE.Group();
+      face.scale.z = zs;
+      hinge.add(face);
 
-    // A raised pink panel in a gold frame, low on the leaf
-    const p0 = R * 0.18;
-    const p1 = R * 0.82;
-    const q0 = spring * 0.09;
-    const q1 = spring * 0.47;
-    const panel = new THREE.Mesh(boxGeo, panelMat);
-    panel.scale.set(p1 - p0, q1 - q0, 0.04);
-    panel.position.copy(at(side, (p0 + p1) / 2, (q0 + q1) / 2, 0.09));
-    hinge.add(panel);
-    piping(hinge, [[p0, q0], [p1, q0], [p1, q1], [p0, q1]], side, 0.105, 0.025, true);
+      // Gold piping along the round top
+      const arch = [];
+      for (let i = 0; i <= 30; i += 1) {
+        const s = (i / 30) * R;
+        arch.push([s, archTop(s) + 0.03]);
+      }
+      piping(face, arch, side, 0.07, 0.03, false);
 
-    // An arched window that glows, with a gold frame and two gold bars
-    const ww = R * 0.6;
-    const wc = R * 0.5;
-    const wv0 = spring * 0.56;
-    const wv1 = spring * 0.9;
-    const win = new THREE.Shape();
-    win.moveTo(wc - ww / 2, wv0);
-    win.lineTo(wc + ww / 2, wv0);
-    win.lineTo(wc + ww / 2, wv1);
-    win.absarc(wc, wv1, ww / 2, 0, Math.PI, false);
-    win.lineTo(wc - ww / 2, wv0);
-    const winGeo = track(new THREE.ShapeGeometry(win, 24));
-    winGeo.scale(-side, 1, 1);
-    winGeo.translate(0, 0, 0.09);
-    hinge.add(new THREE.Mesh(winGeo, glassMat));
-    const winPts = win.getPoints(28).map((p) => [p.x, p.y]);
-    const first = winPts[0];
-    const last = winPts[winPts.length - 1];
-    if (Math.abs(last[0] - first[0]) < 1e-6 && Math.abs(last[1] - first[1]) < 1e-6) winPts.pop();
-    piping(hinge, winPts, side, 0.1, 0.025, true);
-    const mullion = new THREE.Mesh(boxGeo, goldMat);
-    mullion.scale.set(0.035, wv1 - wv0, 0.03);
-    mullion.position.copy(at(side, wc, (wv0 + wv1) / 2, 0.11));
-    hinge.add(mullion);
-    const transom = new THREE.Mesh(boxGeo, goldMat);
-    transom.scale.set(ww, 0.035, 0.03);
-    transom.position.copy(at(side, wc, wv0 + (wv1 - wv0) * 0.55, 0.11));
-    hinge.add(transom);
+      // A raised pink panel in a gold frame, low on the leaf
+      const p0 = R * 0.18;
+      const p1 = R * 0.82;
+      const q0 = spring * 0.09;
+      const q1 = spring * 0.47;
+      const panel = new THREE.Mesh(boxGeo, panelMat);
+      panel.scale.set(p1 - p0, q1 - q0, 0.04);
+      panel.position.copy(at(side, (p0 + p1) / 2, (q0 + q1) / 2, 0.09));
+      face.add(panel);
+      piping(face, [[p0, q0], [p1, q0], [p1, q1], [p0, q1]], side, 0.105, 0.025, true);
 
-    // A gold kick-plate along the bottom
-    const kick = new THREE.Mesh(boxGeo, goldMat);
-    kick.scale.set(R * 0.9, 0.2, 0.05);
-    kick.position.copy(at(side, R * 0.5, 0.1, 0.085));
-    hinge.add(kick);
+      // An arched window that glows, with a gold frame and two gold bars
+      const ww = R * 0.6;
+      const wc = R * 0.5;
+      const wv0 = spring * 0.56;
+      const wv1 = spring * 0.9;
+      const win = new THREE.Shape();
+      win.moveTo(wc - ww / 2, wv0);
+      win.lineTo(wc + ww / 2, wv0);
+      win.lineTo(wc + ww / 2, wv1);
+      win.absarc(wc, wv1, ww / 2, 0, Math.PI, false);
+      win.lineTo(wc - ww / 2, wv0);
+      const winGeo = track(new THREE.ShapeGeometry(win, 24));
+      winGeo.scale(-side, 1, 1);
+      winGeo.translate(0, 0, 0.09);
+      face.add(new THREE.Mesh(winGeo, glassMat));
+      const winPts = win.getPoints(28).map((p) => [p.x, p.y]);
+      const first = winPts[0];
+      const last = winPts[winPts.length - 1];
+      if (Math.abs(last[0] - first[0]) < 1e-6 && Math.abs(last[1] - first[1]) < 1e-6) winPts.pop();
+      piping(face, winPts, side, 0.1, 0.025, true);
+      const mullion = new THREE.Mesh(boxGeo, goldMat);
+      mullion.scale.set(0.035, wv1 - wv0, 0.03);
+      mullion.position.copy(at(side, wc, (wv0 + wv1) / 2, 0.11));
+      face.add(mullion);
+      const transom = new THREE.Mesh(boxGeo, goldMat);
+      transom.scale.set(ww, 0.035, 0.03);
+      transom.position.copy(at(side, wc, wv0 + (wv1 - wv0) * 0.55, 0.11));
+      face.add(transom);
 
-    // A pink heart in the top of each leaf
-    const heart = new THREE.Mesh(heartGeo, heartMat);
-    heart.position.copy(at(side, R * 0.5, spring + R * 0.42, 0.07));
-    hinge.add(heart);
+      // A gold kick-plate along the bottom
+      const kick = new THREE.Mesh(boxGeo, goldMat);
+      kick.scale.set(R * 0.9, 0.2, 0.05);
+      kick.position.copy(at(side, R * 0.5, 0.1, 0.085));
+      face.add(kick);
 
-    // A gold knob with a pink jewel, near the meeting edge
-    const knob = new THREE.Mesh(ballGeo, goldMat);
-    knob.scale.setScalar(0.08);
-    knob.position.copy(at(side, R - 0.2, spring * 0.36, 0.13));
-    hinge.add(knob);
-    const jewel = new THREE.Mesh(ballGeo, jewelMat);
-    jewel.scale.setScalar(0.035);
-    jewel.position.copy(at(side, R - 0.2, spring * 0.36, 0.2));
-    hinge.add(jewel);
+      // A pink heart in the top of each leaf
+      const heart = new THREE.Mesh(heartGeo, heartMat);
+      heart.position.copy(at(side, R * 0.5, spring + R * 0.42, 0.07));
+      face.add(heart);
+
+      // A gold knob with a pink jewel, near the meeting edge
+      const knob = new THREE.Mesh(ballGeo, goldMat);
+      knob.scale.setScalar(0.08);
+      knob.position.copy(at(side, R - 0.2, spring * 0.36, 0.13));
+      face.add(knob);
+      const jewel = new THREE.Mesh(ballGeo, jewelMat);
+      jewel.scale.setScalar(0.035);
+      jewel.position.copy(at(side, R - 0.2, spring * 0.36, 0.2));
+      face.add(jewel);
+    });
   });
 
   // A gold finial with a pink jewel at the crown
