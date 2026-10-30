@@ -23,6 +23,7 @@ const PRINCESS_AT = { x: 2180, y: 150 };
 const GATE_X = 4150;
 const EXIT_DELAY = 1.2;
 const GLITCH_S = 1.2; // the broken-signal burst at the gate, before the fade
+const FADE_MS = 1800;
 // The golden hair the boy climbs: from the high balcony down to the ground
 // Two golden braids to climb: the first up the stage-1 tower to the balcony,
 // the second up the princess's tower
@@ -1669,7 +1670,7 @@ export function showHowTo({ onStart }) {
 
 // Plays the game. onDone() runs once the screen has gone black after the win (or a skip).
 // The caller then shows the next scene and calls reveal() to fade the black away.
-export function createRescueGame({ onDone, autoStart = false, onGate = null, onPowerOff = null }) {
+export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
   const root = buildDom();
   const canvas = root.querySelector('.rescue-canvas');
   const ctx = canvas.getContext('2d');
@@ -1835,19 +1836,17 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null, onP
     detach();
     root.classList.toggle('is-quick', quick);
     root.classList.add('is-dark');
-    if (onPowerOff) onPowerOff(); // the TV-off crackle, with the picture collapsing
     syncUi();
     draw();
     window.setTimeout(() => {
       if (onDone) onDone();
-    }, quick ? 700 : 1500);
+    }, quick ? 700 : FADE_MS + 200);
   }
 
   // Fade the black away and remove the overlay
-  // The TV-on: two black bars part from the middle and open onto the intro
   function reveal() {
     root.classList.add('is-leaving');
-    window.setTimeout(() => root.remove(), 1600);
+    window.setTimeout(() => root.remove(), FADE_MS + 300);
   }
 
   function startGame() {
