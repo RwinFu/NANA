@@ -1,0 +1,184 @@
+// The faces of the princess and the boy. Everything sits on the front of the head, just above the
+// skin, so it stays visible from the camera. Each eye is a small group (white, iris, pupil and
+// catch-lights) that blinks as one piece.
+import * as THREE from 'three';
+import { physMat, place, frontZ, tubeThrough } from './charmats.js';
+
+// Eyes close for a short moment every few seconds. Returns the open amount (1 open, about 0.08 closed).
+export function blinkFactor(t, offset, period) {
+  const k = (t + offset) % period;
+  const closed = k < 0.14 ? Math.sin((k / 0.14) * Math.PI) : 0;
+  return 1 - 0.92 * closed;
+}
+
+const shineMat = new THREE.MeshBasicMaterial({ color: '#ffffff' });
+
+// One eye. `size` scales the whole eye, `side` is -1 (her/his right side) or 1.
+function buildEye(head, side, o) {
+  const s = o.size;
+  const eye = new THREE.Group();
+  eye.position.set(side * o.x, o.y, frontZ(o.x, o.y, o.R) - 0.004);
+  head.add(eye);
+
+  // white of the eye, a little flattened so it sits on the skin
+  place(new THREE.Mesh(new THREE.SphereGeometry(0.03 * s, 24, 18), o.sclera), eye).scale.set(1, 1.1, 0.55);
+  // iris and pupil, both with a rounded front
+  const iris = place(new THREE.Mesh(new THREE.SphereGeometry(0.019 * s, 20, 16), o.iris), eye, 0, 0, 0.012 * s);
+  iris.scale.set(1, 1, 0.6);
+  const pupil = place(new THREE.Mesh(new THREE.SphereGeometry(0.0095 * s, 16, 12), o.pupil), eye, 0, 0, 0.0186 * s);
+  pupil.scale.set(1, 1, 0.5);
+  // two catch-lights: a large one up and inward, a small one below it
+  place(new THREE.Mesh(new THREE.SphereGeometry(0.0055 * s, 8, 6), shineMat), eye, 0.0065 * s, 0.0075 * s, 0.025 * s);
+  place(new THREE.Mesh(new THREE.SphereGeometry(0.0028 * s, 6, 5), shineMat), eye, -0.007 * s, -0.006 * s, 0.0235 * s);
+
+  // upper lid line: an arc over the top of the eye, a little thicker and flicked at the outer corner
+  const lid = [];
+  for (let k = 0; k <= 12; k += 1) {
+    const a = Math.PI * (k / 12);
+    lid.push(new THREE.Vector3(side * Math.cos(a) * 0.034 * s, Math.sin(a) * 0.036 * s, 0.008 * s + 0.006 * s * Math.sin(a)));
+  }
+  if (o.flick) lid.unshift(new THREE.Vector3(side * 0.047 * s, 0.018 * s, 0.006 * s));
+  eye.add(tubeThrough(lid, o.lidRadius * s, o.lidMat, 24));
+
+  if (o.lowerLine) {
+    const low = [];
+    for (let k = 0; k <= 8; k += 1) {
+      const a = Math.PI * (1.15 + 0.7 * (k / 8));
+      low.push(new THREE.Vector3(side * Math.cos(a) * 0.031 * s, Math.sin(a) * 0.031 * s, 0.006 * s));
+    }
+    eye.add(tubeThrough(low, 0.0022 * s, o.lowerMat, 16));
+  }
+
+  if (o.shadow) {
+    // soft colour on the lid, the top half of a small ball
+    const shadow = place(new THREE.Mesh(new THREE.SphereGeometry(0.036 * s, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), o.shadow), eye, 0, 0.006 * s, 0.004 * s);
+    shadow.scale.set(1.05, 0.7, 0.45);
+  }
+
+  if (o.lashes) {
+    // five soft strokes along each upper lid, fanning out toward the outer corner
+    [-0.9, -0.45, 0, 0.45, 0.9].forEach((a) => {
+      const len = (0.02 + 0.006 * (1 - Math.abs(a) / 1.2)) * s;
+      const lash = new THREE.Mesh(new THREE.CapsuleGeometry(0.0038 * s, len, 3, 6), o.lashMat);
+      const dx = Math.sin(a) * side;
+      const dy = Math.cos(a);
+      const reach = (0.036 * s) + len / 2;
+      lash.position.set(dx * reach, dy * reach, 0.01 * s);
+      lash.rotation.z = -a * side;
+      eye.add(lash);
+    });
+  }
+  return eye;
+}
+
+// The brow: a soft arch over each eye (points are in head space, x mirrored by side)
+function buildBrow(head, side, pts, R, material, radius) {
+  const points = pts.map(([x, y]) => new THREE.Vector3(side * x, y, frontZ(x, y, R)));
+  head.add(tubeThrough(points, radius, material, 16));
+}
+
+// A small mouth: an upper and a lower lip and a soft curve between them
+function buildMouth(head, R, y, size, lipMat, lineMat) {
+  const up = place(new THREE.Mesh(new THREE.SphereGeometry(0.016 * size, 16, 10), lipMat), head, 0, y + 0.004 * size, frontZ(0, y, R) - 0.003);
+  up.scale.set(1.8, 0.5, 0.7);
+  const low = place(new THREE.Mesh(new THREE.SphereGeometry(0.015 * size, 16, 10), lipMat), head, 0, y - 0.012 * size, frontZ(0, y - 0.012 * size, R) - 0.003);
+  low.scale.set(1.6, 0.6, 0.8);
+  const line = [-0.022, 0, 0.022].map((x, i) => {
+    const yy = y + (i === 1 ? -0.006 : 0.0) * size;
+    return new THREE.Vector3(x * size, yy, frontZ(x * size, yy, R));
+  });
+  head.add(tubeThrough(line, 0.0022 * size, lineMat, 12));
+  return { up, low };
+}
+
+// Princess face: long lashes, eyeliner, an eyelid colour, an arched brow, a small nose and soft lips
+export function addPrincessFace(head) {
+  const R = 0.22;
+  const sclera = physMat({ color: '#fbf7f4', roughness: 0.25, clearcoat: 0.6, clearcoatRoughness: 0.15 });
+  const iris = physMat({ color: '#4a2c1c', roughness: 0.15, clearcoat: 1, clearcoatRoughness: 0.04 });
+  const pupil = physMat({ color: '#140b08', roughness: 0.2 });
+  const lashMat = physMat({ color: '#1e1210', roughness: 0.5 });
+  const lowerMat = physMat({ color: '#a77a68', roughness: 0.5 });
+  const lidShadow = physMat({ color: '#e89ab8', roughness: 0.6, transparent: true, opacity: 0.35, depthWrite: false });
+  const cheekMat = physMat({ color: '#f58fa6', roughness: 0.7, transparent: true, opacity: 0.75 });
+  const lipMat = physMat({ color: '#c93d61', roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.1 });
+  const lipLineMat = physMat({ color: '#8c2a45', roughness: 0.4 });
+  const noseMat = physMat({ color: '#eab28f', roughness: 0.55, sheen: 0.3, sheenColor: new THREE.Color('#ffd9c2') });
+  const browMat = physMat({ color: '#2c1a16', roughness: 0.6 });
+
+  const blinks = [];
+  [-1, 1].forEach((side) => {
+    const eye = buildEye(head, side, {
+      x: 0.08, y: 0, R, size: 1, sclera, iris, pupil, lashMat, lowerMat, lidShadow,
+      lidRadius: 0.0045, lidMat: lashMat, lowerLine: true, shadow: lidShadow, lashes: true, flick: true,
+    });
+    blinks.push({ mesh: eye, base: 1 });
+    buildBrow(head, side, [[0.03, 0.082], [0.085, 0.096], [0.15, 0.084]], R, browMat, 0.0042);
+    // cheek blush
+    const cheek = place(new THREE.Mesh(new THREE.SphereGeometry(0.045, 12, 10), cheekMat), head, side * 0.13, -0.06, 0.18);
+    cheek.scale.set(1, 0.7, 0.4);
+  });
+
+  // a small nose: a soft tip with a darker shadow under it
+  const nose = place(new THREE.Mesh(new THREE.SphereGeometry(0.012, 12, 10), noseMat), head, 0, -0.04, frontZ(0, -0.04, R) - 0.005);
+  nose.scale.set(0.95, 0.85, 0.7);
+
+  buildMouth(head, R, -0.094, 1, lipMat, lipLineMat);
+  // a soft light on the lower lip
+  const gloss = place(new THREE.Mesh(new THREE.SphereGeometry(0.005, 8, 6), new THREE.MeshBasicMaterial({ color: '#ffffff', transparent: true, opacity: 0.55 })), head, 0.002, -0.1, frontZ(0.002, -0.1, R) - 0.001);
+  gloss.scale.set(1.6, 0.7, 0.5);
+  return blinks;
+}
+
+// Boy face: round eyes with lashes on the upper lid, straight brows, a small nose, a smile with
+// dimples, a few freckles and inner ears
+export function addBoyFace(head, skinMat) {
+  const R = 0.23;
+  const sclera = physMat({ color: '#f8f5f2', roughness: 0.25, clearcoat: 0.6, clearcoatRoughness: 0.15 });
+  const iris = physMat({ color: '#2a1a14', roughness: 0.2, clearcoat: 0.8, clearcoatRoughness: 0.06 });
+  const pupil = physMat({ color: '#0e0807', roughness: 0.3 });
+  const lineMat = physMat({ color: '#1f1412', roughness: 0.5 });
+  const browMat = physMat({ color: '#2a1a14', roughness: 0.6 });
+  const cheekMat = physMat({ color: '#f58fa6', roughness: 0.7, transparent: true, opacity: 0.55 });
+  const lipMat = physMat({ color: '#c96a7e', roughness: 0.4, clearcoat: 0.3, clearcoatRoughness: 0.3 });
+  const lipLineMat = physMat({ color: '#8a3446', roughness: 0.5 });
+  const dimpleMat = physMat({ color: '#e5a983', roughness: 0.6 });
+  const noseMat = physMat({ color: '#e7ab8a', roughness: 0.55 });
+  const freckleMat = physMat({ color: '#b5714e', roughness: 0.6 });
+  const earInnerMat = physMat({ color: '#e0a07f', roughness: 0.6 });
+
+  const blinks = [];
+  [-1, 1].forEach((side) => {
+    const eye = buildEye(head, side, {
+      x: 0.08, y: 0, R, size: 0.9, sclera, iris, pupil, lashMat: lineMat,
+      lidRadius: 0.0034, lidMat: lineMat, lowerLine: false, shadow: null, lashes: false, flick: false,
+    });
+    blinks.push({ mesh: eye, base: 1 });
+    buildBrow(head, side, [[0.03, 0.084], [0.085, 0.092], [0.14, 0.086]], R, browMat, 0.0048);
+    const cheek = place(new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 8), cheekMat), head, side * 0.12, -0.055, 0.185);
+    cheek.scale.set(1, 0.7, 0.4);
+    // ears with a darker inner part
+    place(new THREE.Mesh(new THREE.SphereGeometry(0.048, 10, 8), skinMat), head, side * 0.222, -0.012, 0).scale.set(0.45, 1, 0.8);
+    place(new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 8), earInnerMat), head, side * 0.228, -0.012, 0.004).scale.set(0.3, 0.7, 0.6);
+    // dimple beside the smile
+    const dimple = place(new THREE.Mesh(new THREE.SphereGeometry(0.0042, 6, 5), dimpleMat), head, side * 0.034, -0.09, frontZ(side * 0.034, -0.09, R) - 0.004);
+    dimple.scale.set(1, 1, 0.5);
+  });
+
+  const nose = place(new THREE.Mesh(new THREE.SphereGeometry(0.011, 12, 10), noseMat), head, 0, -0.036, frontZ(0, -0.036, R) - 0.004);
+  nose.scale.set(0.9, 0.9, 0.75);
+
+  buildMouth(head, R, -0.1, 0.8, lipMat, lipLineMat);
+
+  // freckles across the nose and cheeks
+  const freckles = [
+    [-0.012, -0.03], [0.01, -0.04], [0, -0.052], [-0.024, -0.046], [0.024, -0.03],
+    [-0.1, -0.04], [-0.12, -0.022], [-0.086, -0.062], [0.1, -0.05], [0.118, -0.03], [0.088, -0.07],
+  ];
+  const freckleGeo = new THREE.SphereGeometry(0.0034, 6, 5);
+  freckles.forEach(([x, y]) => {
+    const f = place(new THREE.Mesh(freckleGeo, freckleMat), head, x, y, frontZ(x, y, R) - 0.001);
+    f.scale.set(1, 1, 0.5);
+  });
+  return blinks;
+}
