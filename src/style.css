@@ -1065,8 +1065,9 @@ dialog h2 {
 }
 .rescue-skip {
   position: absolute;
-  left: 14px;
+  left: 50%;
   bottom: 14px;
+  transform: translateX(-50%);
   font: inherit;
   font-size: 14px;
   padding: 6px 14px;
@@ -1126,12 +1127,6 @@ dialog h2 {
 /* ---------- rescue touch layout: movement on the left, jump and spark on the right (the page is RTL) ---------- */
 .rescue-touch { direction: ltr; }
 .rescue-touch-group { direction: ltr; }
-.rescue-skip {
-  top: 70px;
-  left: 14px;
-  right: auto;
-  bottom: auto;
-}
 .rescue-steps {
   margin: 0 0 14px;
   padding: 0;
