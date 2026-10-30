@@ -1688,7 +1688,6 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
   let offX = 0;
   let offY = 0;
   let exiting = false;
-  let staticOut = false; // the static keeps running through the exit to black after a win
   let detached = false;
   let raf = 0;
   let last = 0;
@@ -1713,8 +1712,7 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
     ctx.clip();
     render(ctx, g, g.t);
     ctx.restore();
-    // The static stays at full strength through the exit, so the black fade covers it cleanly
-    if (g.glitch > 0 || staticOut) drawGlitch(ctx, canvas, staticOut ? 1 : g.glitch / GLITCH_S);
+    if (g.glitch > 0) drawGlitch(ctx, canvas, g.glitch / GLITCH_S);
   }
 
   function syncUi() {
@@ -1832,7 +1830,6 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
   function exitToIntro(quick) {
     if (exiting) return;
     exiting = true;
-    staticOut = !quick && g.phase === 'won';
     g.phase = 'done';
     cancelAnimationFrame(raf);
     releaseAll();
