@@ -1,4 +1,5 @@
 import '@fontsource-variable/vazirmatn';
+import '@fontsource/lalezar/400.css';
 import './style.css';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
@@ -632,6 +633,7 @@ if (world) {
   };
   document.fonts.ready.then(draw);
   document.fonts.load('800 96px "Vazirmatn Variable"').then(draw, draw);
+  document.fonts.load('400 84px "Lalezar"').then(draw, draw);
 }
 
 // ---------- intro camera -------------------------------------------------

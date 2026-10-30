@@ -96,6 +96,9 @@ function drawHeartPath(ctx, x, y, size) {
   ctx.closePath();
 }
 
+// The plaque uses a playful display face; Lalezar is loaded in main.js
+const PLAQUE_FONT = '"Lalezar", "Vazirmatn Variable", sans-serif';
+
 function drawPlaque(ctx, w, h, text) {
   // A rose-cream card with a double gold border, gold hearts in the corners, and a plum title
   const grad = ctx.createLinearGradient(0, 0, 0, h);
@@ -117,7 +120,7 @@ function drawPlaque(ctx, w, h, text) {
   ctx.fillStyle = '#6b2d5c';
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `800 84px ${FONT}`;
+  ctx.font = `400 96px ${PLAQUE_FONT}`;
   ctx.fillText('خانه‌ی ما', w / 2, h * 0.28);
   // A divider with a heart in the middle
   ctx.fillStyle = '#d9a441';
@@ -127,7 +130,7 @@ function drawPlaque(ctx, w, h, text) {
   drawHeartPath(ctx, w / 2, h * 0.45 + 2, 14);
   ctx.fill();
   ctx.fillStyle = '#7a3a63';
-  ctx.font = `500 40px ${FONT}`;
+  ctx.font = `400 44px ${PLAQUE_FONT}`;
   const lines = wrapText(ctx, text, w - 240, 2);
   lines.forEach((line, i) => ctx.fillText(line, w / 2, h * 0.58 + i * 46));
 }
@@ -868,7 +871,7 @@ export function buildWorld(scene) {
     scene.add(rosetteJewel);
   });
   const crown = new THREE.Mesh(surroundBallGeo, archGoldMat);
-  crown.scale.setScalar(0.2);
+  crown.scale.setScalar(0.16);
   crown.position.set(0, dh + archRadius, 0.42);
   scene.add(crown);
 
@@ -933,14 +936,14 @@ export function buildWorld(scene) {
   plaqueTex.colorSpace = THREE.SRGBColorSpace;
   const plaque = track(
     new THREE.Mesh(
-      new THREE.PlaneGeometry(4.2, 1.23),
+      new THREE.PlaneGeometry(3.4, 1.0),
       new THREE.MeshBasicMaterial({ map: plaqueTex, toneMapped: false })
     )
   );
-  plaque.position.set(0, 7.5, 0.4);
+  plaque.position.set(0, 7.38, 0.4);
   scene.add(plaque);
-  const plaqueFrameShape = roundedRect(4.48, 1.51, 0.2);
-  plaqueFrameShape.holes.push(roundedRect(4.2, 1.23, 0.1));
+  const plaqueFrameShape = roundedRect(3.6, 1.2, 0.2);
+  plaqueFrameShape.holes.push(roundedRect(3.4, 1.0, 0.1));
   const plaqueFrame = new THREE.Mesh(
     track(
       new THREE.ExtrudeGeometry(plaqueFrameShape, {
@@ -954,7 +957,7 @@ export function buildWorld(scene) {
     ),
     archGoldMat
   );
-  plaqueFrame.position.set(0, 7.5, 0.31);
+  plaqueFrame.position.set(0, 7.38, 0.31);
   scene.add(plaqueFrame);
 
   function setDedication(text) {
