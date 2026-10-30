@@ -580,11 +580,12 @@ export function createFairy(scene) {
   function pathAt(t, p, out) {
     const e = easeInOutCubic(Math.min(1, Math.max(0, p)));
     const a = t * 0.9;
-    const r = THREE.MathUtils.lerp(7, 1.1, e);
+    // a curvier path: the orbit swells and tightens, and the flight weaves side to side
+    const r = THREE.MathUtils.lerp(7, 1.1, e) * (1 + 0.22 * Math.sin(a * 1.5));
     out.set(
       THREE.MathUtils.lerp(FROM.x, HOLD.x, e) + Math.cos(a) * r,
       THREE.MathUtils.lerp(FROM.y, HOLD.y, e) + Math.sin(a * 2) * 0.55 * (1 - e * 0.6),
-      THREE.MathUtils.lerp(FROM.z, HOLD.z, e) + Math.sin(a) * r * 0.5,
+      THREE.MathUtils.lerp(FROM.z, HOLD.z, e) + Math.sin(a) * r * 0.5 + Math.sin(a * 2 + 0.8) * 0.6 * (1 - e * 0.5),
     );
     // organic wander on top of the orbit: strongest on the way in, calmer at the hold
     const wander = 1 - e * 0.6;
@@ -592,6 +593,52 @@ export function createFairy(scene) {
     out.y += (Math.sin(t * 0.97 + 0.4) * 0.25 + Math.sin(t * 2.3) * 0.08) * wander;
     out.z += Math.sin(t * 0.58 + 2.1) * 0.35 * wander;
     return out;
+  }
+
+  // Stardust: glints she leaves behind on her path, fading out after a moment
+  const TRAIL_COUNT = 70;
+  const trailPos = new Float32Array(TRAIL_COUNT * 3);
+  const trailLife = new Float32Array(TRAIL_COUNT);
+  for (let i = 0; i < TRAIL_COUNT; i += 1) trailPos[i * 3 + 1] = -100;
+  const trailGeo = new THREE.BufferGeometry();
+  trailGeo.setAttribute('position', new THREE.BufferAttribute(trailPos, 3).setUsage(THREE.DynamicDrawUsage));
+  const trailPts = new THREE.Points(
+    trailGeo,
+    new THREE.PointsMaterial({
+      size: 0.09,
+      map: glowTexture('rgba(255,255,255,1)', 'rgba(255,200,230,0)'),
+      color: '#ffe6f4',
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      sizeAttenuation: true,
+    })
+  );
+  trailPts.frustumCulled = false;
+  scene.add(trailPts);
+  let trailNext = 0;
+  let trailAcc = 0;
+
+  function updateTrail(dt, show) {
+    if (show) {
+      trailAcc += dt * 30;
+      while (trailAcc >= 1) {
+        trailAcc -= 1;
+        const i = trailNext;
+        trailNext = (trailNext + 1) % TRAIL_COUNT;
+        trailPos[i * 3] = pos.x + (Math.random() - 0.5) * 0.3;
+        trailPos[i * 3 + 1] = pos.y + (Math.random() - 0.5) * 0.3;
+        trailPos[i * 3 + 2] = pos.z + (Math.random() - 0.5) * 0.3;
+        trailLife[i] = 1.2;
+      }
+    }
+    for (let i = 0; i < TRAIL_COUNT; i += 1) {
+      if (trailLife[i] <= 0) continue;
+      trailLife[i] -= dt;
+      if (trailLife[i] <= 0) trailPos[i * 3 + 1] = -100;
+    }
+    trailGeo.attributes.position.needsUpdate = true;
   }
 
   function updateSparkles(t) {
@@ -655,6 +702,7 @@ export function createFairy(scene) {
     letter.visible = show;
     letterGlow.visible = show;
     ribbon.visible = show;
+    updateTrail(dt, show);
     if (!show) return;
 
     const s = Math.max(0.001, vis);
