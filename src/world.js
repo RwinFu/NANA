@@ -8,6 +8,7 @@ import { advanceHallProgress } from './house-reactivity.js';
 import { outdoorNormal } from './outdoor-textures.js';
 import { roomFrameSlot, hallFrameSlot } from './room-frame-layout.js';
 import { createGardenGrass } from './garden-grass.js';
+import { createVideoPlayback } from './video-playback.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -1555,11 +1556,21 @@ export function buildWorld(scene) {
 
   // The video frame at the end of the corridor: a little bigger than the photos. It keeps the video's proportions.
   const roomVideo = document.createElement('video');
-  roomVideo.src = soloVideo.src;
   roomVideo.loop = true;
   roomVideo.muted = true;
+  roomVideo.defaultMuted = true;
   roomVideo.playsInline = true;
+  roomVideo.autoplay = true;
   roomVideo.preload = 'auto';
+  roomVideo.setAttribute('muted', '');
+  roomVideo.setAttribute('playsinline', '');
+  roomVideo.setAttribute('webkit-playsinline', '');
+  roomVideo.setAttribute('aria-hidden', 'true');
+  roomVideo.tabIndex = -1;
+  roomVideo.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-2px;top:-2px;';
+  document.body.appendChild(roomVideo);
+  roomVideo.src = soloVideo.src;
+  const disposeRoomVideoPlayback = createVideoPlayback(roomVideo, document, window);
   const videoTex = track(new THREE.VideoTexture(roomVideo));
   videoTex.colorSpace = THREE.SRGBColorSpace;
   // The video fits inside a box of at most 2.8 m wide and 3.0 m high, keeping its own proportions
@@ -1592,7 +1603,6 @@ export function buildWorld(scene) {
   roomVideo.addEventListener('loadedmetadata', () => {
     sizeScreen(roomVideo.videoWidth / roomVideo.videoHeight || 16 / 9);
   });
-  roomVideo.play().catch(() => {});
 
   // Two small sconces beside the video frame
   const sconceMat = track(new THREE.MeshBasicMaterial({ color: '#ffd6ea' }));
@@ -1756,9 +1766,11 @@ export function buildWorld(scene) {
       frame.photo.material.dispose();
     });
     plaqueTex.dispose();
+    disposeRoomVideoPlayback();
     roomVideo.pause();
     roomVideo.removeAttribute('src');
     roomVideo.load();
+    roomVideo.remove();
   }
 
   return {
