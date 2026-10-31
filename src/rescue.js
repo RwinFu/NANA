@@ -4,6 +4,7 @@
 // onDone() is called once the game is won (or skipped); the intro plays after it.
 
 import { sfx } from './sfx.js';
+import { CAT_APPEARANCE } from './cat-appearance.js';
 import { followHero, princessPose } from './princess-animation.js';
 import { VICTORY_WALK_START, VICTORY_GATE_CUE, VICTORY_EXIT, PORTAL_ZOOM_START, portalCamera, portalCharacterOpacity, ROCK_WARNING, ledgeX, helpAfterLoss } from './rescue-timing.js';
 
@@ -34,12 +35,12 @@ const ROPES = [
   { x: 700, top: 150, bottom: GROUND_Y, window: true },
   { x: 2050, top: 150, bottom: GROUND_Y, window: false },
 ];
-// The two cats: Ani (the orange one) is caged on the balcony and is rescued first;
+// The two cats: Ani (the brown tabby) is caged on the balcony and is rescued first;
 // Pastil is caged in the dragon's yard and opens when the dragon flees
 const CAT_AT = { ani: { x: 790, y: 150 }, pastil: { x: 1985, y: GROUND_Y } };
 const CAT_STYLE = {
-  pastil: { base: '#a7a098', stripe: '#5b5249', eye: '#e8b64c', name: 'پاستیل' },
-  ani: { base: '#8a6a4c', stripe: '#3a2a1e', eye: '#7fa35a', name: 'آنی' },
+  pastil: { ...CAT_APPEARANCE.pastil, name: 'پاستیل' },
+  ani: { ...CAT_APPEARANCE.ani, name: 'آنی' },
 };
 const CAT_IMAGES = {
   pastil: loadImage(`${(import.meta.env?.BASE_URL || '/')}cats/pastil.jpg`),
@@ -1432,7 +1433,7 @@ function drawCatSprite(ctx, key, x, y, dir, t, caged) {
   // body
   ctx.fillStyle = st.base;
   ctx.beginPath();
-  ctx.ellipse(0, -9, 14, 8, 0, 0, Math.PI * 2);
+  ctx.ellipse(0, -9, 14, key === 'ani' ? 9 : 8, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.strokeStyle = st.stripe;
   ctx.lineWidth = 2;
@@ -1454,16 +1455,24 @@ function drawCatSprite(ctx, key, x, y, dir, t, caged) {
   // head and ears
   ctx.fillStyle = st.base;
   ctx.beginPath();
-  ctx.arc(11, -18, 8, 0, Math.PI * 2);
+  ctx.ellipse(11, -18, key === 'ani' ? 9 : 8, key === 'ani' ? 8.5 : 8, 0, 0, Math.PI * 2);
   ctx.fill();
   ctx.beginPath();
-  ctx.moveTo(4, -23);
-  ctx.lineTo(5, -30);
-  ctx.lineTo(10, -25);
-  ctx.moveTo(14, -25);
-  ctx.lineTo(19, -30);
-  ctx.lineTo(19, -23);
+  if (st.folded) {
+    // Rounded tips fold a little forward, while remaining visibly raised.
+    ctx.moveTo(3, -23); ctx.quadraticCurveTo(2, -29, 7, -28);
+    ctx.quadraticCurveTo(10, -27, 10, -24);
+    ctx.moveTo(14, -24); ctx.quadraticCurveTo(16, -29, 20, -27);
+    ctx.quadraticCurveTo(21, -26, 20, -23);
+  } else {
+    ctx.moveTo(4, -23); ctx.lineTo(5, -30); ctx.lineTo(10, -25);
+    ctx.moveTo(14, -25); ctx.lineTo(19, -30); ctx.lineTo(19, -23);
+  }
   ctx.fill();
+  if (key === 'ani') {
+    ctx.fillStyle = st.muzzle;
+    ctx.beginPath(); ctx.ellipse(16, -14.5, 4.8, 2.5, 0, 0, Math.PI * 2); ctx.fill();
+  }
   // eyes and nose
   ctx.fillStyle = st.eye;
   ctx.beginPath();

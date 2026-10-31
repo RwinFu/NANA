@@ -1,18 +1,13 @@
 import * as THREE from 'three';
 
-// A small fairy who flies through the castle intro, carrying a letter for her princess.
-// She has a shaped bodice and layered tulle skirt, a face, a golden braid, a jewelled tiara,
-// four iridescent wings, a star wand and a ribbon of light behind her.
-// The letter is a lace-edged card with a bow and a wax seal. It always turns to face the camera.
-// She loops in from high above the castle, settles in front of the camera at the end of the
-// flight, and hovers there until the game starts. Then she zooms up and away.
+// A delicate butterfly carries the anniversary card through the castle intro.
+// The existing flight and reveal interface is retained; only the messenger changes.
 
 const TRAIL_SAMPLES = 34;
 const TRAIL_SPACING = 0.1;
-const SPARKLE_COUNT = 120;
+const SPARKLE_COUNT = 28;
 const LETTER_FONT = '"Vazirmatn Variable", Vazirmatn, sans-serif';
 const LETTER_LINES = ['سالگردمون مبارک', 'خوشگلترین پرنسس دنیا'];
-const LETTER_LOCAL = new THREE.Vector3(0.56, -0.06, 0.05); // where the card floats, relative to her
 const LETTER_W = 1.05;
 const LETTER_H = 0.71;
 
@@ -64,75 +59,100 @@ function ribbonTexture() {
   return tex;
 }
 
-// Wings: a soft iridescent gradient with light veins radiating from the base
-function wingTexture() {
+// Painted butterfly wings: rosy scales, a darker scalloped edge, pale spots,
+// and curved veins. Both sides use the same design, mirrored by the UVs.
+function wingTexture(kind) {
   const c = document.createElement('canvas');
-  c.width = c.height = 256;
+  c.width = c.height = 512;
   const g = c.getContext('2d');
-  const grad = g.createRadialGradient(60, 128, 6, 128, 128, 170);
-  grad.addColorStop(0, 'rgba(255,250,255,0.95)');
-  grad.addColorStop(0.45, 'rgba(245,190,235,0.75)');
-  grad.addColorStop(0.8, 'rgba(190,160,255,0.45)');
-  grad.addColorStop(1, 'rgba(255,200,150,0)');
+  const upper = kind === 'upper';
+  const grad = g.createLinearGradient(0, 0, 512, 80);
+  grad.addColorStop(0, '#f4d2df');
+  grad.addColorStop(0.35, upper ? '#e9a6c6' : '#e9b7d3');
+  grad.addColorStop(0.7, upper ? '#ce8eb9' : '#c69ac7');
+  grad.addColorStop(1, '#76547d');
   g.fillStyle = grad;
-  g.fillRect(0, 0, 256, 256);
-  g.strokeStyle = 'rgba(255,255,255,0.5)';
-  g.lineWidth = 2;
-  [-0.5, -0.25, 0, 0.25, 0.5].forEach((k) => {
+  g.fillRect(0, 0, 512, 512);
+
+  // A broad, gently curved outer margin, like the dark border of a butterfly wing.
+  g.fillStyle = upper ? 'rgba(102,63,104,0.75)' : 'rgba(100,66,112,0.72)';
+  g.beginPath();
+  g.moveTo(350, 0);
+  g.bezierCurveTo(390, 90, 400, 185, 393, 260);
+  g.bezierCurveTo(390, 350, 420, 430, 380, 512);
+  g.lineTo(512, 512); g.lineTo(512, 0); g.closePath(); g.fill();
+
+  // Flowing veins radiate from the hinge and stay visible through the pastel scales.
+  g.strokeStyle = 'rgba(111,68,104,0.50)';
+  g.lineWidth = upper ? 5 : 4;
+  g.lineCap = 'round';
+  for (const end of [35, 105, 185, 270, 355, 435, 495]) {
     g.beginPath();
-    g.moveTo(40, 128);
-    g.lineTo(250, 128 + k * 200);
+    g.moveTo(5, 290);
+    g.bezierCurveTo(125, 290 + (end - 290) * 0.23, 255, end * 0.86 + 25, 450, end);
     g.stroke();
-  });
+  }
+  g.strokeStyle = 'rgba(255,235,244,0.40)';
+  g.lineWidth = 2;
+  for (const end of [72, 147, 230, 310, 395, 470]) {
+    g.beginPath(); g.moveTo(25, 290);
+    g.quadraticCurveTo(210, (end + 290) * 0.5, 375, end); g.stroke();
+  }
+
+  // Tiny pearly markings along the margin and a quiet eyespot on the hindwing.
+  for (let i = 0; i < 8; i += 1) {
+    const y = 46 + i * 60;
+    const x = 436 + Math.sin(i * 0.85) * 9;
+    g.fillStyle = 'rgba(255,235,243,0.85)';
+    g.beginPath(); g.ellipse(x, y, 6 + (i % 2) * 2, 10, -0.2, 0, Math.PI * 2); g.fill();
+  }
+  if (!upper) {
+    g.fillStyle = 'rgba(108,65,105,0.62)';
+    g.beginPath(); g.ellipse(305, 280, 35, 42, -0.2, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#f4c8d8';
+    g.beginPath(); g.ellipse(305, 280, 23, 29, -0.2, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#a77caa';
+    g.beginPath(); g.ellipse(305, 280, 12, 16, -0.2, 0, Math.PI * 2); g.fill();
+    g.fillStyle = '#fff4f7';
+    g.beginPath(); g.arc(310, 271, 4, 0, Math.PI * 2); g.fill();
+  }
   const tex = new THREE.CanvasTexture(c);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.anisotropy = 4;
   return tex;
 }
 
-// ---------- geometry helpers ----------
+// Butterfly wing silhouettes, mirrored without mirroring their painted patterns.
+function wingShape(len, width, kind) {
+  const shape = new THREE.Shape();
+  shape.moveTo(0, 0);
+  if (kind === 'upper') {
+    shape.bezierCurveTo(len * 0.18, width * 0.65, len * 0.63, width * 1.13, len * 0.86, width * 0.97);
+    shape.bezierCurveTo(len * 1.05, width * 0.83, len * 1.04, width * 0.40, len * 0.92, width * 0.10);
+    shape.bezierCurveTo(len * 0.78, -width * 0.24, len * 0.36, -width * 0.28, 0, 0);
+  } else {
+    shape.bezierCurveTo(len * 0.22, width * 0.48, len * 0.78, width * 0.82, len * 0.95, width * 0.42);
+    shape.bezierCurveTo(len * 1.05, width * 0.12, len * 0.96, -width * 0.28, len * 0.79, -width * 0.36);
+    shape.bezierCurveTo(len * 0.65, -width * 0.51, len * 0.26, -width * 0.32, 0, 0);
+  }
+  shape.closePath();
+  return shape;
+}
 
-// A wing: a petal shape along +x from the hinge, mirrored for the other side
-function wingGeometry(len, width, side) {
-  const s = new THREE.Shape();
-  s.moveTo(0, 0);
-  s.bezierCurveTo(len * 0.25, width * 1.05, len * 0.8, width * 1.1, len, width * 0.2);
-  s.bezierCurveTo(len * 0.9, -width * 0.5, len * 0.4, -width * 0.4, 0, 0);
-  const geo = new THREE.ShapeGeometry(s, 20);
+function wingGeometry(shape, side) {
+  const geo = new THREE.ShapeGeometry(shape, 32);
   geo.scale(side, 1, 1);
   geo.computeBoundingBox();
   const bb = geo.boundingBox;
   const pos = geo.attributes.position;
   const uv = new Float32Array(pos.count * 2);
   for (let i = 0; i < pos.count; i++) {
-    uv[i * 2] = (pos.getX(i) - bb.min.x) / (bb.max.x - bb.min.x);
+    const x = (pos.getX(i) - bb.min.x) / (bb.max.x - bb.min.x);
+    uv[i * 2] = side < 0 ? 1 - x : x;
     uv[i * 2 + 1] = (pos.getY(i) - bb.min.y) / (bb.max.y - bb.min.y);
   }
   geo.setAttribute('uv', new THREE.BufferAttribute(uv, 2));
   return geo;
-}
-
-function starShape(outer, inner, points = 5) {
-  const s = new THREE.Shape();
-  for (let i = 0; i < points * 2; i++) {
-    const r = i % 2 === 0 ? outer : inner;
-    const a = Math.PI / 2 + (i * Math.PI) / points;
-    const x = Math.cos(a) * r;
-    const y = Math.sin(a) * r;
-    if (i === 0) s.moveTo(x, y);
-    else s.lineTo(x, y);
-  }
-  s.closePath();
-  return s;
-}
-
-// A straight limb from point a to point b
-function limb(a, b, r, mat) {
-  const dir = new THREE.Vector3().subVectors(b, a);
-  const len = dir.length();
-  const m = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.8, r, len, 10), mat);
-  m.position.copy(a).addScaledVector(dir, 0.5);
-  m.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir.normalize());
-  return m;
 }
 
 function place(mesh, x, y, z) {
@@ -148,20 +168,6 @@ function drawHeart(g, x, y, s) {
   g.fill();
 }
 
-function drawFlower(g, x, y, r, petal, center) {
-  g.fillStyle = petal;
-  for (let k = 0; k < 5; k++) {
-    const a = (k * 2 * Math.PI) / 5;
-    g.beginPath();
-    g.ellipse(x + Math.cos(a) * r * 0.6, y + Math.sin(a) * r * 0.6, r * 0.55, r * 0.4, a, 0, 2 * Math.PI);
-    g.fill();
-  }
-  g.fillStyle = center;
-  g.beginPath();
-  g.arc(x, y, r * 0.32, 0, 2 * Math.PI);
-  g.fill();
-}
-
 function roundRectPath(g, x, y, w, h, r) {
   g.beginPath();
   g.moveTo(x + r, y);
@@ -172,117 +178,37 @@ function roundRectPath(g, x, y, w, h, r) {
   g.closePath();
 }
 
-// The letter: pastel paper, lace edge, a pink bow, flowers, a gold frame and a wax seal
+// A simple pastel card with the original anniversary message.
 function letterCanvas() {
-  const W = 1024;
-  const H = 692;
+  const W = 1024, H = 692;
   const c = document.createElement('canvas');
-  c.width = W;
-  c.height = H;
+  c.width = W; c.height = H;
   const g = c.getContext('2d');
+  const paper = g.createLinearGradient(0, 0, 0, H);
+  paper.addColorStop(0, '#fff9fb');
+  paper.addColorStop(1, '#f8eaf4');
+  roundRectPath(g, 4, 4, W - 8, H - 8, 52);
+  g.fillStyle = paper; g.fill();
+  g.strokeStyle = '#e5bfd2'; g.lineWidth = 5; g.stroke();
+  roundRectPath(g, 34, 34, W - 68, H - 68, 32);
+  g.strokeStyle = 'rgba(181,125,157,0.35)'; g.lineWidth = 2; g.stroke();
 
-  const paper = g.createLinearGradient(0, 0, W, H);
-  paper.addColorStop(0, '#fff9fc');
-  paper.addColorStop(0.55, '#ffeaf4');
-  paper.addColorStop(1, '#f3e4ff');
-  roundRectPath(g, 0, 0, W, H, 48);
-  g.fillStyle = paper;
-  g.fill();
-
-  // Scattered hearts for a soft pattern
-  g.fillStyle = '#ff9cc0';
-  g.globalAlpha = 0.16;
-  for (let i = 0; i < 40; i++) {
-    drawHeart(g, (i * 197) % W, (i * 331) % H, 8 + (i % 3) * 4);
-  }
-  g.globalAlpha = 1;
-
-  // Lace edge: overlapping white scallops around all four sides
-  const lace = (x, y) => {
-    g.beginPath();
-    g.arc(x, y, 24, 0, 2 * Math.PI);
-    g.fillStyle = '#ffffff';
-    g.fill();
-    g.strokeStyle = '#ffb3cc';
-    g.lineWidth = 3;
-    g.stroke();
-  };
-  for (let x = 24; x <= W - 24; x += 46) {
-    lace(x, 24);
-    lace(x, H - 24);
-  }
-  for (let y = 70; y <= H - 70; y += 46) {
-    lace(24, y);
-    lace(W - 24, y);
-  }
-
-  // Gold dashed frame
-  roundRectPath(g, 66, 66, W - 132, H - 132, 34);
-  g.strokeStyle = '#e8b86a';
-  g.lineWidth = 4;
-  g.setLineDash([14, 10]);
-  g.stroke();
-  g.setLineDash([]);
-
-  // A pink bow at the top
-  const bow = (dir) => {
-    g.beginPath();
-    g.moveTo(W / 2, 66);
-    g.bezierCurveTo(W / 2 + dir * 40, 10, W / 2 + dir * 170, 0, W / 2 + dir * 150, 96);
-    g.bezierCurveTo(W / 2 + dir * 120, 156, W / 2 + dir * 60, 116, W / 2, 66);
-    g.closePath();
-    g.fillStyle = '#ff8fb1';
-    g.fill();
-    g.strokeStyle = '#e0557f';
-    g.lineWidth = 3;
-    g.stroke();
-  };
-  bow(-1);
-  bow(1);
+  // A small ribbon and a few restrained details leave the lettering room to breathe.
+  g.strokeStyle = '#d58eae'; g.lineWidth = 7; g.lineCap = 'round';
   g.beginPath();
-  g.arc(W / 2, 66, 22, 0, 2 * Math.PI);
-  g.fillStyle = '#ff5f8f';
-  g.fill();
-
-  // Text
-  g.direction = 'rtl';
-  g.textAlign = 'center';
-  g.textBaseline = 'middle';
-  g.fillStyle = '#d63a72';
-  g.font = `800 100px ${LETTER_FONT}`;
-  g.fillText(LETTER_LINES[0], W / 2, H * 0.45);
-  g.fillStyle = '#9b2a5e';
-  g.font = `800 78px ${LETTER_FONT}`;
-  g.fillText(LETTER_LINES[1], W / 2, H * 0.63);
-
-  // A gold divider with a small heart
-  g.strokeStyle = '#e8b86a';
-  g.lineWidth = 3;
-  g.beginPath();
-  g.moveTo(W / 2 - 180, H * 0.76);
-  g.lineTo(W / 2 - 50, H * 0.76);
-  g.moveTo(W / 2 + 50, H * 0.76);
-  g.lineTo(W / 2 + 180, H * 0.76);
+  g.moveTo(W / 2, 73); g.bezierCurveTo(W / 2 - 42, 25, W / 2 - 88, 38, W / 2 - 65, 75);
+  g.bezierCurveTo(W / 2 - 50, 95, W / 2 - 20, 90, W / 2, 73);
+  g.moveTo(W / 2, 73); g.bezierCurveTo(W / 2 + 42, 25, W / 2 + 88, 38, W / 2 + 65, 75);
+  g.bezierCurveTo(W / 2 + 50, 95, W / 2 + 20, 90, W / 2, 73);
   g.stroke();
-  g.fillStyle = '#ff7aa8';
-  drawHeart(g, W / 2, H * 0.76 + 4, 16);
+  g.fillStyle = '#d58eae'; g.beginPath(); g.arc(W / 2, 73, 8, 0, 2 * Math.PI); g.fill();
 
-  // Flowers in the corners
-  drawFlower(g, 150, 150, 46, '#ffb3cf', '#ffd27a');
-  drawFlower(g, W - 150, 150, 40, '#c9b6ff', '#ffe27a');
-  drawFlower(g, 150, H - 150, 40, '#ffb3cf', '#ffd27a');
-
-  // Wax seal in the bottom right
-  g.beginPath();
-  g.arc(W - 170, H - 150, 54, 0, 2 * Math.PI);
-  g.fillStyle = '#c8325c';
-  g.fill();
-  g.strokeStyle = '#ffd27a';
-  g.lineWidth = 5;
-  g.stroke();
-  g.fillStyle = '#ffd27a';
-  drawHeart(g, W - 170, H - 150 + 4, 22);
-
+  g.direction = 'rtl'; g.textAlign = 'center'; g.textBaseline = 'middle';
+  g.fillStyle = '#9a456e'; g.font = `800 100px ${LETTER_FONT}`;
+  g.fillText(LETTER_LINES[0], W / 2, H * 0.43);
+  g.fillStyle = '#795071'; g.font = `800 78px ${LETTER_FONT}`;
+  g.fillText(LETTER_LINES[1], W / 2, H * 0.61);
+  g.fillStyle = '#dfa2bc'; drawHeart(g, W / 2, H * 0.77, 22);
   return c;
 }
 
@@ -295,169 +221,100 @@ export function createFairy(scene) {
   const figure = new THREE.Group();
   group.add(figure);
 
-  const satin = new THREE.MeshPhysicalMaterial({
-    color: '#ff8fb1', roughness: 0.32, emissive: '#ff4f86', emissiveIntensity: 0.12,
-    sheen: 1, sheenRoughness: 0.35, sheenColor: new THREE.Color('#ffd0e6'),
-    clearcoat: 0.4, clearcoatRoughness: 0.2, side: THREE.DoubleSide,
+  figure.name = 'butterfly';
+  // A butterfly's slim, segmented body: no human-like face or round doll head.
+  // The slightly lighter thorax and tapered abdomen keep a readable silhouette
+  // without competing with the patterned wings.
+  const bodyMat = new THREE.MeshStandardMaterial({
+    color: '#80617a', roughness: 0.86, emissive: '#6c425b', emissiveIntensity: 0.08,
   });
-  const tulle = new THREE.MeshPhysicalMaterial({
-    color: '#ffd6ea', transparent: true, opacity: 0.5, roughness: 0.85,
-    sheen: 1, sheenRoughness: 0.6, sheenColor: new THREE.Color('#ffffff'),
+  const thoraxMat = new THREE.MeshStandardMaterial({
+    color: '#a77d98', roughness: 0.84, emissive: '#8a5674', emissiveIntensity: 0.06,
+  });
+  const detailMat = new THREE.MeshStandardMaterial({ color: '#c6a2b4', roughness: 0.8 });
+  const eyeMat = new THREE.MeshStandardMaterial({ color: '#514254', roughness: 0.48 });
+  const glint = new THREE.MeshBasicMaterial({ color: '#fff5f8' });
+
+  const thorax = new THREE.Mesh(new THREE.SphereGeometry(1, 32, 24), thoraxMat);
+  thorax.name = 'butterfly-thorax';
+  thorax.position.y = 0.035;
+  thorax.scale.set(0.044, 0.080, 0.037);
+  figure.add(thorax);
+
+  const abdomen = new THREE.Mesh(new THREE.LatheGeometry([
+    new THREE.Vector2(0, -0.195), new THREE.Vector2(0.016, -0.184),
+    new THREE.Vector2(0.027, -0.155), new THREE.Vector2(0.035, -0.112),
+    new THREE.Vector2(0.038, -0.070), new THREE.Vector2(0.035, -0.025),
+    new THREE.Vector2(0.027, 0.010), new THREE.Vector2(0, 0.020),
+  ], 32), bodyMat);
+  abdomen.name = 'butterfly-abdomen';
+  figure.add(abdomen);
+  for (const [y, radius] of [[-0.065, 0.037], [-0.096, 0.037], [-0.127, 0.032], [-0.155, 0.025]]) {
+    const segment = place(new THREE.Mesh(new THREE.TorusGeometry(radius, 0.0016, 6, 32), detailMat), 0, y, 0);
+    segment.rotation.x = Math.PI / 2;
+    figure.add(segment);
+  }
+
+  const head = place(new THREE.Mesh(new THREE.SphereGeometry(0.033, 24, 16), thoraxMat), 0, 0.136, 0.004);
+  head.name = 'butterfly-head';
+  head.scale.set(1, 0.92, 0.9);
+  figure.add(head);
+  for (const side of [-1, 1]) {
+    // Small eyes nestle against the head instead of sitting on a separate face.
+    const eye = place(new THREE.Mesh(new THREE.SphereGeometry(0.012, 16, 12), eyeMat), side * 0.024, 0.138, 0.019);
+    eye.scale.set(0.72, 1.05, 0.68);
+    figure.add(eye);
+    figure.add(place(new THREE.Mesh(new THREE.SphereGeometry(0.0022, 8, 6), glint), side * 0.026, 0.142, 0.027));
+
+    // Fine, curved clubbed antennae and three discreet pairs of legs.
+    const antenna = new THREE.QuadraticBezierCurve3(
+      new THREE.Vector3(side * 0.014, 0.161, 0),
+      new THREE.Vector3(side * 0.034, 0.239, 0.006),
+      new THREE.Vector3(side * 0.072, 0.251, 0.002),
+    );
+    figure.add(new THREE.Mesh(new THREE.TubeGeometry(antenna, 16, 0.0022, 6, false), bodyMat));
+    figure.add(place(new THREE.Mesh(new THREE.SphereGeometry(0.0045, 10, 8), detailMat), side * 0.072, 0.251, 0.002));
+    for (let i = 0; i < 3; i += 1) {
+      const y = 0.045 - i * 0.028;
+      const leg = new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(side * 0.025, y, 0.012),
+        new THREE.Vector3(side * (0.060 + i * 0.006), y - 0.01, 0.025),
+        new THREE.Vector3(side * (0.063 + i * 0.009), y - 0.035, 0.02),
+      );
+      figure.add(new THREE.Mesh(new THREE.TubeGeometry(leg, 10, 0.0016, 5, false), bodyMat));
+    }
+  }
+
+  // Each wing has a softly outlined silhouette, and matching mirrored markings.
+  const upperShape = wingShape(0.50, 0.31, 'upper');
+  const lowerShape = wingShape(0.35, 0.23, 'lower');
+  const upperMat = new THREE.MeshBasicMaterial({
+    map: wingTexture('upper'), transparent: true, opacity: 0.92,
     side: THREE.DoubleSide, depthWrite: false,
   });
-  const gold = new THREE.MeshStandardMaterial({ color: '#ffd27a', metalness: 0.8, roughness: 0.25, emissive: '#ffb347', emissiveIntensity: 0.35 });
-  const gem = new THREE.MeshPhysicalMaterial({ color: '#ff7aa8', roughness: 0.08, clearcoat: 1, clearcoatRoughness: 0.05, emissive: '#ff3d7f', emissiveIntensity: 0.55 });
-  const skin = new THREE.MeshStandardMaterial({ color: '#ffe0cc', roughness: 0.55 });
-  const hairMat = new THREE.MeshStandardMaterial({ color: '#ffcf6b', roughness: 0.35, metalness: 0.25 });
-  const ink = new THREE.MeshStandardMaterial({ color: '#2b1b3a', roughness: 0.2 });
-  const shine = new THREE.MeshBasicMaterial({ color: '#ffffff' });
-  const blush = new THREE.MeshBasicMaterial({ color: '#ff7fa6', transparent: true, opacity: 0.5, depthWrite: false });
-  const smileMat = new THREE.MeshBasicMaterial({ color: '#c8325c' });
-
-  // Bodice: a lathe, so the waist and shoulders are smooth
-  const bodice = new THREE.Mesh(
-    new THREE.LatheGeometry([
-      new THREE.Vector2(0.03, 0.25),
-      new THREE.Vector2(0.08, 0.23),
-      new THREE.Vector2(0.092, 0.19),
-      new THREE.Vector2(0.078, 0.12),
-      new THREE.Vector2(0.082, 0.07),
-      new THREE.Vector2(0.1, 0.04),
-    ], 48),
-    satin,
-  );
-  figure.add(bodice);
-
-  // Skirt: a satin underskirt and a wider tulle layer that flares to the hem
-  const skirtPoints = [[0.27, -0.2], [0.22, -0.12], [0.16, -0.04], [0.1, 0.04]];
-  figure.add(new THREE.Mesh(new THREE.LatheGeometry(skirtPoints.map(([r, y]) => new THREE.Vector2(r, y)), 48), satin));
-  const tulleLayer = new THREE.Mesh(
-    new THREE.LatheGeometry([[0.3, -0.22], [0.25, -0.13], [0.185, -0.05], [0.12, 0.04]].map(([r, y]) => new THREE.Vector2(r, y)), 56),
-    tulle,
-  );
-  figure.add(tulleLayer);
-
-  // Sparkling gems down the bodice
-  [[0, 0.14, 0.094], [-0.035, 0.18, 0.09], [0.035, 0.18, 0.09]].forEach(([x, y, z]) => {
-    figure.add(place(new THREE.Mesh(new THREE.SphereGeometry(0.011, 10, 8), gem), x, y, z));
+  const lowerMat = new THREE.MeshBasicMaterial({
+    map: wingTexture('lower'), transparent: true, opacity: 0.92,
+    side: THREE.DoubleSide, depthWrite: false,
   });
-
-  // Neck and head
-  figure.add(place(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.034, 0.05, 12), skin), 0, 0.27, 0));
-  const head = new THREE.Group();
-  head.position.set(0, 0.36, 0);
-  figure.add(head);
-  const face = new THREE.Mesh(new THREE.SphereGeometry(0.1, 40, 30), skin);
-  face.scale.set(1, 1.06, 1);
-  head.add(face);
-
-  // Pointed fairy ears
-  [-1, 1].forEach((side) => {
-    const ear = place(new THREE.Mesh(new THREE.ConeGeometry(0.018, 0.06, 10), skin), side * 0.1, -0.005, -0.01);
-    ear.rotation.z = -side * (Math.PI / 2 - 0.35);
-    head.add(ear);
-  });
-
-  // Big shiny eyes with highlights, blush and a smile
-  [-1, 1].forEach((side) => {
-    const eye = place(new THREE.Mesh(new THREE.SphereGeometry(0.019, 20, 14), ink), side * 0.036, -0.01, 0.088);
-    eye.scale.set(0.85, 1.25, 0.5);
-    const glint = place(new THREE.Mesh(new THREE.SphereGeometry(0.0055, 8, 6), shine), 0.006, 0.007, 0.008);
-    eye.add(glint);
-    head.add(eye);
-    head.add(place(new THREE.Mesh(new THREE.CircleGeometry(0.018, 14), blush), side * 0.062, -0.035, 0.091));
-  });
-  const smile = place(new THREE.Mesh(new THREE.TorusGeometry(0.018, 0.0032, 6, 14, Math.PI), smileMat), 0, -0.042, 0.094);
-  smile.rotation.z = Math.PI;
-  head.add(smile);
-
-  // Golden hair: a cap, a fringe of bangs, a braid that sways, and a satin bow
-  const cap = new THREE.Mesh(new THREE.SphereGeometry(0.108, 36, 24, 0, Math.PI * 2, 0, Math.PI * 0.6), hairMat);
-  cap.position.set(0, 0.01, -0.012);
-  head.add(cap);
-  [[-0.045, 0.07, 0.085], [0, 0.08, 0.095], [0.045, 0.07, 0.085]].forEach(([x, y, z]) => {
-    const bang = place(new THREE.Mesh(new THREE.SphereGeometry(0.04, 14, 10), hairMat), x, y, z);
-    bang.scale.set(1.2, 0.55, 0.6);
-    head.add(bang);
-  });
-  const braid = [];
-  for (let i = 0; i < 6; i++) {
-    const r = 0.034 - i * 0.0028;
-    const seg = place(new THREE.Mesh(new THREE.SphereGeometry(r, 14, 10), hairMat), 0, 0.03 - i * 0.05, -0.09 - i * 0.012);
-    head.add(seg);
-    braid.push(seg);
-  }
-  const bowMat = satin;
-  [-1, 1].forEach((side) => {
-    const loop = place(new THREE.Mesh(new THREE.SphereGeometry(0.02, 12, 8), bowMat), side * 0.072, 0.1, -0.03);
-    loop.scale.set(1.4, 1, 0.6);
-    loop.rotation.z = side * 0.5;
-    head.add(loop);
-  });
-  head.add(place(new THREE.Mesh(new THREE.SphereGeometry(0.012, 10, 8), gem), 0.075, 0.095, -0.02));
-
-  // Tiara: a gold band, five spikes with gems, and a big gem at the front
-  const band = new THREE.Mesh(new THREE.TorusGeometry(0.07, 0.008, 8, 36), gold);
-  band.rotation.x = Math.PI / 2;
-  band.position.set(0, 0.078, 0);
-  head.add(band);
-  for (let k = 0; k < 5; k++) {
-    const a = (k / 5) * Math.PI * 2 + Math.PI / 2;
-    const x = Math.cos(a) * 0.07;
-    const z = Math.sin(a) * 0.07;
-    head.add(place(new THREE.Mesh(new THREE.ConeGeometry(0.01, 0.035, 6), gold), x, 0.1, z));
-    head.add(place(new THREE.Mesh(new THREE.SphereGeometry(0.008, 10, 8), gem), x, 0.122, z));
-  }
-  head.add(place(new THREE.Mesh(new THREE.SphereGeometry(0.016, 14, 10), gem), 0, 0.085, 0.072));
-
-  // Arms: one extended to the wand, one reaching to hold the letter
-  const leftShoulder = new THREE.Vector3(-0.085, 0.215, 0);
-  const leftElbow = new THREE.Vector3(-0.18, 0.16, 0.05);
-  const leftHand = new THREE.Vector3(-0.13, 0.2, 0.16);
-  const rightShoulder = new THREE.Vector3(0.085, 0.215, 0);
-  const rightElbow = new THREE.Vector3(0.2, 0.14, 0.06);
-  const rightHand = new THREE.Vector3(0.14, 0.02, 0.08);
-  figure.add(limb(leftShoulder, leftElbow, 0.024, satin), limb(leftElbow, leftHand, 0.02, skin));
-  figure.add(limb(rightShoulder, rightElbow, 0.024, satin), limb(rightElbow, rightHand, 0.02, skin));
-  figure.add(place(new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 10), satin), -0.085, 0.215, 0));
-  figure.add(place(new THREE.Mesh(new THREE.SphereGeometry(0.03, 12, 10), satin), 0.085, 0.215, 0));
-  figure.add(place(new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 8), skin), leftHand.x, leftHand.y, leftHand.z));
-  figure.add(place(new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 8), skin), rightHand.x, rightHand.y, rightHand.z));
-
-  // Star wand
-  const wandTip = new THREE.Vector3(-0.2, 0.44, 0.22);
-  figure.add(limb(leftHand, wandTip, 0.007, gold));
-  const star = new THREE.Mesh(
-    new THREE.ExtrudeGeometry(starShape(0.05, 0.022), { depth: 0.006, bevelEnabled: false }),
-    gold,
-  );
-  star.position.copy(wandTip);
-  figure.add(star);
-
-  // Wings: four petals, two pairs, flapping on hinges at her back
-  const wingTex = wingTexture();
-  const wingMat = new THREE.MeshBasicMaterial({
-    map: wingTex,
-    color: '#ffffff',
-    transparent: true,
-    opacity: 0.85,
-    side: THREE.DoubleSide,
-    depthWrite: false,
-    blending: THREE.AdditiveBlending,
-  });
+  const edgeMat = new THREE.LineBasicMaterial({ color: '#805879', transparent: true, opacity: 0.65, depthWrite: false });
   const wingRoot = new THREE.Group();
-  wingRoot.position.set(0, 0.2, -0.06);
+  wingRoot.position.set(0, 0.04, -0.035);
   figure.add(wingRoot);
   const wings = [];
   [-1, 1].forEach((side) => {
-    const upper = new THREE.Group();
-    upper.position.set(0, 0.02, 0);
-    upper.add(new THREE.Mesh(wingGeometry(0.5, 0.32, side), wingMat));
-    wingRoot.add(upper);
-    const lower = new THREE.Group();
-    lower.position.set(0, -0.06, -0.02);
-    lower.add(new THREE.Mesh(wingGeometry(0.32, 0.22, side), wingMat));
-    wingRoot.add(lower);
+    const makeWing = (shape, mat, name) => {
+      const hinge = new THREE.Group();
+      const wing = new THREE.Mesh(wingGeometry(shape, side), mat);
+      wing.name = `${name}-${side < 0 ? 'left' : 'right'}`;
+      hinge.add(wing);
+      const points = shape.getPoints(48).map((p) => new THREE.Vector3(p.x * side, p.y, 0.001));
+      hinge.add(new THREE.LineLoop(new THREE.BufferGeometry().setFromPoints(points), edgeMat));
+      wingRoot.add(hinge);
+      return hinge;
+    };
+    const upper = makeWing(upperShape, upperMat, 'upper-wing');
+    const lower = makeWing(lowerShape, lowerMat, 'lower-wing');
+    lower.position.y = -0.07;
     wings.push({ upper, lower, side });
   });
 
@@ -486,9 +343,9 @@ export function createFairy(scene) {
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     transparent: true,
-    opacity: 0.8,
+    opacity: 0.25,
   }));
-  aura.scale.setScalar(1.1);
+  aura.scale.setScalar(0.8);
   aura.position.set(0, 0.2, 0);
   group.add(aura);
 
@@ -531,13 +388,14 @@ export function createFairy(scene) {
     new THREE.PlaneGeometry(LETTER_W, LETTER_H),
     new THREE.MeshBasicMaterial({ map: letterTex, transparent: true, side: THREE.DoubleSide, toneMapped: false }),
   );
+  letter.name = 'anniversary-letter';
   scene.add(letter);
   const letterGlow = new THREE.Sprite(new THREE.SpriteMaterial({
     map: glowTexture('rgba(255,225,240,0.9)', 'rgba(255,150,200,0.3)'),
     blending: THREE.AdditiveBlending,
     depthWrite: false,
     transparent: true,
-    opacity: 0.8,
+    opacity: 0.23,
   }));
   scene.add(letterGlow);
 
@@ -575,6 +433,17 @@ export function createFairy(scene) {
   const tmpRight = new THREE.Vector3();
   const letterPos = new THREE.Vector3();
   let bank = 0;
+  const faceQ = new THREE.Quaternion();
+  const cameraRight = new THREE.Vector3();
+  const cameraUp = new THREE.Vector3();
+  const cordPositions = new Float32Array(2 * 12 * 3);
+  const cordGeo = new THREE.BufferGeometry();
+  cordGeo.setAttribute('position', new THREE.BufferAttribute(cordPositions, 3).setUsage(THREE.DynamicDrawUsage));
+  const cords = new THREE.LineSegments(cordGeo, new THREE.LineBasicMaterial({ color: '#d9b7cd', transparent: true, opacity: 0.8, depthWrite: false }));
+  cords.name = 'letter-threads';
+  cords.frustumCulled = false;
+  scene.add(cords);
+  cords.visible = false;
 
   // Where the fairy is on her path at intro time t; p = flight progress 0..1
   function pathAt(t, p, out) {
@@ -596,7 +465,7 @@ export function createFairy(scene) {
   }
 
   // Stardust: glints she leaves behind on her path, fading out after a moment
-  const TRAIL_COUNT = 70;
+  const TRAIL_COUNT = 35;
   const trailPos = new Float32Array(TRAIL_COUNT * 3);
   const trailLife = new Float32Array(TRAIL_COUNT);
   for (let i = 0; i < TRAIL_COUNT; i += 1) trailPos[i * 3 + 1] = -100;
@@ -622,7 +491,7 @@ export function createFairy(scene) {
 
   function updateTrail(dt, show) {
     if (show) {
-      trailAcc += dt * 30;
+      trailAcc += dt * 14;
       while (trailAcc >= 1) {
         trailAcc -= 1;
         const i = trailNext;
@@ -680,7 +549,7 @@ export function createFairy(scene) {
       ribbonPos[i * 6 + 5] = c.z + side.z * w;
     }
     ribbonGeo.attributes.position.needsUpdate = true;
-    ribbonMat.opacity = 0.7 * s;
+    ribbonMat.opacity = 0.3 * s;
   }
 
   // Called every frame. p is the castle flight progress; started means the game has begun.
@@ -696,12 +565,13 @@ export function createFairy(scene) {
     next.y += rise;
 
     const show = vis > 0.01;
-    glow.intensity = show ? 1.1 * Math.max(0.001, vis) * (0.9 + 0.1 * Math.sin(t * 3)) : 0;
+    glow.intensity = show ? 0.35 * Math.max(0.001, vis) * (0.9 + 0.1 * Math.sin(t * 3)) : 0;
     glow.position.copy(pos).add(new THREE.Vector3(0, 0.15, 0));
     group.visible = show;
     letter.visible = show;
     letterGlow.visible = show;
     ribbon.visible = show;
+    cords.visible = show;
     updateTrail(dt, show);
     if (!show) return;
 
@@ -711,6 +581,10 @@ export function createFairy(scene) {
     // turn smoothly toward where she is going, instead of snapping
     aimM.lookAt(next, pos, UP);
     aimQ.setFromRotationMatrix(aimM);
+    // The butterfly gradually faces the viewer when she presents the card.
+    aimM.lookAt(camera.position, pos, UP);
+    faceQ.setFromRotationMatrix(aimM);
+    aimQ.slerp(faceQ, smoothstep((p - 0.65) / 0.3));
     group.quaternion.slerp(aimQ, Math.min(1, dt * 5));
     // bank into the turn: sideways speed tilts her body
     velocity.subVectors(pos, lastPos).divideScalar(Math.max(dt, 1e-4));
@@ -723,38 +597,44 @@ export function createFairy(scene) {
     figure.position.y = Math.sin(t * 2.2) * 0.015;
     figure.rotation.z = Math.sin(t * 1.1) * 0.05 - bank;
 
-    // Wings flap, the lower pair a beat behind the upper pair
-    const flap = 0.5 + 0.5 * Math.sin(t * 13);
-    const flapLow = 0.5 + 0.5 * Math.sin(t * 13 - 0.8);
+    // Flap around the wing hinges, with a small delayed lower-wing motion.
+    const flap = Math.sin(t * 8.5);
+    const flapLow = Math.sin(t * 8.5 - 0.5);
     wings.forEach(({ upper, lower, side: sd }) => {
-      upper.rotation.z = sd * (0.2 + 0.45 * flap);
-      lower.rotation.z = sd * (0.12 + 0.3 * flapLow);
-      upper.rotation.y = sd * 0.12 * flap; // the tips sweep forward on the downstroke
-      lower.rotation.y = sd * 0.08 * flapLow;
-    });
-
-    // Wand star spins and pulses; braid sways; sparkles orbit
-    star.rotation.z = t * 2.4;
-    star.scale.setScalar(1 + 0.12 * Math.sin(t * 5));
-    braid.forEach((seg, i) => {
-      seg.position.x = Math.sin(t * 2.6 + i * 0.7) * 0.01 * (i + 1) - velocity.x * 0.002 * (i + 1);
+      upper.rotation.z = sd * (0.36 + 0.04 * flap);
+      lower.rotation.z = -sd * (0.65 + 0.04 * flapLow);
+      upper.rotation.y = sd * (0.28 + 0.48 * (0.5 + 0.5 * flap));
+      lower.rotation.y = sd * (0.25 + 0.4 * (0.5 + 0.5 * flapLow));
     });
     updateSparkles(t);
-    aura.material.opacity = 0.6 + 0.2 * Math.sin(t * 3);
+    aura.material.opacity = 0.16 + 0.05 * Math.sin(t * 2);
 
-    // The letter floats at her side, in her frame, turned to face the camera
-    group.updateMatrixWorld(true);
-    const letterTarget = group.localToWorld(LETTER_LOCAL.clone());
-    letterTarget.y += Math.sin(t * 1.7) * 0.025 * s;
-    if (vis < 0.05) letterPos.copy(letterTarget);
-    letterPos.lerp(letterTarget, Math.min(1, dt * 6));
+    // The card stays below the butterfly in the camera plane. Two fine silk
+    // threads always connect its upper edge to her body, including in flight.
+    cameraRight.set(1, 0, 0).applyQuaternion(camera.quaternion);
+    cameraUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
+    letterPos.copy(pos).addScaledVector(cameraUp, -0.5 * s);
     letter.position.copy(letterPos);
     letter.scale.setScalar(s);
-    letter.lookAt(camera.position);
-    letter.rotateZ(Math.sin(t * 1.3) * 0.05);
-    letterGlow.position.copy(letter.position);
-    letterGlow.position.z -= 0.06 * s;
-    letterGlow.scale.setScalar(2.0 * s);
+    letter.quaternion.copy(camera.quaternion);
+    letterGlow.position.copy(letter.position).addScaledVector(camera.getWorldDirection(tmpCam), 0.06 * s);
+    letterGlow.scale.setScalar(1.6 * s);
+    const start = pos.clone().addScaledVector(cameraUp, -0.09 * s);
+    for (let sideIndex = 0; sideIndex < 2; sideIndex += 1) {
+      const end = letterPos.clone().addScaledVector(cameraUp, LETTER_H * 0.5 * s)
+        .addScaledVector(cameraRight, (sideIndex ? 0.29 : -0.29) * s);
+      for (let j = 0; j < 6; j += 1) {
+        for (let k = 0; k < 2; k += 1) {
+          const u = (j + k) / 6;
+          const offset = (sideIndex * 12 + j * 2 + k) * 3;
+          cordPositions[offset] = THREE.MathUtils.lerp(start.x, end.x, u);
+          cordPositions[offset + 1] = THREE.MathUtils.lerp(start.y, end.y, u) - Math.sin(u * Math.PI) * 0.018 * s;
+          cordPositions[offset + 2] = THREE.MathUtils.lerp(start.z, end.z, u);
+        }
+      }
+    }
+    cordGeo.attributes.position.needsUpdate = true;
+    cords.material.opacity = 0.7 * s;
 
     updateRibbon(camera, s);
   }
