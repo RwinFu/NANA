@@ -1670,6 +1670,27 @@ function render(ctx, g, t) {
 
 // ---------- the game object -------------------------------------------------
 
+// The pixel cover: a grid of coloured tiles. Each tile's delay depends on its distance from the centre,
+// so the cover grows from the middle outwards and shrinks back the same way (see style.css).
+function buildTiles(fade) {
+  const COLS = 24;
+  const ROWS = 14;
+  const palette = ['#ff8fc0', '#ffb3d9', '#c9a7ff', '#d9a441', '#2c1f4a'];
+  const cx = (COLS - 1) / 2;
+  const cy = (ROWS - 1) / 2;
+  const maxD = Math.hypot(cx, cy);
+  let html = '';
+  for (let r = 0; r < ROWS; r += 1) {
+    for (let c = 0; c < COLS; c += 1) {
+      const d = Math.hypot(c - cx, r - cy) / maxD; // 0 at the centre, 1 at the corners
+      const delay = `${(d * 0.7).toFixed(3)}s`;
+      const colour = palette[Math.floor(Math.random() * palette.length)];
+      html += `<i class="rescue-tile" style="--c:${colour};--dIn:${delay};--dOut:${delay}"></i>`;
+    }
+  }
+  fade.innerHTML = html;
+}
+
 function buildDom() {
   const root = document.createElement('section');
   root.className = 'rescue';
@@ -1696,6 +1717,7 @@ function buildDom() {
         <button type="button" data-key="fire" aria-label="جرقه">✦</button>
       </div>
     </div>`;
+  buildTiles(root.querySelector('.rescue-fade'));
   document.body.appendChild(root);
   return root;
 }
@@ -1774,6 +1796,9 @@ export function showHowTo({ onStart }) {
 // The caller then shows the next scene and calls reveal() to fade the black away.
 export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
   const root = buildDom();
+  // the game opens from the cover: the tiles start full and shrink away from the centre
+  root.classList.add('is-dark');
+  requestAnimationFrame(() => requestAnimationFrame(() => root.classList.remove('is-dark')));
   const canvas = root.querySelector('.rescue-canvas');
   const ctx = canvas.getContext('2d');
   const lostCard = root.querySelector('[data-card="lost"]');

@@ -57,6 +57,60 @@ function additive(map, opacity, color = '#ffffff') {
   });
 }
 
+// ---------- the castle door: a pink crystal flash when the couple walks through ----
+function crystalTexture() {
+  return canvasTexture(128, 128, (ctx, w, h) => {
+    const g = ctx.createRadialGradient(w / 2, h / 2, 0, w / 2, h / 2, w / 2);
+    g.addColorStop(0, 'rgba(255,255,255,1)');
+    g.addColorStop(0.3, 'rgba(255,190,225,0.7)');
+    g.addColorStop(1, 'rgba(255,150,200,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    // a four-point crystal star
+    ctx.fillStyle = 'rgba(255,255,255,0.95)';
+    ctx.beginPath();
+    ctx.moveTo(w / 2, 4);
+    ctx.lineTo(w / 2 + 10, h / 2 - 10);
+    ctx.lineTo(w - 4, h / 2);
+    ctx.lineTo(w / 2 + 10, h / 2 + 10);
+    ctx.lineTo(w / 2, h - 4);
+    ctx.lineTo(w / 2 - 10, h / 2 + 10);
+    ctx.lineTo(4, h / 2);
+    ctx.lineTo(w / 2 - 10, h / 2 - 10);
+    ctx.closePath();
+    ctx.fill();
+  });
+}
+
+function buildDoorFlash(scene) {
+  const mat = new THREE.SpriteMaterial({
+    map: crystalTexture(),
+    color: '#ffc4e1',
+    transparent: true,
+    opacity: 0,
+    depthWrite: false,
+    blending: THREE.AdditiveBlending,
+    fog: false,
+  });
+  const sprite = new THREE.Sprite(mat);
+  sprite.position.set(0, 1.6, 0.14); // just inside the doorway
+  sprite.scale.setScalar(0.6);
+  scene.add(sprite);
+  let life = 0;
+  return {
+    burst() {
+      life = 1;
+    },
+    update(dt) {
+      if (life <= 0) return;
+      life = Math.max(0, life - dt * 0.9);
+      const grow = 1 - life; // the star grows as it fades
+      sprite.scale.setScalar(0.6 + grow * 2.4);
+      mat.opacity = life * 0.9;
+    },
+  };
+}
+
 // ---------- heartbeat and falling hearts -------------------------------------
 // A soft heartbeat (lub-dub) for the light behind the envelope
 function heartbeat(t) {
@@ -535,6 +589,7 @@ export function buildDecor(scene, { hero }) {
   buildShafts(scene);
   const dust = buildDust(scene);
   const envelopeGlow = buildEnvelopeGlow(scene);
+  const doorFlash = buildDoorFlash(scene);
   const fountain = buildFountain(scene);
   buildFlowers(scene);
   const creatures = buildCreatures(scene);
@@ -548,6 +603,11 @@ export function buildDecor(scene, { hero }) {
   const emitTimer = { acc: 0 };
 
   return {
+    // walking through the castle door: a crystal flash and a shower of petals
+    doorBurst() {
+      doorFlash.burst();
+      petals.burst(0, 1.3, 0.3, 28);
+    },
     // the butterflies, so the cats can chase them
     butterflies: creatures.filter((c) => c.kind === 'butterfly').map((c) => c.group),
     // called when the envelope opens: a shower of hearts falls over the envelope
@@ -568,6 +628,7 @@ export function buildDecor(scene, { hero }) {
       }
       dp.needsUpdate = true;
       envelopeGlow.material.opacity = 0.22 + 0.16 * heartbeat(t);
+      doorFlash.update(dt);
       shower.update(dt);
 
       fountain.update(t, dt);
