@@ -163,10 +163,9 @@ function beginRescue() {
   rescue = createRescueGame({
     onDone: finishRescue,
     autoStart: true,
-    onGate: () => {
-      audio.static();
-      audio.startSong();
-    },
+    onGate: () => audio.static(),
+    onChime: () => audio.chime(),
+    onPeak: () => audio.startSong(),
   });
   if (import.meta.env.DEV) window.__rescue = rescue;
 }

@@ -2,6 +2,8 @@
 // the boy climbs the dark castle, defeats the dragon with magic sparkles,
 // frees the princess and runs with her out of the falling castle to the gate.
 // onDone() is called once the game is won (or skipped); the intro plays after it.
+// The ending: the picture cools and slows, onChime() sounds, a pink bloom covers the screen,
+// onPeak() runs as it fills the screen (the intro music starts there), then onDone().
 
 import { sfx } from './sfx.js';
 
@@ -26,6 +28,8 @@ const GATE_X = 4150;
 const EXIT_DELAY = 1.2;
 const GLITCH_S = 1.2; // the broken-signal burst at the gate, before the fade
 const FADE_MS = 1800;
+// The ending timeline, in seconds from the win
+const ENDING = { CHIME_AT: 0.9, DONE_AT: 2.15, SLOW: 0.3, SLOW_IN: 0.9 };
 // The golden hair the boy climbs: from the high balcony down to the ground
 // Two golden braids to climb: the first up the stage-1 tower to the balcony,
 // the second up the princess's tower
@@ -1677,6 +1681,7 @@ function buildDom() {
   root.innerHTML = `
     <canvas class="rescue-canvas" aria-hidden="true"></canvas>
     <div class="rescue-fade" aria-hidden="true"></div>
+    <div class="rescue-bloom" aria-hidden="true"></div>
     <div class="rescue-card" data-card="lost" hidden>
       <div class="rescue-card-inner">
         <h2>پرنسس منتظر است</h2>
@@ -1772,7 +1777,7 @@ export function showHowTo({ onStart }) {
 
 // Plays the game. onDone() runs once the screen has gone black after the win (or a skip).
 // The caller then shows the next scene and calls reveal() to fade the black away.
-export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
+export function createRescueGame({ onDone, autoStart = false, onGate = null, onChime = null, onPeak = null }) {
   const root = buildDom();
   const canvas = root.querySelector('.rescue-canvas');
   const ctx = canvas.getContext('2d');
@@ -1790,6 +1795,8 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
   let offX = 0;
   let offY = 0;
   let exiting = false;
+  let ending = false; // the pink ending after the win
+  let endAt = 0;
   let detached = false;
   let raf = 0;
   let last = 0;
@@ -1819,7 +1826,7 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
 
   function syncUi() {
     const playing = g.phase === 'play';
-    skipBtn.hidden = exiting || !(playing || g.phase === 'won');
+    skipBtn.hidden = exiting || ending || !(playing || g.phase === 'won');
     touch.hidden = exiting || !(coarse && playing);
     lostCard.hidden = g.phase !== 'lost';
   }
@@ -1859,7 +1866,9 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
     if (!btn) return;
     const action = btn.dataset.action;
     if (action === 'retry') retry();
-    else if (action === 'skip') exitToIntro(true);
+    else if (action === 'skip') {
+      if (!ending) exitToIntro(true);
+    }
   }
 
   function onPointerDown(e) {
@@ -1912,7 +1921,7 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
     }
     pressed.jump = false;
     pressed.fire = false;
-    if (g.phase === 'won' && g.endT >= EXIT_DELAY) exitToIntro(false);
+    if (g.phase === 'won' && g.endT >= EXIT_DELAY) beginEnding();
     syncUi();
   }
 
@@ -1923,9 +1932,42 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
     // Phones held upright: ask for landscape and pause the game
     const upright = coarse && window.innerHeight > window.innerWidth;
     rotateCard.hidden = !upright;
-    if (!upright) tick(dt);
+    if (!upright) tick(dt * slowFactor());
     draw();
     if (!exiting) raf = requestAnimationFrame(loop);
+  }
+
+  // After the win the game slows down; 1 is normal speed
+  function slowFactor() {
+    if (!ending) return 1;
+    const k = Math.min(1, (performance.now() - endAt) / (ENDING.SLOW_IN * 1000));
+    return 1 - (1 - ENDING.SLOW) * k;
+  }
+
+  // The pink ending: the picture cools and slows, a chime sounds, and the bloom (see style.css) covers the screen
+  function beginEnding() {
+    if (exiting || ending) return;
+    ending = true;
+    endAt = performance.now();
+    root.classList.add('is-ending');
+    syncUi();
+    window.setTimeout(() => {
+      if (!exiting && onChime) onChime();
+    }, ENDING.CHIME_AT * 1000);
+    window.setTimeout(finishEnding, ENDING.DONE_AT * 1000);
+  }
+
+  // The bloom covers the screen: the intro music starts, then the intro takes over
+  function finishEnding() {
+    if (exiting) return;
+    exiting = true;
+    g.phase = 'done';
+    cancelAnimationFrame(raf);
+    releaseAll();
+    detach();
+    syncUi();
+    if (onPeak) onPeak();
+    if (onDone) onDone();
   }
 
   // Fade the screen to black, then hand over to the next scene
@@ -1941,6 +1983,7 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
     syncUi();
     draw();
     window.setTimeout(() => {
+      if (onPeak) onPeak();
       if (onDone) onDone();
     }, quick ? 700 : FADE_MS + 200);
   }
