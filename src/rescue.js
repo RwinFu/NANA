@@ -4,6 +4,7 @@
 // onDone() is called once the game is won (or skipped); the intro plays after it.
 
 import { sfx } from './sfx.js';
+import { VICTORY_WALK_START, VICTORY_GATE_CUE, VICTORY_EXIT, PORTAL_ZOOM_START, portalZoom, portalCharacterOpacity, ROCK_WARNING, ledgeX, helpAfterLoss } from './rescue-timing.js';
 
 const W = 960;
 const H = 540;
@@ -23,7 +24,6 @@ const BARRIER_X = 2180;
 const TOWER = { x0: 2080, x1: 2260, top: 150 };
 const PRINCESS_AT = { x: 2180, y: 150 };
 const GATE_X = 4150;
-const EXIT_DELAY = 1.2;
 const GLITCH_S = 1.2; // the broken-signal burst at the gate, before the fade
 const FADE_MS = 1800;
 // The golden hair the boy climbs: from the high balcony down to the ground
@@ -41,8 +41,8 @@ const CAT_STYLE = {
   ani: { base: '#8a6a4c', stripe: '#3a2a1e', eye: '#7fa35a', name: 'آنی' },
 };
 const CAT_IMAGES = {
-  pastil: loadImage('/cats/pastil.jpg'),
-  ani: loadImage('/cats/ani.jpg'),
+  pastil: loadImage(`${(import.meta.env?.BASE_URL || '/')}cats/pastil.jpg`),
+  ani: loadImage(`${(import.meta.env?.BASE_URL || '/')}cats/ani.jpg`),
 };
 const FONT = '"Vazirmatn Variable", Vazirmatn, sans-serif';
 
@@ -57,7 +57,8 @@ const LEDGES = [
   { x: 1420, y: 360, w: 260 }, // bridge over the pit
   { x: 620, y: 150, w: 200 }, // the high balcony, reached by the golden hair
   { x: 2030, y: 150, w: 230 }, // the top of the princess's tower
-  { x: 2620, y: 340, w: 160 },
+  { x: 2400, y: 345, w: 100 }, // safe optional spot to practise the double jump
+  { x: 2620, y: 340, w: 160, sway: 32, speed: 0.65 }, // optional slow-moving platform
   { x: 3000, y: 280, w: 170 },
   { x: 3500, y: 350, w: 170 },
 ];
@@ -152,7 +153,7 @@ function newState() {
     msg: '',
     msgT: 0,
     p: { x: 40, y: GROUND_Y, vx: 0, vy: 0, facing: 1, onGround: true, phase: 0, inv: 0, coyote: 0, jumpBuf: 0, fireCd: 0, climb: false, usedDouble: false },
-    dragon: { x: 1500, y: 150, hp: DRAGON_HITS, state: 'fight', active: false, alpha: 1, flap: 0, hit: 0, fireT: 1.5 },
+    dragon: { x: 1500, y: 150, hp: DRAGON_HITS, state: 'fight', active: false, alpha: 1, flap: 0, hit: 0, fireT: 1.5, surprise: 0 },
     princess: { x: PRINCESS_AT.x, y: PRINCESS_AT.y, state: 'captive', facing: 1, phase: 0, moving: 0 },
     fire: [],
     sparks: [],
@@ -161,8 +162,8 @@ function newState() {
     parts: [],
     ropeTaught: false,
     cats: {
-      ani: { freed: false, x: CAT_AT.ani.x, y: CAT_AT.ani.y },
-      pastil: { freed: false, x: CAT_AT.pastil.x, y: CAT_AT.pastil.y },
+      ani: { freed: false, x: CAT_AT.ani.x, y: CAT_AT.ani.y, reaction: 0 },
+      pastil: { freed: false, x: CAT_AT.pastil.x, y: CAT_AT.pastil.y, reaction: 0 },
     },
     abilities: { doubleJump: false, rapid: false },
   };
@@ -183,7 +184,10 @@ function burst(g, x, y, color, n, speed, star = false) {
 
 function solidsFor(g) {
   const list = GROUND.map(([a, b]) => ({ x0: a, x1: b, y0: GROUND_Y, y1: GROUND_Y + 220 }));
-  for (const l of LEDGES) list.push({ x0: l.x, x1: l.x + l.w, y0: l.y, y1: l.y + 26 });
+  for (const l of LEDGES) {
+    const x = ledgeX(l, g.t);
+    list.push({ x0: x, x1: x + l.w, y0: l.y, y1: l.y + 26 });
+  }
   list.push({ x0: TOWER.x0, x1: TOWER.x1, y0: TOWER.top, y1: GROUND_Y + 220 });
   return list;
 }
@@ -257,8 +261,8 @@ function update(g, dt, input, pressed) {
   // Input. After the win the boy walks in through the gate and stops inside it.
   let dir = 0;
   if (playing) dir = (input.right ? 1 : 0) - (input.left ? 1 : 0);
-  else if (g.phase === 'won' && p.x < GATE_X + 90) dir = 1;
-  p.vx += (dir * RUN_SPEED - p.vx) * Math.min(1, dt * 12);
+  else if (g.phase === 'won' && g.endT >= VICTORY_WALK_START && p.x < GATE_X + 120) dir = 1;
+  p.vx += (dir * (playing ? RUN_SPEED : 70) - p.vx) * Math.min(1, dt * 12);
   if (dir) p.facing = dir;
   p.coyote = p.onGround ? 0.12 : p.coyote - dt;
   p.jumpBuf = pressed.jump && playing ? 0.12 : p.jumpBuf - dt;
@@ -274,7 +278,7 @@ function update(g, dt, input, pressed) {
   }
 
   p.fireCd = Math.max(0, p.fireCd - dt);
-  if (playing && pressed.fire && p.fireCd <= 0) {
+  if (playing && (pressed.fire || (g.abilities.rapid && input.fire)) && p.fireCd <= 0) {
     p.fireCd = g.abilities.rapid ? 0.16 : 0.35;
     spark(g);
   }
@@ -316,6 +320,16 @@ function update(g, dt, input, pressed) {
       burst(g, p.x, p.y, '#cfe9ff', 8, 120);
       burst(g, p.x, p.y, '#fff4c2', 10, 220, true);
       sfx.play('jump2');
+    }
+    // Carry the player by the same displacement used for drawing the platform.
+    if (p.onGround) {
+      for (const ledge of LEDGES) {
+        if (!ledge.sway) continue;
+        const prev = ledgeX(ledge, g.t - dt);
+        if (Math.abs(p.y - ledge.y) < 1 && p.x + HALF_W > prev && p.x - HALF_W < prev + ledge.w) {
+          p.x += ledgeX(ledge, g.t) - prev;
+        }
+      }
     }
     // Physics: horizontal, then vertical
     const solids = solidsFor(g);
@@ -367,10 +381,10 @@ function update(g, dt, input, pressed) {
   updatePrincess(g, dt);
   updateCats(g, dt);
 
-  if (playing && g.rescued && g.cats.pastil.freed && g.cats.ani.freed && p.x >= GATE_X) {
+  if (playing && g.rescued && g.cats.pastil.freed && g.cats.ani.freed && p.x >= GATE_X - 25) {
     g.phase = 'won';
     g.endT = 0;
-    say(g, 'نجات یافتی! پرنسس و پسرش با هم از قلعه بیرون رفتند', 99);
+    g.msgT = 0;
   }
 
   g.camX = Math.max(0, Math.min(LEVEL_W - W, p.x - 330));
@@ -385,19 +399,21 @@ function updateCats(g, dt) {
 
   if (!an.freed && Math.abs(p.x - CAT_AT.ani.x) < 60 && Math.abs(p.y - CAT_AT.ani.y) < 56) {
     an.freed = true;
+    an.reaction = 3;
     g.abilities.rapid = true;
     g.shake = 0.4;
     sfx.play('chime');
     burst(g, CAT_AT.ani.x, CAT_AT.ani.y - 30, '#ffd66b', 26, 260);
-    say(g, 'آنی نجات یافت! جرقه‌هایت سریع‌تر شدند', 3.4);
+    say(g, 'آنی نجات یافت! دکمه‌ی جرقه را نگه دار تا سریع‌تر شلیک کنی', 4.5);
   }
   if (!pa.freed && g.cageOpen && Math.abs(p.x - CAT_AT.pastil.x) < 64) {
     pa.freed = true;
+    pa.reaction = 3;
     g.abilities.doubleJump = true;
     g.shake = 0.4;
     sfx.play('chime');
     burst(g, CAT_AT.pastil.x, CAT_AT.pastil.y - 30, '#ff8fb8', 26, 260);
-    say(g, 'پاستیل نجات یافت! حالا می‌توانی دوباره در هوا بپری', 3.4);
+    say(g, 'پاستیل نجات یافت! در هوا دوباره دکمه‌ی پرش را بزن', 4.5);
   }
 
   if (g.phase === 'play' && g.rescued && p.x >= GATE_X - 120 && (!an.freed || !pa.freed) && g.msgT <= 0) {
@@ -405,10 +421,14 @@ function updateCats(g, dt) {
     say(g, `${missing} هنوز اسیر است! برو و نجاتش بده`, 2.4);
   }
 
-  // Freed cats follow the boy
+  an.reaction = Math.max(0, an.reaction - dt);
+  pa.reaction = Math.max(0, pa.reaction - dt);
+  // Freed cats follow the boy. Ani briefly plays with a nearby spark after rescue.
   const followX = (back) => p.x - back * p.facing;
   if (an.freed) {
-    an.x += (followX(40) - an.x) * Math.min(1, dt * 5);
+    const toy = an.reaction > 0 ? g.sparks.find((spark) => Math.abs(spark.x - p.x) < 120) : null;
+    const target = toy ? Math.max(p.x - 70, Math.min(p.x + 70, toy.x)) : followX(40);
+    an.x += (target - an.x) * Math.min(1, dt * 5);
     an.y += (p.y - an.y) * Math.min(1, dt * 8);
   }
   if (pa.freed) {
@@ -442,9 +462,11 @@ function updateDragon(g, dt) {
   const p = g.p;
   d.flap += dt * 5;
   d.hit = Math.max(0, d.hit - dt);
+  d.surprise = Math.max(0, d.surprise - dt);
+  if (d.state === 'fight' && g.sparks.some((s) => Math.hypot(s.x - d.x, s.y - d.y) < 150)) d.surprise = 0.3;
   if (d.state === 'fled') {
     d.y -= 140 * dt;
-    d.x += 40 * dt;
+    d.x += (100 + Math.sin(g.t * 16) * 35) * dt;
     d.alpha = Math.max(0, d.alpha - 0.5 * dt);
     return;
   }
@@ -512,11 +534,12 @@ function updateRocks(g, dt) {
     if (g.rockT <= 0) {
       g.rockT = 1.15 + Math.random() * 0.45;
       const x = Math.max(BARRIER_X + 40, Math.min(LEVEL_W - 60, p.x + (Math.random() - 0.25) * 420));
-      g.rocks.push({ x, y: -140, vy: 120, landed: false, landT: 0.6 });
+      g.rocks.push({ x, y: -140, vy: 120, landed: false, landT: 0.6, warning: ROCK_WARNING });
     }
   }
   for (const r of g.rocks) {
     if (!r.landed) {
+      if (r.warning > 0) { r.warning -= dt; continue; }
       r.vy += 520 * dt;
       r.y += r.vy * dt;
       if (!r.landed && Math.abs(r.x - p.x) < 22 && r.y > p.y - BODY_H && r.y < p.y + 4) {
@@ -591,7 +614,9 @@ function drawSky(ctx, g, t) {
   ctx.fillStyle = sky;
   ctx.fillRect(0, 0, W, H);
 
-  // Moon behind the clouds
+  // Moon moves more slowly than the clouds and towers.
+  ctx.save();
+  ctx.translate(-g.camX * 0.025, 0);
   const moon = ctx.createRadialGradient(740, 96, 10, 740, 96, 120);
   moon.addColorStop(0, 'rgba(255,236,200,0.45)');
   moon.addColorStop(1, 'rgba(255,236,200,0)');
@@ -606,6 +631,8 @@ function drawSky(ctx, g, t) {
   ctx.arc(728, 88, 7, 0, Math.PI * 2);
   ctx.arc(752, 106, 5, 0, Math.PI * 2);
   ctx.fill();
+
+  ctx.restore();
 
   // Stars: they drift very slowly to the left, and twinkle
   for (const s of STARS) {
@@ -701,6 +728,8 @@ function drawBats(ctx, t) {
 }
 
 function drawWall(ctx, g, t) {
+  ctx.save();
+  ctx.translate(-g.camX, 0);
   const camX = g.camX;
   const x0 = Math.floor((camX - 160) / 160) * 160;
   for (let x = x0; x < camX + W + 160; x += 160) {
@@ -710,6 +739,13 @@ function drawWall(ctx, g, t) {
     for (let y = 60; y < GROUND_Y; y += 40) {
       ctx.fillRect(x, y, 160, 2);
       ctx.fillRect(x + ((y / 40) % 2) * 40, y, 2, 40);
+    }
+    // A tiny blue-and-pink heart woven into the old stone: a quiet story hint.
+    if (Math.floor(x / 160) % 4 === 1) {
+      ctx.fillStyle = 'rgba(255,143,184,0.18)';
+      heartShape(ctx, x + 80, 300, 7); ctx.fill();
+      ctx.fillStyle = 'rgba(90,150,210,0.18)';
+      ctx.fillRect(x + 66, 318, 28, 3);
     }
     // a tall arched window with cold light, every other block
     if (Math.floor(x / 160) % 2 === 0) {
@@ -809,9 +845,10 @@ function drawWall(ctx, g, t) {
     ctx.ellipse(x, 230, 3, 6 + flick * 0.5, 0, 0, Math.PI * 2);
     ctx.fill();
   }
+  ctx.restore();
 }
 
-function drawFloor(ctx) {
+function drawFloor(ctx, g) {
   // Pits between the ground segments
   for (let i = 0; i < GROUND.length - 1; i += 1) {
     const a = GROUND[i][1];
@@ -832,12 +869,13 @@ function drawFloor(ctx) {
     for (let y = GROUND_Y + 40; y < H; y += 46) ctx.fillRect(a, y, b - a, 2);
   }
   for (const l of LEDGES) {
+    const x = ledgeX(l, g.t);
     ctx.fillStyle = '#4d3868';
-    ctx.fillRect(l.x, l.y, l.w, 26);
+    ctx.fillRect(x, l.y, l.w, 26);
     ctx.fillStyle = '#b294d9';
-    ctx.fillRect(l.x, l.y, l.w, 3);
+    ctx.fillRect(x, l.y, l.w, 3);
     ctx.fillStyle = '#2a1d3c';
-    ctx.fillRect(l.x, l.y + 20, l.w, 6);
+    ctx.fillRect(x, l.y + 20, l.w, 6);
   }
 }
 
@@ -884,6 +922,38 @@ function drawBarrier(ctx, g, t) {
   }
 }
 
+// The same night scene is used in the doorway and as it expands over the screen.
+function drawGateNight(ctx, x, t, zoom = 1) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(x + 14, GROUND_Y);
+  ctx.lineTo(x + 14, 230);
+  ctx.arc(x + 60, 230, 46, Math.PI, 0);
+  ctx.lineTo(x + 106, GROUND_Y);
+  ctx.closePath();
+  ctx.clip();
+  const sky = ctx.createLinearGradient(0, 184, 0, GROUND_Y);
+  sky.addColorStop(0, '#11132f');
+  sky.addColorStop(0.48, '#35224f');
+  sky.addColorStop(1, '#a45380');
+  ctx.fillStyle = sky;
+  ctx.fillRect(x + 14, 184, 92, GROUND_Y - 184);
+  for (let i = 0; i < 22; i += 1) {
+    const sx = x + 18 + (i * 37 % 84);
+    const sy = 205 + (i * 53 % 180);
+    ctx.fillStyle = `rgba(255,225,241,${0.35 + 0.25 * Math.sin(t * 1.8 + i)})`;
+    // The stars remain delicate points as the sky expands, not pixel blocks.
+    ctx.beginPath();
+    ctx.arc(sx, sy, (i % 5 === 0 ? 1.2 : 0.7) / zoom, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(255,224,235,0.78)';
+  ctx.beginPath();
+  ctx.arc(x + 73, 238, 9, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
 function drawGate(ctx, g, t) {
   const x = GATE_X;
   ctx.fillStyle = '#3a2a52';
@@ -895,19 +965,13 @@ function drawGate(ctx, g, t) {
   ctx.closePath();
   ctx.fill();
   if (g.rescued) {
-    const glow = ctx.createRadialGradient(x + 60, 330, 10, x + 60, 330, 170);
-    glow.addColorStop(0, `rgba(255,220,140,${(0.55 + 0.12 * Math.sin(t * 3)).toFixed(3)})`);
-    glow.addColorStop(1, 'rgba(255,220,140,0)');
+    // A little window onto the same rose-and-indigo night beyond the castle.
+    const glow = ctx.createRadialGradient(x + 60, 315, 10, x + 60, 315, 150);
+    glow.addColorStop(0, 'rgba(212,126,189,0.23)');
+    glow.addColorStop(1, 'rgba(126,91,179,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(x - 100, 120, 320, 330);
-    ctx.fillStyle = '#ffe6a8';
-    ctx.beginPath();
-    ctx.moveTo(x + 14, GROUND_Y);
-    ctx.lineTo(x + 14, 230);
-    ctx.arc(x + 60, 230, 46, Math.PI, 0);
-    ctx.lineTo(x + 106, GROUND_Y);
-    ctx.closePath();
-    ctx.fill();
+    drawGateNight(ctx, x, t);
   } else {
     ctx.strokeStyle = '#8a7fa0';
     ctx.lineWidth = 3;
@@ -1075,6 +1139,7 @@ function drawDragon(ctx, d, t) {
   ctx.save();
   ctx.globalAlpha = d.alpha;
   ctx.translate(d.x, d.y);
+  if (d.state === 'fled') ctx.rotate(Math.sin(t * 18) * 0.09);
   const flap = Math.sin(d.flap);
   // Wings behind the body
   ctx.fillStyle = '#2d1640';
@@ -1179,12 +1244,20 @@ function drawDragon(ctx, d, t) {
   eyeGlow.addColorStop(1, 'rgba(255,61,90,0)');
   ctx.fillStyle = eyeGlow;
   ctx.fillRect(-134, -68, 36, 36);
-  ctx.fillStyle = '#ff3d5a';
+  const surprised = d.surprise > 0 || d.state === 'fled';
+  ctx.fillStyle = surprised ? '#fff8ed' : '#ffb5be';
   ctx.beginPath();
-  ctx.ellipse(-116, -50, 6, 5, 0, 0, Math.PI * 2);
+  ctx.ellipse(-116, -50, surprised ? 8 : 6, surprised ? 8 : 5, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = '#12000a';
-  ctx.fillRect(-117, -54, 2, 8);
+  ctx.fillStyle = '#29122f';
+  ctx.beginPath(); ctx.arc(-117, -50, surprised ? 2.5 : 2, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#29122f'; ctx.lineWidth = 2.5; ctx.beginPath();
+  if (d.fireT < 0.7 && d.state === 'fight') {
+    ctx.moveTo(-125, -61); ctx.lineTo(-109, -57); // playful pre-attack frown
+  } else {
+    ctx.arc(-116, -58, 8, Math.PI * 1.12, Math.PI * 1.88);
+  }
+  ctx.stroke();
   // Hit flash
   if (d.hit > 0) {
     ctx.fillStyle = `rgba(255,255,255,${(d.hit * 2).toFixed(3)})`;
@@ -1423,6 +1496,13 @@ function drawCatCage(ctx, cx, baseY, opened) {
   }
 }
 
+function drawEnteringCharacter(ctx, g, x, draw) {
+  ctx.save();
+  if (g.phase === 'won') ctx.globalAlpha = portalCharacterOpacity(x, GATE_X);
+  draw();
+  ctx.restore();
+}
+
 function drawCats(ctx, g, t) {
   const an = g.cats.ani;
   const pa = g.cats.pastil;
@@ -1437,8 +1517,8 @@ function drawCats(ctx, g, t) {
     drawCatSprite(ctx, 'pastil', CAT_AT.pastil.x, CAT_AT.pastil.y - 6, -1, t, !g.cageOpen);
   }
   // Freed cats run after the boy
-  if (an.freed) drawCatSprite(ctx, 'ani', an.x, an.y - 6, g.p.facing, t, false);
-  if (pa.freed) drawCatSprite(ctx, 'pastil', pa.x, pa.y - 6, g.p.facing, t, false);
+  if (an.freed) drawEnteringCharacter(ctx, g, an.x, () => drawCatSprite(ctx, 'ani', an.x, an.y - 6, an.reaction > 0 && g.sparks.length ? Math.sign(g.sparks[0].x - an.x) || 1 : g.p.facing, t, false));
+  if (pa.freed) drawEnteringCharacter(ctx, g, pa.x, () => drawCatSprite(ctx, 'pastil', pa.x, pa.y - 6, pa.reaction > 1 ? (Math.sign(g.p.x - pa.x) || g.p.facing) : g.p.facing, t, false));
 }
 
 // Chips at the top left: the ability and the cat who gave it
@@ -1521,6 +1601,18 @@ function drawSparks(ctx, g) {
 
 function drawRocks(ctx, g) {
   for (const r of g.rocks) {
+    if (r.warning > 0) {
+      ctx.fillStyle = `rgba(255, 172, 130, ${0.35 + 0.2 * Math.sin(g.t * 20)})`;
+      ctx.beginPath();
+      ctx.ellipse(r.x, GROUND_Y - 3, 22, 5, 0, 0, Math.PI * 2);
+      ctx.fill();
+      ctx.save();
+      ctx.translate(r.x + Math.sin(g.t * 38) * 3, 45);
+      ctx.fillStyle = '#b9a2bf';
+      ctx.beginPath(); ctx.arc(0, 0, 9, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+      continue;
+    }
     if (!r.landed) {
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
       ctx.beginPath();
@@ -1635,18 +1727,28 @@ function render(ctx, g, t) {
   ctx.save();
   ctx.translate(-g.camX + (g.shake > 0 ? (Math.random() - 0.5) * g.shake * 16 : 0), g.shake > 0 ? (Math.random() - 0.5) * g.shake * 10 : 0);
   drawTower(ctx);
-  drawFloor(ctx);
+  drawFloor(ctx, g);
   drawGate(ctx, g, t);
   for (const r of ROPES) drawRope(ctx, t, r);
-  drawPrincess(ctx, g.princess, t);
+  // The doorway is a threshold: once a character crosses its near edge,
+  // hide the part inside and beyond it, so nobody reappears on the far side.
+  ctx.save();
+  if (g.phase === 'won') {
+    ctx.beginPath();
+    ctx.rect(-1000, -1000, LEVEL_W + 2000, H + 2000);
+    ctx.rect(GATE_X + 14, 184, LEVEL_W + 1000, GROUND_Y - 174);
+    ctx.clip('evenodd');
+  }
+  drawEnteringCharacter(ctx, g, g.princess.x, () => drawPrincess(ctx, g.princess, t));
   drawCage(ctx, g, t);
   drawCats(ctx, g, t);
   drawDragon(ctx, g.dragon, t);
   drawFire(ctx, g);
   drawRocks(ctx, g);
-  drawBoy(ctx, g.p, t);
+  drawEnteringCharacter(ctx, g, g.p.x, () => drawBoy(ctx, g.p, t));
   drawSparks(ctx, g);
   drawParts(ctx, g);
+  ctx.restore(); // doorway clipping
   ctx.restore();
   if (g.flash > 0) {
     ctx.fillStyle = `rgba(230,220,255,${(g.flash * 0.45).toFixed(3)})`;
@@ -1659,12 +1761,27 @@ function render(ctx, g, t) {
     ctx.fillStyle = 'rgba(5,4,13,0.6)';
     ctx.fillRect(0, 0, W, H);
   }
-  if (g.phase === 'won') {
-    ctx.textAlign = 'center';
-    ctx.font = `800 44px ${FONT}`;
-    ctx.fillStyle = '#ffd66b';
-    ctx.fillText('نجات یافتی!', W / 2, 180);
-    ctx.textAlign = 'left';
+  if (g.phase === 'won' && g.endT < VICTORY_GATE_CUE && g.p.x < GATE_X + 14) {
+    ctx.save();
+    ctx.translate(-g.camX, 0);
+    ctx.fillStyle = `rgba(255,143,184,${0.65 + 0.2 * Math.sin(g.t * 4)})`;
+    heartShape(ctx, g.p.x - 20, g.p.y - 86 - Math.sin(g.t * 2) * 3, 8);
+    ctx.fill();
+    ctx.restore();
+  }
+  if (g.phase === 'won' && g.endT >= PORTAL_ZOOM_START) {
+    // Grow the actual doorway scene around its centre, rather than fading in
+    // an unrelated full-screen overlay. The camera is already settled here.
+    const zoom = portalZoom(g.endT);
+    const cx = GATE_X + 60 - g.camX;
+    const cy = 307;
+    ctx.save();
+    ctx.translate(cx, cy);
+    ctx.scale(zoom, zoom);
+    ctx.translate(-cx, -cy);
+    ctx.translate(-g.camX, 0);
+    drawGateNight(ctx, GATE_X, t, zoom);
+    ctx.restore();
   }
 }
 
@@ -1681,8 +1798,9 @@ function buildDom() {
     <div class="rescue-card" data-card="lost" hidden>
       <div class="rescue-card-inner">
         <h2>پرنسس منتظر است</h2>
-        <p>اژدها کمی زورش آمد. دوباره تلاش کن، این بار محکم‌تر!</p>
-        <button type="button" class="rescue-btn" data-action="retry">دوباره تلاش کن</button>
+        <p data-loss-help>از آخرین نقطه‌ی امن ادامه بده.</p>
+        <button type="button" class="rescue-btn" data-action="retry">ادامه از نقطه‌ی امن</button>
+        <button type="button" class="rescue-retry-skip" data-action="skip" hidden>رد کردن این مرحله</button>
       </div>
     </div>
     <button type="button" class="rescue-skip" data-action="skip" hidden>رد کردن</button>
@@ -1779,6 +1897,8 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
   const ctx = canvas.getContext('2d');
   const lostCard = root.querySelector('[data-card="lost"]');
   const skipBtn = root.querySelector('.rescue-skip');
+  const lostHelp = root.querySelector('[data-loss-help]');
+  const lostSkip = root.querySelector('.rescue-retry-skip');
   const touch = root.querySelector('.rescue-touch');
   const rotateCard = root.querySelector('.rescue-rotate');
   const coarse = window.matchMedia('(pointer: coarse)').matches;
@@ -1794,6 +1914,7 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
   let detached = false;
   let raf = 0;
   let last = 0;
+  let failures = 0;
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -1820,9 +1941,13 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
 
   function syncUi() {
     const playing = g.phase === 'play';
-    skipBtn.hidden = exiting || !(playing || g.phase === 'won');
+    skipBtn.hidden = exiting || !(playing || (g.phase === 'won' && g.endT < PORTAL_ZOOM_START));
     touch.hidden = exiting || !(coarse && playing);
     lostCard.hidden = g.phase !== 'lost';
+    if (g.phase === 'lost') {
+      lostHelp.textContent = helpAfterLoss(failures, g.checkpoint);
+      lostSkip.hidden = failures < 2;
+    }
   }
 
   function setKey(key, down) {
@@ -1904,16 +2029,17 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
   // One simulation step
   let gateFired = false;
   function tick(dt) {
+    const previousPhase = g.phase;
     update(g, dt, input, pressed);
+    if (previousPhase !== 'lost' && g.phase === 'lost') failures += 1;
     if (g.glitch > 0) g.glitch = Math.max(0, g.glitch - dt);
-    if (!gateFired && g.phase === 'won') {
+    if (!gateFired && g.phase === 'won' && g.endT >= VICTORY_GATE_CUE) {
       gateFired = true;
-      g.glitch = GLITCH_S;
       if (onGate) onGate();
     }
     pressed.jump = false;
     pressed.fire = false;
-    if (g.phase === 'won' && g.endT >= EXIT_DELAY) exitToIntro(false);
+    if (g.phase === 'won' && g.endT >= VICTORY_EXIT) exitToIntro(false);
     syncUi();
   }
 
@@ -1925,8 +2051,10 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
     const upright = coarse && window.innerHeight > window.innerWidth;
     rotateCard.hidden = !upright;
     if (!upright) tick(dt);
-    draw();
-    if (!exiting) raf = requestAnimationFrame(loop);
+    if (!exiting) {
+      draw();
+      raf = requestAnimationFrame(loop);
+    }
   }
 
   // The winning scene dissolves into the same deep night as the castle.
@@ -1966,9 +2094,17 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
   function retry() {
     if (exiting) return;
     releaseAll();
-    g = newState();
+    if (g.phase !== 'lost') return;
     g.phase = 'play';
-    say(g, 'پرنسس منتظر است!', 2.2);
+    g.hearts = 3;
+    g.endT = 0;
+    g.fire = []; g.rocks = []; g.sparks = [];
+    g.rockT = 2.5;
+    g.dragon.fireT = Math.max(g.dragon.fireT, 1.5);
+    Object.assign(g.p, { x: g.checkpoint, y: GROUND_Y, vx: 0, vy: 0, onGround: true,
+      climb: false, inv: 2, coyote: 0, jumpBuf: 0, usedDouble: false });
+    pressed.jump = false; pressed.fire = false;
+    say(g, 'از آخرین نقطه‌ی امن ادامه بده!', 2.5);
     syncUi();
   }
 
@@ -1997,7 +2133,7 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
     },
     step(dt = 0.033, n = 1) {
       for (let i = 0; i < n; i += 1) tick(dt);
-      draw();
+      if (!exiting) draw();
     },
   };
 }
