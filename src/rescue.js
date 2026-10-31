@@ -70,6 +70,10 @@ const KEYMAP = {
   ArrowLeft: 'left', KeyA: 'left', ArrowRight: 'right', KeyD: 'right',
   ArrowUp: 'jump', KeyW: 'jump', Space: 'jump', KeyF: 'fire', KeyK: 'fire',
 };
+// Hidden skip Easter egg: type LOVE, or tap the three HUD hearts left-to-right.
+const SECRET_SKIP_KEYS = ['KeyL', 'KeyO', 'KeyV', 'KeyE'];
+const SECRET_HEART_X = [34, 68, 102];
+const SECRET_SEQUENCE_MS = 1800;
 
 // ---------- deterministic decoration ---------------------------------------
 
@@ -1820,10 +1824,8 @@ function buildDom() {
         <h2>پرنسس منتظر است</h2>
         <p data-loss-help>از آخرین نقطه‌ی امن ادامه بده.</p>
         <button type="button" class="rescue-btn" data-action="retry">ادامه از نقطه‌ی امن</button>
-        <button type="button" class="rescue-retry-skip" data-action="skip" hidden>رد کردن این مرحله</button>
       </div>
     </div>
-    <button type="button" class="rescue-skip" data-action="skip" hidden>رد کردن</button>
     <div class="rescue-rotate" hidden><p>گوشی را افقی کن تا بازی را بهتر ببینی</p></div>
     <div class="rescue-touch" hidden>
       <div class="rescue-touch-group">
@@ -1916,9 +1918,7 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
   const canvas = root.querySelector('.rescue-canvas');
   const ctx = canvas.getContext('2d');
   const lostCard = root.querySelector('[data-card="lost"]');
-  const skipBtn = root.querySelector('.rescue-skip');
   const lostHelp = root.querySelector('[data-loss-help]');
-  const lostSkip = root.querySelector('.rescue-retry-skip');
   const touch = root.querySelector('.rescue-touch');
   const rotateCard = root.querySelector('.rescue-rotate');
   const coarse = window.matchMedia('(pointer: coarse)').matches;
@@ -1935,6 +1935,10 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
   let raf = 0;
   let last = 0;
   let failures = 0;
+  let secretKeyIndex = 0;
+  let secretKeyAt = 0;
+  let secretHeartIndex = 0;
+  let secretHeartAt = 0;
 
   function resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -1959,15 +1963,76 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
     if (g.glitch > 0) drawGlitch(ctx, canvas, g.glitch / GLITCH_S);
   }
 
+  function canUseSecretSkip() {
+    return g.phase === 'play' || g.phase === 'lost' || (g.phase === 'won' && g.endT < PORTAL_ZOOM_START);
+  }
+
+  function triggerSecretSkip() {
+    if (exiting || !canUseSecretSkip()) return;
+    say(g, 'جادوی قلب‌ها پیدا شد! ✨', 1.6);
+    exitToIntro(true);
+  }
+
+  function readSecretKey(code) {
+    if (!canUseSecretSkip()) return false;
+    const now = performance.now();
+    if (secretKeyIndex > 0 && now - secretKeyAt > SECRET_SEQUENCE_MS) secretKeyIndex = 0;
+    if (code === SECRET_SKIP_KEYS[secretKeyIndex]) {
+      secretKeyIndex += 1;
+      secretKeyAt = now;
+      if (secretKeyIndex === SECRET_SKIP_KEYS.length) {
+        secretKeyIndex = 0;
+        return true;
+      }
+      return false;
+    }
+    secretKeyIndex = code === SECRET_SKIP_KEYS[0] ? 1 : 0;
+    secretKeyAt = secretKeyIndex ? now : 0;
+    return false;
+  }
+
+  function gamePoint(event) {
+    const rect = canvas.getBoundingClientRect();
+    if (!rect.width || !rect.height || !scale) return null;
+    const px = (event.clientX - rect.left) * (canvas.width / rect.width);
+    const py = (event.clientY - rect.top) * (canvas.height / rect.height);
+    return { x: (px - offX) / scale, y: (py - offY) / scale };
+  }
+
+  function readSecretHeartTap(event) {
+    if (!canUseSecretSkip() || event.type === 'pointercancel' || event.target.closest?.('button')) {
+      secretHeartIndex = 0;
+      return;
+    }
+    const point = gamePoint(event);
+    const heartIndex = point && point.y >= 10 && point.y <= 40
+      ? SECRET_HEART_X.findIndex((x) => Math.abs(point.x - x) <= 13)
+      : -1;
+    if (heartIndex < 0) {
+      secretHeartIndex = 0;
+      return;
+    }
+
+    const now = performance.now();
+    if (secretHeartIndex > 0 && now - secretHeartAt > SECRET_SEQUENCE_MS) secretHeartIndex = 0;
+    if (heartIndex === secretHeartIndex) {
+      secretHeartIndex += 1;
+      secretHeartAt = now;
+      if (secretHeartIndex === SECRET_HEART_X.length) {
+        secretHeartIndex = 0;
+        triggerSecretSkip();
+      }
+    } else {
+      secretHeartIndex = heartIndex === 0 ? 1 : 0;
+      secretHeartAt = secretHeartIndex ? now : 0;
+    }
+  }
+
   function syncUi() {
     const playing = g.phase === 'play';
-    skipBtn.hidden = exiting || !(playing || (g.phase === 'won' && g.endT < PORTAL_ZOOM_START));
     touch.hidden = exiting || !(coarse && playing);
     lostCard.hidden = g.phase !== 'lost';
-    if (g.phase === 'lost') {
-      lostHelp.textContent = helpAfterLoss(failures, g.checkpoint);
-      lostSkip.hidden = failures < 2;
-    }
+    if (g.phase === 'lost') lostHelp.textContent = helpAfterLoss(failures, g.checkpoint);
   }
 
   function setKey(key, down) {
@@ -1986,6 +2051,11 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
 
   function onKeyDown(e) {
     if (exiting) return;
+    if (!e.repeat && readSecretKey(e.code)) {
+      e.preventDefault();
+      triggerSecretSkip();
+      return;
+    }
     const isButton = !!e.target && e.target.tagName === 'BUTTON';
     if (isButton && (e.code === 'Space' || e.code === 'Enter')) return;
     const key = KEYMAP[e.code];
@@ -2005,7 +2075,6 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
     if (!btn) return;
     const action = btn.dataset.action;
     if (action === 'retry') retry();
-    else if (action === 'skip') exitToIntro(true);
   }
 
   function onPointerDown(e) {
@@ -2019,9 +2088,13 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
 
   function onPointerUp(e) {
     const key = pointerKeys.get(e.pointerId);
-    if (!key) return;
-    pointerKeys.delete(e.pointerId);
-    input[key] = false;
+    if (key) {
+      pointerKeys.delete(e.pointerId);
+      input[key] = false;
+      secretHeartIndex = 0;
+      return;
+    }
+    readSecretHeartTap(e);
   }
 
   function onVisibility() {
@@ -2086,6 +2159,7 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
     releaseAll();
     detach();
     syncUi();
+    lostCard.hidden = true;
     draw();
     g.phase = 'done';
     if (quick) {

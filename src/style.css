@@ -1063,20 +1063,6 @@ dialog h2 {
   color: #2a1020;
   box-shadow: 0 10px 30px rgba(255, 143, 184, 0.35);
 }
-.rescue-skip {
-  position: absolute;
-  left: 50%;
-  bottom: 14px;
-  transform: translateX(-50%);
-  font: inherit;
-  font-size: 14px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.25);
-  background: rgba(10, 6, 20, 0.5);
-  color: #ffe9f2;
-  cursor: pointer;
-}
 .rescue-touch {
   position: absolute;
   left: 0;
@@ -1236,16 +1222,4 @@ dialog.memory-sheet .chip:hover { background: rgba(158, 100, 105, .16); }
 dialog.letter-sheet .letter-body { border-block: 1px solid rgba(150, 104, 87, .2); padding-block: 18px 4px; }
 @media (max-width: 760px) {
   dialog.memory-sheet[open] { grid-template-columns: 1fr; gap: 20px; }
-}
-
-.rescue-retry-skip {
-  display: block;
-  margin: 14px auto 0;
-  padding: 6px 14px;
-  border: 1px solid rgba(255,255,255,.3);
-  border-radius: 999px;
-  color: #ffe9f2;
-  background: rgba(10,6,20,.5);
-  font: inherit;
-  cursor: pointer;
 }
