@@ -643,7 +643,7 @@ function start(state) {
   }
 
   // Glide from the intro view into the follow camera: both the position and the look target
-  transition = { from: camera.position.clone(), lookFrom: introLook.clone(), elapsed: 0, duration: 2.2 };
+  transition = { from: camera.position.clone(), lookFrom: introLook.clone(), elapsed: 0, duration: 1.8 };
 
   dom.intro.classList.add('is-leaving');
   dom.hud.hidden = false;
