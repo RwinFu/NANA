@@ -7,6 +7,7 @@ import * as THREE from 'three';
 import { furMaps } from './fur.js';
 import { LAYOUT } from './world.js';
 import { nextGuideTarget } from './house-reactivity.js';
+import { isSolid } from './controls.js';
 
 // Each cat has its own gait:
 //   Pastil, the grey one, is calm: a soft, slow trot with a gentle side sway of the body.
@@ -208,6 +209,29 @@ function moveTowards(cat, x, z, speed, dt) {
   return d;
 }
 
+// Try a few short steering directions so play stays outside the fountain and bench.
+function movePlayfully(cat, x, z, speed, dt) {
+  const dx = x - cat.pos.x;
+  const dz = z - cat.pos.z;
+  const distance = Math.hypot(dx, dz);
+  if (distance < 0.3) return 0;
+  const heading = Math.atan2(dx, dz);
+  const step = Math.min(distance, speed * dt);
+  for (const turn of [0, 0.45, -0.45, 0.9, -0.9, 1.4, -1.4]) {
+    const a = heading + turn;
+    const nx = cat.pos.x + Math.sin(a) * step;
+    const nz = cat.pos.z + Math.cos(a) * step;
+    if (!isSolid(nx, 0, nz, 0.16)) {
+      cat.pos.x = nx;
+      cat.pos.z = nz;
+      const diff = Math.atan2(Math.sin(a - cat.yaw), Math.cos(a - cat.yaw));
+      cat.yaw += diff * Math.min(1, dt * 8);
+      return speed;
+    }
+  }
+  return 0;
+}
+
 // Lying down: the body turns onto its side, the legs tuck in, the head drops, and it breathes slowly
 function applyLie(cat, lie, t) {
   if (lie <= 0) return;
@@ -277,7 +301,9 @@ export function createCats(scene, hero, { butterflies = () => [], frames = [] } 
     cat.placed = true;
   }
 
-  function update(dt, t, _hero, show) {
+  let playingOnBench = false;
+  let playTime = 0;
+  function update(dt, t, _hero, show, seated = false) {
     group.visible = show;
     if (!show) return;
 
@@ -288,6 +314,19 @@ export function createCats(scene, hero, { butterflies = () => [], frames = [] } 
     });
 
     const flyers = butterflies();
+    if (seated !== playingOnBench) {
+      playingOnBench = seated;
+      playTime = 0;
+      for (const cat of list) {
+        if (cat.guide) guidedTargets.delete(cat.guide.key);
+        cat.guide = null;
+        cat.target = null;
+        cat.state = seated ? 'bench-play' : 'follow';
+        cat.cooldown = seated ? 0 : 2;
+        cat.guideCooldown = 4;
+      }
+    }
+    if (seated) playTime += dt;
     for (const cat of list) {
       if (!cat.placed) place(cat);
       if (cat.scale < 1) {
@@ -300,6 +339,37 @@ export function createCats(scene, hero, { butterflies = () => [], frames = [] } 
       cat.cooldown = Math.max(0, cat.cooldown - dt);
       cat.guideCooldown = Math.max(0, cat.guideCooldown - dt);
       let speed = 0;
+
+      if (seated) {
+        cat.lie = Math.max(0, cat.lie - dt * 2);
+        // Both cats chase a butterfly together, then turn and play around each other.
+        const other = list[1 - cat.idx];
+        const chasingButterfly = Math.floor(playTime / 5) % 2 === 0;
+        const butterfly = flyers.length ? flyers[Math.floor(playTime / 10) % flyers.length] : null;
+        let x, z;
+        if (chasingButterfly && butterfly && Math.hypot(butterfly.position.x - lead.x, butterfly.position.z - lead.z) < 6) {
+          x = butterfly.position.x + (cat.idx ? 0.35 : -0.35);
+          z = butterfly.position.z + (cat.idx ? 0.3 : -0.3);
+        } else if (other.placed) {
+          const angle = playTime * 1.2 + cat.idx * Math.PI;
+          x = other.pos.x + Math.cos(angle) * 0.8;
+          z = other.pos.z + Math.sin(angle) * 0.8;
+        } else {
+          x = lead.x + (cat.idx ? 2 : -2);
+          z = lead.z + 1.5;
+        }
+        // Never wander away from the couple while they sit.
+        if (Math.hypot(cat.pos.x - lead.x, cat.pos.z - lead.z) > 6) {
+          x = lead.x + 1.8;
+          z = lead.z + 1.5;
+        }
+        speed = movePlayfully(cat, x, z, cat.gait.maxSpeed * 0.85, dt);
+        cat.root.position.copy(cat.pos);
+        cat.root.rotation.y = cat.yaw;
+        animateCat(cat, dt, t, speed, cat.idx);
+        applyLie(cat, cat.lie, t);
+        continue;
+      }
 
       // Take turns pointing out nearby memories; stay in the hall and close to the couple.
       if (cat.state === 'follow' && cat.guideCooldown <= 0 && leadIdle[leadName] < 0.5 &&

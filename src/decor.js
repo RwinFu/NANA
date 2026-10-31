@@ -6,9 +6,12 @@
 //   princess: sparkles drifting from her hair while she walks, and petals when she jumps.
 import * as THREE from 'three';
 import { LAYOUT } from './world.js';
+import { stoneNormal, giltNormal } from './architecture.js';
+import { outdoorNormal } from './outdoor-textures.js';
 
 // A round stone fountain in the garden. controls.js treats it as solid so the couple walks around it.
 export const FOUNTAIN = { x: -14, z: 8, r: 1.6 };
+export const GARDEN_BENCH = { x: -14, z: 11.4, halfWidth: 1.15, halfDepth: 0.38 };
 
 const LIGHT_SPOTS = [-8, -19, -30]; // the chandeliers, see world.js
 const GOLD = '#d9a441';
@@ -259,7 +262,7 @@ function buildFountain(scene) {
   group.position.set(FOUNTAIN.x, 0, FOUNTAIN.z);
   scene.add(group);
 
-  const stone = new THREE.MeshStandardMaterial({ color: '#e8dcea', roughness: 0.8, side: THREE.DoubleSide });
+  const stone = new THREE.MeshStandardMaterial({ color: '#e8dcea', roughness: 0.88, side: THREE.DoubleSide, normalMap: stoneNormal(2, 1), normalScale: new THREE.Vector2(0.3, 0.3) });
   const wall = new THREE.Mesh(new THREE.CylinderGeometry(FOUNTAIN.r, FOUNTAIN.r, 0.5, 40, 1, true), stone);
   wall.position.y = 0.25;
   group.add(wall);
@@ -272,7 +275,8 @@ function buildFountain(scene) {
   bottom.position.y = 0.05;
   group.add(bottom);
 
-  const waterMat = new THREE.MeshStandardMaterial({ color: '#24466a', roughness: 0.08, metalness: 0.2, emissive: '#0b1a2e', emissiveIntensity: 0.4 });
+  const waterNormal = outdoorNormal('water', 2, 2);
+  const waterMat = new THREE.MeshStandardMaterial({ color: '#365779', roughness: 0.26, metalness: 0.18, emissive: '#0b1a2e', emissiveIntensity: 0.4, normalMap: waterNormal, normalScale: new THREE.Vector2(0.18, 0.18) });
   const water = new THREE.Mesh(new THREE.CircleGeometry(FOUNTAIN.r - 0.14, 40), waterMat);
   water.rotation.x = -Math.PI / 2;
   water.position.y = 0.42;
@@ -294,7 +298,7 @@ function buildFountain(scene) {
   group.add(moonRef);
 
   // the column with its upper bowl and a little gold finial
-  const gold = new THREE.MeshStandardMaterial({ color: GOLD, metalness: 0.8, roughness: 0.3 });
+  const gold = new THREE.MeshStandardMaterial({ color: GOLD, metalness: 0.65, roughness: 0.42, normalMap: giltNormal(2, 2), normalScale: new THREE.Vector2(0.2, 0.2) });
   const column = new THREE.Mesh(new THREE.CylinderGeometry(0.12, 0.17, 1.0, 14), stone);
   column.position.y = 0.95;
   group.add(column);
@@ -339,6 +343,7 @@ function buildFountain(scene) {
 
   return {
     update(t, dt) {
+      waterNormal.offset.set((t * 0.004) % 1, (t * 0.002) % 1);
       ripples.forEach((ring, i) => {
         const k = ((t * 0.4 + i / 3) % 1);
         ring.scale.setScalar(0.25 + k * 1.1);
@@ -367,13 +372,16 @@ function buildFlowers(scene) {
   const colours = ['#ff8fb8', '#c9a7ff', '#fff4fb', '#ffc2d9', '#ffe08a', '#e7a0b8'];
   const dummy = new THREE.Object3D();
   const c = new THREE.Color();
+  const flowers = [];
   for (let i = 0; i < count; i += 1) {
     const side = i % 2 === 0 ? -1 : 1;
     // the beds sit between the path and the bushes, and never on the path itself
     const x = side * (1.6 + Math.random() * 2.6);
     const z = 2 + Math.random() * 20;
     const s = 0.8 + Math.random() * 0.6;
-    dummy.position.set(x, 0.1 + Math.random() * 0.08, z);
+    const y = 0.1 + Math.random() * 0.08;
+    flowers.push({ x, y, z, scale: s, phase: i * 0.8 });
+    dummy.position.set(x, y, z);
     dummy.scale.setScalar(s);
     dummy.updateMatrix();
     mesh.setMatrixAt(i, dummy.matrix);
@@ -381,7 +389,50 @@ function buildFlowers(scene) {
   }
   mesh.instanceColor.needsUpdate = true;
   scene.add(mesh);
-  return mesh;
+  return {
+    update(t) {
+      flowers.forEach((flower, i) => {
+        dummy.position.set(flower.x + Math.sin(t * 0.6 + flower.phase) * 0.012, flower.y, flower.z);
+        dummy.rotation.z = Math.sin(t * 0.6 + flower.phase) * 0.06;
+        dummy.scale.setScalar(flower.scale);
+        dummy.updateMatrix();
+        mesh.setMatrixAt(i, dummy.matrix);
+      });
+      mesh.instanceMatrix.needsUpdate = true;
+    },
+  };
+}
+
+// A quiet two-person seat, offset from the main path and facing the castle.
+function buildGardenBench(scene) {
+  const group = new THREE.Group();
+  group.position.set(GARDEN_BENCH.x, 0, GARDEN_BENCH.z);
+  scene.add(group);
+  const wood = new THREE.MeshStandardMaterial({ color: '#775043', roughness: 0.82, normalMap: outdoorNormal('bark', 1, 1), normalScale: new THREE.Vector2(0.16, 0.16) });
+  const metal = new THREE.MeshStandardMaterial({ color: '#b88a5e', metalness: 0.55, roughness: 0.48, normalMap: giltNormal(2, 2), normalScale: new THREE.Vector2(0.14, 0.14) });
+  const part = (w, h, d, x, y, z, mat) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    mesh.position.set(x, y, z);
+    group.add(mesh);
+  };
+  for (let i = 0; i < 3; i += 1) part(2.2, 0.08, 0.2, 0, 0.52, -0.2 + i * 0.22, wood);
+  for (let i = 0; i < 3; i += 1) part(2.2, 0.13, 0.07, 0, 0.8 + i * 0.17, 0.3, wood);
+  [-0.85, 0.85].forEach((x) => {
+    [-0.24, 0.24].forEach((z) => part(0.08, 0.52, 0.08, x, 0.26, z, metal));
+    part(0.08, 0.72, 0.08, x, 0.87, 0.3, metal);
+  });
+  const flowerGeo = new THREE.IcosahedronGeometry(0.12, 0);
+  const flowerMat = new THREE.MeshStandardMaterial({ color: '#edb6c8', roughness: 0.85 });
+  [-1, 1].forEach((side) => {
+    for (let i = 0; i < 3; i += 1) {
+      const flower = new THREE.Mesh(flowerGeo, flowerMat);
+      flower.position.set(side * (1.35 + i * 0.13), 0.12, -0.15 + i * 0.23);
+      group.add(flower);
+    }
+  });
+  const light = new THREE.PointLight('#ffca9c', 2.2, 4, 2);
+  light.position.set(0, 1.6, 0);
+  group.add(light);
 }
 
 // ---------- creatures that circle the princess -------------------------------
@@ -591,7 +642,8 @@ export function buildDecor(scene, { hero }) {
   const envelopeGlow = buildEnvelopeGlow(scene);
   const doorFlash = buildDoorFlash(scene);
   const fountain = buildFountain(scene);
-  buildFlowers(scene);
+  const flowers = buildFlowers(scene);
+  buildGardenBench(scene);
   const creatures = buildCreatures(scene);
   const sparkles = buildHairSparkles(scene);
   const petals = buildPetals(scene);
@@ -632,6 +684,7 @@ export function buildDecor(scene, { hero }) {
       shower.update(dt);
 
       fountain.update(t, dt);
+      flowers.update(t);
 
       // circling creatures: they follow the princess, a little behind her position
       if (!centre.ready) {
