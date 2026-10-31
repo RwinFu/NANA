@@ -57,6 +57,30 @@ function additive(map, opacity, color = '#ffffff') {
   });
 }
 
+// ---------- coloured light on the hall floor, in front of the stained glass ----
+// Four soft pools of light; decor's update gives each one a slowly shifting colour.
+function buildHallBeams(scene) {
+  const tex = dotTexture('rgba(255,255,255,1)', 'rgba(255,255,255,0)');
+  const beams = [];
+  [-2.4, -0.8, 0.8, 2.4].forEach((x, i) => {
+    const mat = new THREE.MeshBasicMaterial({
+      map: tex,
+      color: '#ffffff',
+      transparent: true,
+      opacity: 0.32,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      fog: false,
+    });
+    const beam = new THREE.Mesh(new THREE.PlaneGeometry(2.2, 3.2), mat);
+    beam.rotation.x = -Math.PI / 2;
+    beam.position.set(x, 0.03, -36.4 - (i % 2) * 0.7);
+    scene.add(beam);
+    beams.push(beam);
+  });
+  return beams;
+}
+
 // ---------- heartbeat and falling hearts -------------------------------------
 // A soft heartbeat (lub-dub) for the light behind the envelope
 function heartbeat(t) {
@@ -535,6 +559,8 @@ export function buildDecor(scene, { hero }) {
   buildShafts(scene);
   const dust = buildDust(scene);
   const envelopeGlow = buildEnvelopeGlow(scene);
+  const beams = buildHallBeams(scene);
+  const heartWin = scene.getObjectByName('heartWindow');
   const fountain = buildFountain(scene);
   buildFlowers(scene);
   const creatures = buildCreatures(scene);
@@ -548,6 +574,8 @@ export function buildDecor(scene, { hero }) {
   const emitTimer = { acc: 0 };
 
   return {
+    // the butterflies, so the cats can chase them
+    butterflies: creatures.filter((c) => c.kind === 'butterfly').map((c) => c.group),
     // called when the envelope opens: a shower of hearts falls over the envelope
     celebrate() {
       shower.burst(LAYOUT.envelope.x, 5.6, LAYOUT.envelope.z + 0.6, 36);
@@ -566,6 +594,8 @@ export function buildDecor(scene, { hero }) {
       }
       dp.needsUpdate = true;
       envelopeGlow.material.opacity = 0.22 + 0.16 * heartbeat(t);
+      beams.forEach((b, i) => b.material.color.setHSL((t * 0.04 + i * 0.22) % 1, 0.9, 0.6));
+      if (heartWin) heartWin.material.uniforms.hue.value = t * 0.18;
       shower.update(dt);
 
       fountain.update(t, dt);

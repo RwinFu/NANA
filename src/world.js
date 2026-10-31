@@ -825,37 +825,91 @@ export function buildWorld(scene) {
   for (let i = 0; i < wpos.count; i += 1) {
     wuv.setXY(i, (wpos.getX(i) + WR) / (2 * WR), wpos.getY(i) / (LAYOUT.hallSpring + WR));
   }
+  // The back wall: a round-topped window with a night sky, and a mosaic of coloured stained glass in front of it.
+  // The glass is drawn as coloured panes with dark lead lines. A shader turns its hue slowly round (decor.js
+  // sets the hue every frame), so the window keeps changing colour.
+  const skyTex = canvasTexture(1024, 820, (ctx, w, h) => {
+    const g = ctx.createRadialGradient(w / 2, h * 0.55, 40, w / 2, h / 2, w * 0.7);
+    g.addColorStop(0, '#5a2350');
+    g.addColorStop(0.6, '#1d1433');
+    g.addColorStop(1, '#0b0c1c');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, w, h);
+    for (let i = 0; i < 160; i += 1) {
+      ctx.fillStyle = `rgba(255,244,224,${0.3 + Math.random() * 0.7})`;
+      ctx.beginPath();
+      ctx.arc(Math.random() * w, Math.random() * h * 0.75, Math.random() * 2.2 + 0.4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    const glow = ctx.createRadialGradient(w / 2, h * 0.42, 10, w / 2, h * 0.42, 340);
+    glow.addColorStop(0, 'rgba(255,120,150,0.55)');
+    glow.addColorStop(1, 'rgba(255,120,150,0)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(0, 0, w, h);
+    ctx.strokeStyle = '#ffcf8a';
+    ctx.lineWidth = 8;
+    heartPath(ctx, w / 2 - 230, h * 0.12, 460);
+    ctx.stroke();
+  });
+  const glassTex = canvasTexture(1024, 820, (ctx, w, h) => {
+    const cols = 8;
+    const rows = 6;
+    const cw = w / cols;
+    const ch = h / rows;
+    const palette = ['255,140,180', '255,196,120', '196,160,255', '150,220,255', '255,236,170', '255,120,160'];
+    for (let j = 0; j < rows; j += 1) {
+      for (let i = 0; i < cols; i += 1) {
+        ctx.fillStyle = `rgba(${palette[(i * 5 + j * 3 + ((i + j) % 2)) % palette.length]},0.62)`;
+        ctx.fillRect(i * cw, j * ch, cw, ch);
+      }
+    }
+    ctx.strokeStyle = 'rgb(20,12,24)';
+    ctx.lineWidth = 9;
+    for (let i = 0; i <= cols; i += 1) {
+      ctx.beginPath();
+      ctx.moveTo(i * cw, 0);
+      ctx.lineTo(i * cw, h);
+      ctx.stroke();
+    }
+    for (let j = 0; j <= rows; j += 1) {
+      ctx.beginPath();
+      ctx.moveTo(0, j * ch);
+      ctx.lineTo(w, j * ch);
+      ctx.stroke();
+    }
+  });
   const heartWindow = track(
     new THREE.Mesh(
       windowGeo,
-      new THREE.MeshBasicMaterial({
-        map: canvasTexture(1024, 820, (ctx, w, h) => {
-          const g = ctx.createRadialGradient(w / 2, h * 0.55, 40, w / 2, h / 2, w * 0.7);
-          g.addColorStop(0, '#5a2350');
-          g.addColorStop(0.6, '#1d1433');
-          g.addColorStop(1, '#0b0c1c');
-          ctx.fillStyle = g;
-          ctx.fillRect(0, 0, w, h);
-          for (let i = 0; i < 160; i += 1) {
-            ctx.fillStyle = `rgba(255,244,224,${0.3 + Math.random() * 0.7})`;
-            ctx.beginPath();
-            ctx.arc(Math.random() * w, Math.random() * h * 0.75, Math.random() * 2.2 + 0.4, 0, Math.PI * 2);
-            ctx.fill();
-          }
-          const glow = ctx.createRadialGradient(w / 2, h * 0.42, 10, w / 2, h * 0.42, 340);
-          glow.addColorStop(0, 'rgba(255,120,150,0.55)');
-          glow.addColorStop(1, 'rgba(255,120,150,0)');
-          ctx.fillStyle = glow;
-          ctx.fillRect(0, 0, w, h);
-          ctx.strokeStyle = '#ffcf8a';
-          ctx.lineWidth = 8;
-          heartPath(ctx, w / 2 - 230, h * 0.12, 460);
-          ctx.stroke();
-        }),
+      new THREE.ShaderMaterial({
+        uniforms: { skyMap: { value: skyTex }, glassMap: { value: glassTex }, hue: { value: 0 } },
+        vertexShader: 'varying vec2 vUv;\nvoid main() {\n  vUv = uv;\n  gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);\n}',
+        fragmentShader: [
+          'uniform sampler2D skyMap;',
+          'uniform sampler2D glassMap;',
+          'uniform float hue;',
+          'varying vec2 vUv;',
+          'mat3 hueRotate(float a) {',
+          '  float c = cos(a);',
+          '  float s = sin(a);',
+          '  return mat3(',
+          '    0.213 + c * 0.787 - s * 0.213, 0.213 - c * 0.213 + s * 0.143, 0.213 - c * 0.213 - s * 0.787,',
+          '    0.715 - c * 0.715 - s * 0.715, 0.715 + c * 0.285 + s * 0.140, 0.715 - c * 0.715 + s * 0.715,',
+          '    0.072 - c * 0.072 + s * 0.928, 0.072 - c * 0.072 - s * 0.283, 0.072 + c * 0.928 + s * 0.072',
+          '  );',
+          '}',
+          'void main() {',
+          '  vec4 sky = texture2D(skyMap, vUv);',
+          '  vec4 glass = texture2D(glassMap, vUv);',
+          '  vec3 tinted = hueRotate(hue) * glass.rgb;',
+          '  gl_FragColor = vec4(sky.rgb * (1.0 - glass.a) + tinted * glass.a * 1.25, 1.0);',
+          '}',
+        ].join('\n'),
         fog: false,
       })
     )
   );
+  heartWindow.name = 'heartWindow';
   heartWindow.position.set(0, 0, -LAYOUT.hallLength + 0.16);
   heartWindow.rotation.y = 0;
   scene.add(heartWindow);

@@ -201,7 +201,7 @@ if (renderer) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   hero.setEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture);
   pmrem.dispose();
-  cats = createCats(scene, hero);
+  cats = createCats(scene, hero, { butterflies: () => (decor ? decor.butterflies : []) });
   decor = buildDecor(scene, { hero });
   trail = createTrail(scene);
   footprints = createFootprints(scene);
