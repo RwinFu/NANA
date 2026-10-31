@@ -6,6 +6,7 @@ import { stoneNormal, doorNormal, giltNormal, ribbonNormal, heartGlass } from '.
 import { buildTown } from './town.js';
 import { advanceHallProgress } from './house-reactivity.js';
 import { outdoorNormal } from './outdoor-textures.js';
+import { roomFrameSlot } from './room-frame-layout.js';
 import { createGardenGrass } from './garden-grass.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
@@ -1380,8 +1381,9 @@ export function buildWorld(scene) {
 
   const R = LAYOUT.room;
   const roomFrames = buildFrames(soloMemories, memoryList.length, (i) => {
-    if (i < 5) return { x: [-5.9, -7.9, -9.9, -11.9, -13.9][i], y: 2.1, z: R.z0 + 0.06, rotY: 0 }; // far wall
-    return { x: [-6.6, -9.0, -11.4, -13.8][i - 5], y: 2.1, z: R.z1 - 0.06, rotY: Math.PI }; // near wall
+    const slot = roomFrameSlot(i);
+    if (slot < 5) return { x: [-5.9, -7.9, -9.9, -11.9, -13.9][slot], y: 2.1, z: R.z0 + 0.06, rotY: 0 }; // far wall
+    return { x: [-6.6, -9.0, -11.4, -13.8][slot - 5], y: 2.1, z: R.z1 - 0.06, rotY: Math.PI }; // near wall
   }, 1.6, 1.4);
 
   const frames = [...hallFrames, ...roomFrames];
