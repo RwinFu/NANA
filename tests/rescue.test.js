@@ -10,17 +10,55 @@ function environment() {
   const ctx = new Proxy({}, { get: (_, key) => key === 'measureText' ? (s) => ({ width: s.length * 10 }) : key.startsWith('create') ? () => gradient : noop, set: () => true });
   const elements = new Map();
   const listeners = {};
-  const element = () => ({ hidden: false, classList: { add: noop }, setAttribute: noop, addEventListener: noop, removeEventListener: noop, remove: noop });
+  const windowListeners = {};
+  const element = () => {
+    const classes = new Set();
+    return {
+      hidden: false,
+      classList: {
+        add: (...names) => names.forEach((name) => classes.add(name)),
+        remove: (...names) => names.forEach((name) => classes.delete(name)),
+        contains: (name) => classes.has(name),
+      },
+      setAttribute: noop,
+      addEventListener: noop,
+      removeEventListener: noop,
+      getBoundingClientRect: () => ({ left: 0, top: 0, width: 960, height: 540 }),
+      remove: noop,
+    };
+  };
   const root = { ...element(), querySelector(selector) {
     if (!elements.has(selector)) elements.set(selector, selector === '.rescue-canvas' ? { ...element(), getContext: () => ctx } : element());
     return elements.get(selector);
-  }, addEventListener(type, fn) { listeners[type] = fn; } };
+  }, addEventListener(type, fn) { (listeners[type] ||= []).push(fn); } };
   globalThis.document = { createElement: () => root, body: { appendChild: noop }, addEventListener: noop, removeEventListener: noop, hidden: false };
-  globalThis.window = { innerWidth: 960, innerHeight: 540, devicePixelRatio: 1, matchMedia: () => ({ matches: false }), addEventListener: noop, removeEventListener: noop, setTimeout: noop };
+  globalThis.window = {
+    innerWidth: 960,
+    innerHeight: 540,
+    devicePixelRatio: 1,
+    matchMedia: () => ({ matches: false }),
+    addEventListener(type, fn) { (windowListeners[type] ||= []).push(fn); },
+    removeEventListener: noop,
+    setTimeout: noop,
+  };
   globalThis.Image = class { set src(v) {} };
   globalThis.requestAnimationFrame = () => 1;
   globalThis.cancelAnimationFrame = noop;
-  return { elements, click(action) { listeners.click({ target: { closest: () => ({ dataset: { action } }) } }); } };
+  return {
+    elements,
+    root,
+    click(action) { listeners.click?.at(-1)?.({ target: { closest: () => ({ dataset: { action } }) } }); },
+    keySequence(word) {
+      for (const letter of word) windowListeners.keydown?.at(-1)?.({
+        code: `Key${letter.toUpperCase()}`, repeat: false, target: { tagName: 'BODY' }, preventDefault: noop,
+      });
+    },
+    tap(x, y) {
+      listeners.pointerup?.at(-1)?.({
+        type: 'pointerup', pointerId: 1, clientX: x, clientY: y, target: { closest: () => null },
+      });
+    },
+  };
 }
 
 const env = environment();
@@ -102,7 +140,7 @@ test('rescues, abilities, dragon and win cue preserve their ordering', () => {
   assert.equal(cues, 1);
 });
 
-test('retry retains progress at checkpoint and offers skip after repeated losses', () => {
+test('retry retains progress at checkpoint without exposing a skip button', () => {
   let cues = 0;
   const game = createRescueGame({ autoStart: true, onGate: () => cues++ });
   const g = game.state();
@@ -111,7 +149,7 @@ test('retry retains progress at checkpoint and offers skip after repeated losses
     g.hearts = 1;
     game.setPlayer({ x: 3400, y: 630, vx: 0, vy: 1, onGround: false }); game.step();
     assert.equal(g.phase, 'lost');
-    assert.equal(env.elements.get('.rescue-retry-skip').hidden, i === 0);
+    assert.doesNotMatch(env.root.innerHTML, /rescue-retry-skip|rescue-skip/);
     if (i === 0) {
       env.click('retry');
       assert.equal(g.phase, 'play'); assert.equal(g.p.x, 2000);
@@ -119,9 +157,22 @@ test('retry retains progress at checkpoint and offers skip after repeated losses
       assert.equal(g.hearts, 3); assert.equal(g.fire.length, 0); assert.equal(g.rocks.length, 0);
     }
   }
-  env.click('skip');
   assert.equal(cues, 0);
   assert.match(helpAfterLoss(2, 2000), /اژدها/);
+});
+
+test('secret LOVE keyboard sequence skips the 2D game', () => {
+  const game = createRescueGame({ autoStart: true });
+  env.keySequence('LOVE');
+  assert.equal(game.state().phase, 'done');
+  assert.ok(env.root.classList.contains('is-quick'));
+});
+
+test('tapping the three HUD hearts from left to right also unlocks the skip', () => {
+  const game = createRescueGame({ autoStart: true });
+  [34, 68, 102].forEach((x) => env.tap(x, 24));
+  assert.equal(game.state().phase, 'done');
+  assert.ok(env.root.classList.contains('is-quick'));
 });
 
 test('falling rocks warn before moving', () => {
