@@ -1237,3 +1237,15 @@ dialog.letter-sheet .letter-body { border-block: 1px solid rgba(150, 104, 87, .2
 @media (max-width: 760px) {
   dialog.memory-sheet[open] { grid-template-columns: 1fr; gap: 20px; }
 }
+
+.rescue-retry-skip {
+  display: block;
+  margin: 14px auto 0;
+  padding: 6px 14px;
+  border: 1px solid rgba(255,255,255,.3);
+  border-radius: 999px;
+  color: #ffe9f2;
+  background: rgba(10,6,20,.5);
+  font: inherit;
+  cursor: pointer;
+}
