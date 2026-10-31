@@ -169,7 +169,7 @@ export function createAudio() {
       else stopLoop();
     },
     // The family song takes over from the synth loop and loops until the end.
-    // Starts the song right away. main.js calls this in the same tick as the static burst.
+    // Starts the song right away at the gate.
     // The synth loop fades out slowly while the song fades in, so the two overlap softly.
     startSong() {
       ensureSong();
@@ -180,28 +180,6 @@ export function createAudio() {
       song.currentTime = 0;
       song.play().catch(() => {});
       rampSong(0.7, 3.8);
-    },
-    // A short burst of filtered static for the gate glitch.
-    static(duration = 1.2) {
-      const context = ensureContext();
-      if (!context || !sfx) return;
-      if (context.state === 'suspended') context.resume();
-      const len = Math.floor(context.sampleRate * duration);
-      const buf = context.createBuffer(1, len, context.sampleRate);
-      const data = buf.getChannelData(0);
-      for (let i = 0; i < len; i++) data[i] = (Math.random() * 2 - 1) * (1 - i / len) ** 2;
-      const src = context.createBufferSource();
-      src.buffer = buf;
-      const band = context.createBiquadFilter();
-      band.type = 'bandpass';
-      band.frequency.value = 1800;
-      band.Q.value = 0.6;
-      const gain = context.createGain();
-      gain.gain.value = 0.6;
-      src.connect(band);
-      band.connect(gain);
-      gain.connect(sfx);
-      src.start();
     },
     chime(freq = 659.25) {
       const context = ensureContext();

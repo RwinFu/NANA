@@ -166,7 +166,6 @@ function beginRescue() {
     onDone: finishRescue,
     autoStart: true,
     onGate: () => {
-      audio.static();
       audio.startSong();
     },
   });
