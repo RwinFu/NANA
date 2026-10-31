@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { advanceHallProgress, nextGuideTarget } from '../src/house-reactivity.js';
+import { advanceHallProgress, nextGuideTarget, roomGuideWaypoint } from '../src/house-reactivity.js';
 
 const door = { z0: -21.3, z1: -18.7 };
 const frames = [
@@ -28,4 +28,12 @@ test('guides can indicate the room doorway without crossing its wall', () => {
   const goal = nextGuideTarget({ x: 0, z: -17 }, frames, new Set(), 3.85, 40, door);
   assert.equal(goal.key, 'room-door');
   assert.equal(goal.x, -1.45);
+});
+
+
+test('room guides stay a short distance ahead and stop at the doorway', () => {
+  assert.equal(roomGuideWaypoint(2, -20), -1.5);
+  assert.equal(roomGuideWaypoint(-4, -20), -7.5);
+  assert.equal(roomGuideWaypoint(-18, -20), -20);
+  assert.equal(roomGuideWaypoint(-24, -20), -20);
 });

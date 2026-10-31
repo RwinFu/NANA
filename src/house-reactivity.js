@@ -25,3 +25,8 @@ export function nextGuideTarget(position, frames, visited, hallHalfWidth, hallLe
   candidates.sort((a, b) => a.ahead - b.ahead);
   return candidates[0] || null;
 }
+
+// The guide stays just ahead of the player and stops at the photo-room doorway.
+export function roomGuideWaypoint(playerZ, doorZ, lead = 3.5) {
+  return Math.max(doorZ, Math.min(-1.5, playerZ - lead));
+}
