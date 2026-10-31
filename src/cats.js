@@ -164,19 +164,94 @@ function animateCat(cat, dt, t, speed, idx) {
   cat.head.rotation.y = Math.sin(t * 0.6 + idx * 3) * 0.2 * (1 - k);
 }
 
+// The hall runner, from world.js. The cats may only lie down on it.
+const RUG = { z0: 0.3, z1: -37.6, halfW: 1.1 };
+const BUTTERFLY_NEAR = 5; // a cat chases a butterfly that flies this close to it
+const CHASE_TIME = 2.6; // seconds of chasing
+const CHASE_COOLDOWN = 7; // seconds before the cat may chase again
+const IDLE_TO_SLEEP = 3; // seconds the couple must stand still before a cat lies down
+const LIE_ANGLE = -1.4; // lying on its side
+
+function onRug(x, z) {
+  return Math.abs(x) < RUG.halfW - 0.3 && z < RUG.z0 - 0.3 && z > RUG.z1 + 0.3;
+}
+
+function nearestButterfly(cat, flyers) {
+  let best = null;
+  let bestD = BUTTERFLY_NEAR;
+  flyers.forEach((f) => {
+    const d = Math.hypot(f.position.x - cat.pos.x, f.position.z - cat.pos.z);
+    if (d < bestD) {
+      bestD = d;
+      best = f;
+    }
+  });
+  return best;
+}
+
+// Walk towards (x, z) at a speed. Returns the distance left.
+function moveTowards(cat, x, z, speed, dt) {
+  const dx = x - cat.pos.x;
+  const dz = z - cat.pos.z;
+  const d = Math.hypot(dx, dz);
+  if (d > 0.001) {
+    const step = Math.min(d, speed * dt);
+    cat.pos.x += (dx / d) * step;
+    cat.pos.z += (dz / d) * step;
+    const yaw = Math.atan2(dx, dz);
+    let diff = yaw - cat.yaw;
+    diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+    cat.yaw += diff * Math.min(1, dt * 8);
+  }
+  return d;
+}
+
+// Lying down: the body turns onto its side, the legs tuck in, the head drops, and it breathes slowly
+function applyLie(cat, lie, t) {
+  if (lie <= 0) return;
+  const k = lie;
+  const breathe = Math.sin(t * 1.8 + cat.idx) * 0.004;
+  cat.body.rotation.z = cat.body.rotation.z * (1 - k) + LIE_ANGLE * k;
+  cat.body.position.y = cat.body.position.y * (1 - k) + (0.16 + breathe) * k;
+  cat.legs.forEach((leg) => {
+    leg.hip.rotation.x = leg.hip.rotation.x * (1 - k) + 0.7 * k;
+  });
+  cat.head.rotation.x = cat.head.rotation.x * (1 - k) + 0.35 * k;
+}
+
 // The two cats, following the princess and the boy. They appear once the tour starts.
-export function createCats(scene, hero) {
+// States: follow (the default), chase (a butterfly flies close), sleep (the couple stands still on the rug),
+// and wake (the couple moves again, so the cat gets up and follows).
+export function createCats(scene, hero, { butterflies = () => [] } = {}) {
   const group = new THREE.Group();
   group.visible = false;
   scene.add(group);
 
   const boyNode = hero.root.getObjectByName('boy');
   const tmp = new THREE.Vector3();
+  const leadNow = new THREE.Vector3();
+  const leadLast = { princess: new THREE.Vector3(), boy: new THREE.Vector3() };
+  const leadIdle = { princess: 0, boy: 0 }; // seconds each one has stood still
 
   const list = ['pastil', 'ani'].map((key, idx) => {
     const built = buildCat(key);
     group.add(built.root);
-    return { key, idx, ...built, gait: SPECS[key], pos: new THREE.Vector3(), yaw: 0, scale: 0, placed: false };
+    return {
+      key,
+      idx,
+      ...built,
+      gait: SPECS[key],
+      pos: new THREE.Vector3(),
+      yaw: 0,
+      scale: 0,
+      placed: false,
+      state: 'follow',
+      timer: 0,
+      cooldown: 2 + idx * 2,
+      target: null,
+      spot: new THREE.Vector3(),
+      lie: 0,
+    };
   });
 
   function leaderPos(name, out) {
@@ -200,30 +275,92 @@ export function createCats(scene, hero) {
   function update(dt, t, _hero, show) {
     group.visible = show;
     if (!show) return;
+
+    ['princess', 'boy'].forEach((name) => {
+      leaderPos(name, leadNow);
+      leadIdle[name] = leadNow.distanceTo(leadLast[name]) > 0.0005 ? 0 : leadIdle[name] + dt;
+      leadLast[name].copy(leadNow);
+    });
+
+    const flyers = butterflies();
     for (const cat of list) {
       if (!cat.placed) place(cat);
       if (cat.scale < 1) {
         cat.scale = Math.min(1, cat.scale + dt * 1.6);
         cat.root.scale.setScalar((1 - Math.pow(1 - cat.scale, 3)) * 1.25);
       }
-      const lead = leaderPos(SPECS[cat.key].leader, tmp);
-      const dx = lead.x - cat.pos.x;
-      const dz = lead.z - cat.pos.z;
-      const dist = Math.hypot(dx, dz);
+      const leadName = SPECS[cat.key].leader;
+      const lead = leaderPos(leadName, tmp);
+      const side = cat.key === 'pastil' ? -1 : 1;
+      cat.cooldown = Math.max(0, cat.cooldown - dt);
       let speed = 0;
-      if (dist > STOP_DIST) {
-        speed = Math.min(cat.gait.maxSpeed, 0.9 + (dist - STOP_DIST) * 2.2);
-        const step = Math.min(dist - STOP_DIST, speed * dt);
-        cat.pos.x += (dx / dist) * step;
-        cat.pos.z += (dz / dist) * step;
-        const yaw = Math.atan2(dx, dz);
-        let diff = yaw - cat.yaw;
-        diff = Math.atan2(Math.sin(diff), Math.cos(diff));
-        cat.yaw += diff * Math.min(1, dt * 8);
+
+      if (cat.state === 'follow' && cat.cooldown <= 0) {
+        const near = nearestButterfly(cat, flyers);
+        if (near && Math.hypot(lead.x - cat.pos.x, lead.z - cat.pos.z) < 7) {
+          cat.state = 'chase';
+          cat.target = near;
+          cat.timer = CHASE_TIME;
+        }
       }
+      if (cat.state === 'follow' && leadIdle[leadName] > IDLE_TO_SLEEP && onRug(lead.x, lead.z)) {
+        cat.state = 'sleep';
+        cat.spot.set(
+          THREE.MathUtils.clamp(lead.x + side * 0.6, -0.9, 0.9),
+          0,
+          THREE.MathUtils.clamp(lead.z - 0.9, RUG.z1 + 0.6, RUG.z0 - 0.6)
+        );
+      }
+
+      if (cat.state === 'chase') {
+        cat.timer -= dt;
+        const b = cat.target.position;
+        speed = cat.gait.maxSpeed * 1.1;
+        const d = moveTowards(cat, b.x, b.z, speed, dt);
+        if (cat.timer <= 0 || d < 0.3) {
+          cat.state = 'follow';
+          cat.cooldown = CHASE_COOLDOWN;
+        }
+      }
+
+      if (cat.state === 'sleep') {
+        if (leadIdle[leadName] < 0.2) {
+          cat.state = 'wake';
+        } else {
+          const d = moveTowards(cat, cat.spot.x, cat.spot.z, 1.1, dt);
+          speed = d > 0.08 ? 1.1 : 0;
+          if (d <= 0.08) cat.lie = Math.min(1, cat.lie + dt * 0.9);
+        }
+      }
+
+      if (cat.state === 'wake') {
+        cat.lie = Math.max(0, cat.lie - dt * 1.3);
+        if (cat.lie === 0) {
+          cat.state = 'follow';
+          cat.cooldown = 2;
+        }
+      }
+
+      if (cat.state === 'follow') {
+        const dx = lead.x - cat.pos.x;
+        const dz = lead.z - cat.pos.z;
+        const dist = Math.hypot(dx, dz);
+        if (dist > STOP_DIST) {
+          speed = Math.min(cat.gait.maxSpeed, 0.9 + (dist - STOP_DIST) * 2.2);
+          const step = Math.min(dist - STOP_DIST, speed * dt);
+          cat.pos.x += (dx / dist) * step;
+          cat.pos.z += (dz / dist) * step;
+          const yaw = Math.atan2(dx, dz);
+          let diff = yaw - cat.yaw;
+          diff = Math.atan2(Math.sin(diff), Math.cos(diff));
+          cat.yaw += diff * Math.min(1, dt * 8);
+        }
+      }
+
       cat.root.position.copy(cat.pos);
       cat.root.rotation.y = cat.yaw;
       animateCat(cat, dt, t, speed, cat.idx);
+      applyLie(cat, cat.lie, t);
     }
   }
 

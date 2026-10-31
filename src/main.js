@@ -201,7 +201,7 @@ if (renderer) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   hero.setEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture);
   pmrem.dispose();
-  cats = createCats(scene, hero);
+  cats = createCats(scene, hero, { butterflies: () => (decor ? decor.butterflies : []) });
   decor = buildDecor(scene, { hero });
   trail = createTrail(scene);
   footprints = createFootprints(scene);
@@ -711,6 +711,10 @@ function onResize() {
 window.addEventListener('resize', onResize);
 
 const clock = new THREE.Clock();
+// The castle entrance, see buildWorld (the front doors are centred on this z)
+const DOOR_Z = 0.12;
+let lastDoorZ = null;
+
 function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, clock.getDelta());
@@ -755,6 +759,14 @@ function frame() {
   decor?.update(t, dt, hero.root.position, started && controls.moving, started && controls.airborne);
   // Only once the walk has started: before that the hero sits at the origin, right by the door, and would latch it open
   if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
+  // walking through the castle door: a crystal flash and petals
+  if (started && !rescueActive) {
+    const hz = hero.root.position.z;
+    if (lastDoorZ !== null && Math.abs(hero.root.position.x) < LAYOUT.doorHalfWidth && (lastDoorZ - DOOR_Z) * (hz - DOOR_Z) < 0) {
+      decor?.doorBurst();
+    }
+    lastDoorZ = hz;
+  }
   if (started) updatePrompt();
 
   renderer.render(scene, camera);
