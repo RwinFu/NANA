@@ -12,6 +12,7 @@ import { createControls, isSolid } from './controls.js';
 import { createAudio } from './audio.js';
 import { createFx } from './fx.js';
 import { createTrail } from './trail.js';
+import { createHouseSparkles } from './house-sparkles.js';
 import { createFootprints } from './footprints.js';
 import { createSparkles } from './castle.js';
 import { createFairy } from './fairy.js';
@@ -132,6 +133,7 @@ let hero = null;
 let cats = null;
 let decor = null;
 let trail = null;
+let houseSparkles = null;
 let footprints = null;
 let envelope = null;
 let controls = null;
@@ -208,9 +210,10 @@ if (renderer) {
   const pmrem = new THREE.PMREMGenerator(renderer);
   hero.setEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture);
   pmrem.dispose();
-  cats = createCats(scene, hero, { butterflies: () => (decor ? decor.butterflies : []) });
+  cats = createCats(scene, hero, { frames: world.frames, butterflies: () => (decor ? decor.butterflies : []) });
   decor = buildDecor(scene, { hero });
   trail = createTrail(scene);
+  houseSparkles = createHouseSparkles(scene);
   footprints = createFootprints(scene);
 
   envelope = createEnvelope(scene, {
@@ -758,11 +761,12 @@ function frame() {
   cats?.update(dt, t, hero, started);
   syncCoupleUi();
   trail?.update(dt, hero.root.position, started && controls.moving, camera);
+  houseSparkles?.update(dt, hero.root.position, started && controls.moving);
   world?.rugGlint?.update(dt, t, hero.root.position, started && controls.moving);
   world?.stoneGlint?.update(dt, t, hero.root.position, started && controls.moving);
   footprints?.update(dt, hero, started && controls.moving);
   envelope.update(t, dt);
-  world.update(t, dt, started ? nearFrame : -1);
+  world.update(t, dt, started ? nearFrame : -1, started ? hero.root.position : null);
   decor?.update(t, dt, hero.root.position, started && controls.moving, started && controls.airborne);
   // Only once the walk has started: before that the hero sits at the origin, right by the door, and would latch it open
   if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);

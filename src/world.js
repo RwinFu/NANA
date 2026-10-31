@@ -4,6 +4,7 @@ import { buildCastle } from './castle.js';
 import { createRugGlint, createStoneGlint } from './rugglint.js';
 import { stoneNormal, doorNormal, giltNormal, ribbonNormal, heartGlass } from './architecture.js';
 import { buildTown } from './town.js';
+import { advanceHallProgress } from './house-reactivity.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -546,9 +547,9 @@ export function buildWorld(scene) {
   });
 
   // Lights
-  const hemi = new THREE.HemisphereLight('#a9b8f0', '#3a2a30', 1.25);
+  const hemi = new THREE.HemisphereLight('#ffe2ca', '#715046', 1.05);
   scene.add(hemi);
-  const moonLight = new THREE.DirectionalLight('#c9d4ff', 1.1);
+  const moonLight = new THREE.DirectionalLight('#ffdfbd', 0.95);
   moonLight.position.set(-30, 50, 20);
   scene.add(moonLight);
 
@@ -559,6 +560,12 @@ export function buildWorld(scene) {
     scene.add(light);
     hallLights.push(light);
   });
+
+  // One shared warm accent follows the selected frame, avoiding a light per photo.
+  const frameAccent = new THREE.PointLight('#ffd6a0', 0, 4.8, 2);
+  scene.add(frameAccent);
+  const accentPosition = new THREE.Vector3();
+  let accentFrameIndex = -1;
 
   // Ground
   const grass = track(
@@ -755,7 +762,8 @@ export function buildWorld(scene) {
   });
 
   // Crystal chandeliers: a gold chain, two tiers of candle bulbs and pink crystal drops
-  const chandBulbMat = track(new THREE.MeshBasicMaterial({ color: '#ffe2a8', fog: false }));
+  const chandBulbMaterials = [];
+  const chandBulbColor = new THREE.Color('#ffe2a8');
   const crystalMat = track(new THREE.MeshStandardMaterial({ color: '#ffd6ea', emissive: '#c77aa6', emissiveIntensity: 0.6, roughness: 0.15, metalness: 0.1 }));
   const chainGeo = track(new THREE.CylinderGeometry(0.025, 0.025, 1, 6));
   const ringGeo = track(new THREE.TorusGeometry(1, 0.045, 8, 40));
@@ -764,6 +772,8 @@ export function buildWorld(scene) {
   const hubGeo = track(new THREE.SphereGeometry(0.32, 16, 12));
   const canopyGeo = track(new THREE.CylinderGeometry(0.22, 0.3, 0.22, 16));
   const addChandelier = (z) => {
+    const chandBulbMat = track(new THREE.MeshBasicMaterial({ color: chandBulbColor.clone().multiplyScalar(0.12), fog: false }));
+    chandBulbMaterials.push(chandBulbMat);
     const group = new THREE.Group();
     group.position.set(0, CHANDELIER_Y, z);
     scene.add(group);
@@ -1077,6 +1087,7 @@ export function buildWorld(scene) {
     [11, 4], [15, 10], [9, 15], [16, 20], [12, 24],
     [-19, 2], [20, 1],
   ];
+  const swayingLeaves = [];
   treeSpots.forEach(([x, z], i) => {
     const tree = new THREE.Group();
     const trunk = new THREE.Mesh(trunkGeo, trunkMat);
@@ -1088,6 +1099,7 @@ export function buildWorld(scene) {
       leaf.position.set(dx, dy, dz);
       leaf.scale.setScalar(s * 1.2);
       tree.add(leaf);
+      swayingLeaves.push({ leaf, phase: i * 1.3 + dx, baseX: dx });
     });
     tree.position.set(x, 0, z);
     tree.rotation.y = Math.random() * Math.PI;
@@ -1215,6 +1227,9 @@ export function buildWorld(scene) {
   // Frames: the hall's photos on its walls, and the room's photos on its walls
   const frameGeo = track(new THREE.BoxGeometry(1, 1, 0.08));
   const photoGeo = track(new THREE.PlaneGeometry(1, 1));
+  // Tiny repeated corner details are shared across frames to keep the gallery light.
+  const frameJewelGeo = track(new THREE.OctahedronGeometry(0.045, 0));
+  const frameBeadGeo = track(new THREE.SphereGeometry(0.038, 8, 6));
   function buildFrames(list, startIndex, placeAt, maxW, maxH) {
     return list.map((memory, i) => {
       const index = startIndex + i;
@@ -1225,12 +1240,25 @@ export function buildWorld(scene) {
 
       const frameMat = new THREE.MeshStandardMaterial({
         color: memory.frame.color,
-        roughness: 0.35,
-        metalness: 0.55,
+        roughness: 0.48,
+        metalness: 0.38,
+        normalMap: giltNormal(2, 2),
+        normalScale: new THREE.Vector2(0.22, 0.22),
       });
       const frameMesh = new THREE.Mesh(frameGeo, frameMat);
       frameMesh.position.z = -0.02;
       group.add(frameMesh);
+      const ornamentMat = track(new THREE.MeshStandardMaterial({
+        color: memory.frame.glow, metalness: 0.5, roughness: 0.42,
+        emissive: memory.frame.glow, emissiveIntensity: 0.08,
+      }));
+      const ornamentGeo = index % 2 ? frameBeadGeo : frameJewelGeo;
+      const corners = index % 3 === 0 ? [[-0.44, 0.44], [0.44, 0.44], [-0.44, -0.44], [0.44, -0.44]] : [[-0.44, 0.44], [0.44, 0.44]];
+      corners.forEach(([x, y]) => {
+        const jewel = new THREE.Mesh(ornamentGeo, ornamentMat);
+        jewel.position.set(x, y, 0.57);
+        frameMesh.add(jewel);
+      });
 
       const placeholder = canvasTexture(256, 256, (ctx, w, h) => {
         const g = ctx.createLinearGradient(0, 0, w, h);
@@ -1268,7 +1296,8 @@ export function buildWorld(scene) {
       );
       lampHead.position.set(0, 1.55, 0.3);
       group.add(lampHead);
-      const wash = new THREE.Sprite(glowAdd(memory.frame.glow, 0.28));
+      const warmGlow = new THREE.Color(memory.frame.glow).lerp(new THREE.Color('#ffd7a6'), 0.8);
+      const wash = new THREE.Sprite(glowAdd(warmGlow, 0.20));
       wash.scale.set(4.6, 3.6, 1);
       wash.position.set(0, 0.2, 0.15);
       group.add(wash);
@@ -1282,6 +1311,8 @@ export function buildWorld(scene) {
         photo,
         wash,
         frameMesh,
+        lampHead,
+        ornamentMat,
         maxW,
         maxH,
         // world-space point the player walks toward, and where the wall is
@@ -1581,18 +1612,33 @@ export function buildWorld(scene) {
     });
   }
 
-  function update(t, dt, highlightIndex) {
+  let hallProgress = -1;
+  const hallLightLevels = hallLights.map(() => 0.12);
+
+  function update(t, dt, highlightIndex, playerPosition = null) {
+    hallProgress = advanceHallProgress(hallProgress, playerPosition, LAYOUT.hallHalfWidth, LAYOUT.hallLength);
     castle.update(t);
     town.update(t);
+    // Slow, subtle movement shared across the garden canopy and chandeliers.
+    swayingLeaves.forEach(({ leaf, phase, baseX }) => {
+      leaf.position.x = baseX + Math.sin(t * 0.45 + phase) * 0.025;
+      leaf.rotation.z = Math.sin(t * 0.55 + phase) * 0.025;
+    });
+    crystalMat.emissiveIntensity = 0.48 + 0.08 * Math.sin(t * 0.75);
     // Lanterns bob gently
     for (let i = 0; i < lanternCount; i += 1) {
       const d = lanternData[i];
       dummy.position.set(d.x, d.y + Math.sin(t * 0.8 + d.phase) * 0.12, d.z);
-      dummy.scale.setScalar(1);
+      const lit = hallProgress >= 0 && -d.z <= hallProgress + 4;
+      d.level = THREE.MathUtils.lerp(d.level ?? 0.16, lit ? 1 : 0.16, Math.min(1, dt * 1.8));
+      dummy.scale.setScalar(0.45 + d.level * 0.55);
+      tint.set(palette[i % palette.length]).multiplyScalar(d.level);
+      lanterns.setColorAt(i, tint);
       dummy.updateMatrix();
       lanterns.setMatrixAt(i, dummy.matrix);
     }
     lanterns.instanceMatrix.needsUpdate = true;
+    lanterns.instanceColor.needsUpdate = true;
 
     // Fireflies drift
     for (let i = 0; i < fireflyCount; i += 1) {
@@ -1610,17 +1656,38 @@ export function buildWorld(scene) {
     }
     fireflies.instanceMatrix.needsUpdate = true;
 
-    // Frame wash brightens for the frame the player is close to
+    // Gentle warm light: ease independently on each frame, without a sharp halo.
+    const frameEase = 1 - Math.exp(-dt * 1.5);
     frames.forEach((frame) => {
-      const target = frame.index === highlightIndex ? 0.5 : 0.24;
-      frame.wash.material.opacity += (target - frame.wash.material.opacity) * Math.min(1, dt * 6);
+      const active = frame.index === highlightIndex;
+      const target = active ? 0.32 : 0.18;
+      frame.wash.material.opacity += (target - frame.wash.material.opacity) * frameEase;
+      const glow = active ? 0.15 : 0.08;
+      frame.ornamentMat.emissiveIntensity += (glow - frame.ornamentMat.emissiveIntensity) * frameEase;
+      const pulse = 1 + 0.02 * Math.sin(t * 1.1 + frame.index * 1.7);
+      frame.lampHead.scale.setScalar(pulse);
     });
+    const selectedFrame = frames.find((frame) => frame.index === highlightIndex);
+    // Fade out before moving the shared light, so switching frames never makes it jump.
+    const sameFrame = selectedFrame && selectedFrame.index === accentFrameIndex;
+    const targetIntensity = sameFrame ? 1.6 : 0;
+    frameAccent.intensity += (targetIntensity - frameAccent.intensity) * (1 - Math.exp(-dt * 2));
+    if (selectedFrame && !sameFrame && frameAccent.intensity < 0.04) {
+      accentPosition.set(0, 0.4, 0.9);
+      selectedFrame.group.localToWorld(accentPosition);
+      frameAccent.position.copy(accentPosition);
+      frameAccent.color.set('#ffd6a0');
+      accentFrameIndex = selectedFrame.index;
+    }
 
     // Hall lights flicker very slightly, like candles
     // The lamp nearest the envelope is a little dimmer, so the envelope's own glow stands out
     hallLights.forEach((light, i) => {
       const dim = i === 2 ? 0.62 : 1;
-      light.intensity = (22 + Math.sin(t * 2.1 + i * 1.7) * 0.9 + Math.sin(t * 5.3 + i) * 0.4) * dim;
+      const lit = hallProgress >= 0 && hallProgress >= Math.max(0, -light.position.z - 8);
+      hallLightLevels[i] += ((lit ? 1 : 0.12) - hallLightLevels[i]) * Math.min(1, dt * 1.4);
+      chandBulbMaterials[i].color.copy(chandBulbColor).multiplyScalar(hallLightLevels[i]);
+      light.intensity = (22 + Math.sin(t * 2.1 + i * 1.7) * 0.9 + Math.sin(t * 5.3 + i) * 0.4) * dim * hallLightLevels[i];
     });
 
     updateHearts(dt);

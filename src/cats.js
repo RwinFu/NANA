@@ -5,6 +5,8 @@
 // normal map made from fur strands (see fur.js), so the fur catches the light.
 import * as THREE from 'three';
 import { furMaps } from './fur.js';
+import { LAYOUT } from './world.js';
+import { nextGuideTarget } from './house-reactivity.js';
 
 // Each cat has its own gait:
 //   Pastil, the grey one, is calm: a soft, slow trot with a gentle side sway of the body.
@@ -222,8 +224,9 @@ function applyLie(cat, lie, t) {
 // The two cats, following the princess and the boy. They appear once the tour starts.
 // States: follow (the default), chase (a butterfly flies close), sleep (the couple stands still on the rug),
 // and wake (the couple moves again, so the cat gets up and follows).
-export function createCats(scene, hero, { butterflies = () => [] } = {}) {
+export function createCats(scene, hero, { butterflies = () => [], frames = [] } = {}) {
   const group = new THREE.Group();
+  const guidedTargets = new Set();
   group.visible = false;
   scene.add(group);
 
@@ -248,6 +251,8 @@ export function createCats(scene, hero, { butterflies = () => [] } = {}) {
       state: 'follow',
       timer: 0,
       cooldown: 2 + idx * 2,
+      guideCooldown: 3 + idx * 7,
+      guide: null,
       target: null,
       spot: new THREE.Vector3(),
       lie: 0,
@@ -293,7 +298,53 @@ export function createCats(scene, hero, { butterflies = () => [] } = {}) {
       const lead = leaderPos(leadName, tmp);
       const side = cat.key === 'pastil' ? -1 : 1;
       cat.cooldown = Math.max(0, cat.cooldown - dt);
+      cat.guideCooldown = Math.max(0, cat.guideCooldown - dt);
       let speed = 0;
+
+      // Take turns pointing out nearby memories; stay in the hall and close to the couple.
+      if (cat.state === 'follow' && cat.guideCooldown <= 0 && leadIdle[leadName] < 0.5 &&
+          Math.hypot(lead.x - cat.pos.x, lead.z - cat.pos.z) < 3) {
+        const target = nextGuideTarget(lead, frames, guidedTargets, LAYOUT.hallHalfWidth, LAYOUT.hallLength, LAYOUT.room.door);
+        if (target) {
+          cat.guide = target;
+          guidedTargets.add(target.key);
+          cat.state = 'guide';
+          cat.timer = 8;
+        } else {
+          cat.guideCooldown = 3;
+        }
+      }
+
+      if (cat.state === 'guide') {
+        cat.timer -= dt;
+        const distanceToLeader = Math.hypot(lead.x - cat.pos.x, lead.z - cat.pos.z);
+        if (distanceToLeader > 9 || cat.timer <= 0 || Math.abs(lead.x) > LAYOUT.hallHalfWidth) {
+          guidedTargets.delete(cat.guide.key);
+          cat.guide = null;
+          cat.state = 'follow';
+          cat.guideCooldown = 12;
+        } else {
+          const d = moveTowards(cat, cat.guide.x, cat.guide.z, cat.gait.maxSpeed, dt);
+          speed = d > 0.25 ? cat.gait.maxSpeed : 0;
+          if (d <= 0.25) {
+            cat.state = 'guide-wait';
+            cat.timer = 4;
+          }
+        }
+      }
+
+      if (cat.state === 'guide-wait') {
+        cat.timer -= dt;
+        // Turn back toward the couple while waiting, as if inviting them to follow.
+        const yaw = Math.atan2(lead.x - cat.pos.x, lead.z - cat.pos.z);
+        const diff = Math.atan2(Math.sin(yaw - cat.yaw), Math.cos(yaw - cat.yaw));
+        cat.yaw += diff * Math.min(1, dt * 5);
+        if (cat.timer <= 0 || Math.hypot(lead.x - cat.pos.x, lead.z - cat.pos.z) > 9 || Math.abs(lead.x) > LAYOUT.hallHalfWidth) {
+          cat.state = 'follow';
+          cat.guide = null;
+          cat.guideCooldown = 14 + cat.idx * 3;
+        }
+      }
 
       if (cat.state === 'follow' && cat.cooldown <= 0) {
         const near = nearestButterfly(cat, flyers);

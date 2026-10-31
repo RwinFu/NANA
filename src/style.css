@@ -1193,3 +1193,47 @@ dialog h2 {
 }
 .rescue.is-night .rescue-night { opacity: 1; }
 .rescue.is-night.is-leaving { transition: opacity 2.7s ease-in-out; }
+
+/* A warm paper album for the memories and letter, without changing other dialogs. */
+dialog.memory-sheet,
+dialog.letter-sheet {
+  color: #3b2930;
+  border: 1px solid #dbc4a6;
+  border-radius: 14px;
+  background:
+    repeating-linear-gradient(0deg, rgba(133, 98, 76, 0.025) 0 1px, transparent 1px 7px),
+    linear-gradient(135deg, #fff7e9, #f3e5d2);
+  box-shadow: 0 30px 90px rgba(5, 5, 14, .65), inset 0 0 0 7px rgba(255, 252, 242, .5), inset 0 0 0 8px rgba(148, 104, 77, .18);
+}
+dialog.memory-sheet .close,
+dialog.letter-sheet .close {
+  color: #65414c;
+  background: rgba(107, 62, 76, .08);
+}
+dialog.memory-sheet .close:hover,
+dialog.letter-sheet .close:hover { background: rgba(107, 62, 76, .17); }
+dialog.memory-sheet h2,
+dialog.letter-sheet h2 { color: #553542; }
+dialog.memory-sheet .memory-caption,
+dialog.memory-sheet .memory-frame-name,
+dialog.memory-sheet .meta-count,
+dialog.letter-sheet .letter-body p,
+dialog.letter-sheet .letter-sign { color: #70545a; }
+dialog.memory-sheet .memory-meta > span:first-child,
+dialog.letter-sheet .finale-kicker,
+dialog.letter-sheet .letter-sign strong { color: #9c5b60; }
+dialog.memory-sheet .memory-frame {
+  padding: 12px;
+  border: 7px solid #fffaf0;
+  box-shadow: 0 12px 28px rgba(88, 55, 46, .22), 0 0 0 1px rgba(119, 80, 66, .25);
+}
+dialog.memory-sheet .chip {
+  color: #674049;
+  background: rgba(158, 100, 105, .08);
+  border-color: rgba(128, 75, 78, .26);
+}
+dialog.memory-sheet .chip:hover { background: rgba(158, 100, 105, .16); }
+dialog.letter-sheet .letter-body { border-block: 1px solid rgba(150, 104, 87, .2); padding-block: 18px 4px; }
+@media (max-width: 760px) {
+  dialog.memory-sheet[open] { grid-template-columns: 1fr; gap: 20px; }
+}
