@@ -779,8 +779,9 @@ function frame() {
   }
   if (started) updateSparkles(t, dt, 1);
 
+  if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
   hero.animate(dt, t, started && controls.moving, controls.airborne);
-  cats?.update(dt, t, hero, started, benchSeated);
+  cats?.update(dt, t, hero, started, benchSeated, { intro: introPlaying, doorOpen: world.frontDoorOpen });
   syncCoupleUi();
   trail?.update(dt, hero.root.position, started && controls.moving, camera);
   houseSparkles?.update(dt, hero.root.position, started && controls.moving);
@@ -790,8 +791,6 @@ function frame() {
   envelope.update(t, dt);
   world.update(t, dt, started ? nearFrame : -1, started ? hero.root.position : null);
   decor?.update(t, dt, hero.root.position, started && controls.moving, started && controls.airborne);
-  // Only once the walk has started: before that the hero sits at the origin, right by the door, and would latch it open
-  if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
   // walking through the castle door: a crystal flash and petals
   if (started && !rescueActive) {
     const hz = hero.root.position.z;

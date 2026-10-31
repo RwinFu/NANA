@@ -380,7 +380,7 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
     });
   }
 
-  return { update };
+  return { update, get isOpen() { return open >= 0.8; } };
 }
 
 export function buildWorld(scene) {
@@ -1768,5 +1768,6 @@ export function buildWorld(scene) {
     updateDoors(dt, px, pz) {
       doors.forEach((d) => d.update(dt, px, pz));
     },
+    get frontDoorOpen() { return frontDoor.isOpen; },
   };
 }
