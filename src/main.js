@@ -19,7 +19,7 @@ import { createFairy } from './fairy.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
 import { createRescueGame, showHowTo } from './rescue.js';
 import { createCats } from './cats.js';
-import { buildDecor } from './decor.js';
+import { buildDecor, GARDEN_BENCH } from './decor.js';
 
 const $ = (sel) => document.querySelector(sel);
 const SWATCHES = [
@@ -443,6 +443,22 @@ function nearEnvelope() {
   return !!controls && controls.isNear(x, z, ENVELOPE_RADIUS);
 }
 
+let benchSeated = false;
+function toggleBench() {
+  if (!controls || !hero) return;
+  benchSeated = !benchSeated;
+  controls.setBenchSeated(benchSeated);
+  hero.setSitting(benchSeated);
+  if (benchSeated) {
+    world.burstHearts(new THREE.Vector3(GARDEN_BENCH.x, 1.1, GARDEN_BENCH.z), 5);
+    audio.chime(523.25);
+    toast('یه لحظه‌ی آروم، فقط برای ما دوتا ❤️', 3500);
+  } else {
+    toast('دوباره بریم خونه‌مون رو بگردیم ✨', 2200);
+  }
+  updatePrompt();
+}
+
 let promptTarget = null;
 function updatePrompt() {
   if (!started || anyDialogOpen()) {
@@ -450,7 +466,10 @@ function updatePrompt() {
     return;
   }
   nearFrame = nearestFrame();
-  if (nearFrame >= 0) {
+  if (benchSeated || controls.isNear(GARDEN_BENCH.x, GARDEN_BENCH.z, 2.5)) {
+    promptTarget = { type: 'bench' };
+    dom.promptLabel.textContent = benchSeated ? 'بلند شدن' : 'کنار هم بشینیم';
+  } else if (nearFrame >= 0) {
     promptTarget = { type: 'frame', index: nearFrame };
     dom.promptLabel.textContent = `دیدن خاطره‌ی ${formatNumber(nearFrame + 1)}`;
   } else if (nearEnvelope()) {
@@ -464,7 +483,9 @@ function updatePrompt() {
 
 function interact() {
   if (!promptTarget) return;
-  if (promptTarget.type === 'frame') {
+  if (promptTarget.type === 'bench') {
+    toggleBench();
+  } else if (promptTarget.type === 'frame') {
     openMemory(promptTarget.index);
   } else if (promptTarget.type === 'envelope') {
     openEnvelope();
@@ -516,6 +537,7 @@ function toggleHold() {
 
 function cycleDance() {
   if (!hero) return;
+  if (benchSeated) { toast('برای رقص اول از نیمکت بلند شو ✨'); return; }
   const name = hero.nextDance();
   toast(name ? `رقص «${name}»` : 'رقص تمام شد', 2600);
   syncCoupleUi();
@@ -758,7 +780,7 @@ function frame() {
   if (started) updateSparkles(t, dt, 1);
 
   hero.animate(dt, t, started && controls.moving, controls.airborne);
-  cats?.update(dt, t, hero, started);
+  cats?.update(dt, t, hero, started, benchSeated);
   syncCoupleUi();
   trail?.update(dt, hero.root.position, started && controls.moving, camera);
   houseSparkles?.update(dt, hero.root.position, started && controls.moving);

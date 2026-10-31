@@ -1,7 +1,7 @@
 import * as THREE from 'three';
 import { isCastleSolid } from './castle.js';
 import { LAYOUT } from './world.js';
-import { FOUNTAIN } from './decor.js';
+import { FOUNTAIN, GARDEN_BENCH } from './decor.js';
 
 const PLAYER_RADIUS = 0.3;
 // The boy walks beside the princess, so the hall walls keep this extra distance
@@ -49,6 +49,9 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   if (z <= -len + margin) return true;
   // The fountain in the garden: the couple walks around its basin
   if (Math.hypot(x - FOUNTAIN.x, z - FOUNTAIN.z) < FOUNTAIN.r + margin && y < 1.8) return true;
+  // Keep the bench solid without changing the route along the central path.
+  if (Math.abs(x - GARDEN_BENCH.x) < GARDEN_BENCH.halfWidth + margin &&
+      Math.abs(z - GARDEN_BENCH.z) < GARDEN_BENCH.halfDepth + margin && y < 1.4) return true;
   // The big envelope at the end of the hall
   const env = LAYOUT.envelope;
   if (Math.abs(x) < env.w / 2 + margin && Math.abs(z - env.z) < 0.1 + margin && y < env.y + env.h + 0.3) {
@@ -90,6 +93,8 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   let pinchStart = 0;
   let pinchDistance = 0;
   let downAt = null;
+  let benchSeated = false;
+  const benchSeat = new THREE.Vector3(GARDEN_BENCH.x - 0.43, 0, GARDEN_BENCH.z);
   let jumpY = 0; // height above the ground
   let jumpVy = 0;
   let jumpBuf = 0;
@@ -99,7 +104,7 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   const move = new THREE.Vector3();
 
   function onKeyDown(event) {
-    if (isBlocked()) return;
+    if (isBlocked() || benchSeated) return;
     if (event.target instanceof HTMLElement && event.target.closest('input, textarea, select, [contenteditable]')) return;
     if (MOVE_KEYS[event.code]) {
       keys.add(event.code);
@@ -230,7 +235,7 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   }
 
   function jump() {
-    if (isBlocked()) return;
+    if (isBlocked() || benchSeated) return;
     jumpBuf = JUMP_BUFFER;
   }
 
@@ -251,7 +256,11 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   }
 
   function update(dt) {
-    const [ix, iy] = isBlocked() ? [0, 0] : computeMoveInput();
+    const [ix, iy] = isBlocked() || benchSeated ? [0, 0] : computeMoveInput();
+    if (benchSeated) {
+      pos.lerp(benchSeat, 1 - Math.exp(-dt * 5));
+      heading = lerpAngle(heading, Math.PI, 1 - Math.exp(-dt * 5));
+    }
     updateJump(dt);
 
     // Camera-relative directions on the ground plane
@@ -367,6 +376,17 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
       return new THREE.Vector3(lookAt.x, lookAt.y + 0.2, lookAt.z);
     },
     setJoystick,
+    setBenchSeated(value) {
+      benchSeated = value;
+      keys.clear();
+      running = false;
+      joystick.x = joystick.y = 0;
+      jumpY = jumpVy = jumpBuf = 0;
+      if (!value) {
+        // Stand up in front of the seat, safely outside its collision box and the fountain.
+        pos.set(GARDEN_BENCH.x - 0.43, 0, GARDEN_BENCH.z - 1.05);
+      }
+    },
     dispose,
     get position() {
       return pos;

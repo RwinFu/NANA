@@ -253,6 +253,18 @@ export function createCouple(dressColor) {
   hem.rotation.x = Math.PI / 2;
   addHemPearls(body, dressDet.pearl);
 
+  // Gather the entire skirt, lace and hem under one waist-level pivot. This lets
+  // the dress settle onto the seat without squashing her head and torso.
+  const skirtPose = new THREE.Group();
+  skirtPose.position.y = 1.1;
+  const skirtParts = [...body.children];
+  body.add(skirtPose);
+  skirtParts.forEach((part) => {
+    body.remove(part);
+    part.position.y -= skirtPose.position.y;
+    skirtPose.add(part);
+  });
+
   // A sash at the waist with a bow at the back
   const sashMat = physMat({ color: '#ff8fb8', roughness: 0.3, sheen: 0.8, sheenColor: new THREE.Color('#ffd0e2'), sheenRoughness: 0.4 });
   const sash = part(new THREE.Mesh(new THREE.TorusGeometry(0.275, 0.034, 10, 40), sashMat), body, 0, 1.19, 0);
@@ -507,6 +519,8 @@ export function createCouple(dressColor) {
   let lookYaw = 0; // how far the boy turns his head toward her
 
   // ----- hand holding and dances -----
+  let sitting = false;
+  let sitAmount = 0;
   let holding = false; // the player asked him to hold her hand
   let holdAmount = 0; // eased: 0 hand down, 1 hands joined
   let danceId = -1; // -1 no dance, otherwise an index into DANCE_NAMES
@@ -592,7 +606,7 @@ export function createCouple(dressColor) {
     const yaw = root.rotation.y;
     // Holding hands brings him in closer
     const side = THREE.MathUtils.lerp(FOLLOW_SIDE, 0.75, holdAmount);
-    const back = FOLLOW_BACK * (1 - holdAmount);
+    const back = FOLLOW_BACK * (1 - holdAmount) * (1 - sitAmount);
     if (!rootReady) {
       prevRoot.copy(rootPos);
       boyWorld.copy(rootPos).add(offset.clone().applyAxisAngle(up, yaw));
@@ -626,6 +640,7 @@ export function createCouple(dressColor) {
     airAmount += ((airborne ? 1 : 0) - airAmount) * Math.min(1, dt * 14);
     const air = airAmount;
 
+    sitAmount += ((sitting ? 1 : 0) - sitAmount) * (1 - Math.exp(-dt * 4));
     // Walking ends a dance; a dance holds hands
     if (moving) danceId = -1;
     const dancing = danceId >= 0;
@@ -649,7 +664,7 @@ export function createCouple(dressColor) {
     turn += (m.turn - turn) * ease;
 
     // After a few seconds standing still, the boy waves his free hand
-    idleTime = moving || dancing ? 0 : idleTime + dt;
+    idleTime = moving || dancing || sitting ? 0 : idleTime + dt;
     waveAmount += ((idleTime > 5 ? 1 : 0) - waveAmount) * Math.min(1, dt * 4);
     const idle = 1 - amount;
     const d = danceAmount;
@@ -667,7 +682,10 @@ export function createCouple(dressColor) {
 
     // Princess: body bobs twice per stride and sways; her feet step under the skirt
     bodice.scale.y = 1 + 0.012 * Math.sin(t * 1.9) * idle;
-    body.position.y = Math.abs(s) * 0.04 * amount * walk + Math.sin(t * 1.6) * 0.01 * idle + bounce;
+    body.position.y = Math.abs(s) * 0.04 * amount * walk + Math.sin(t * 1.6) * 0.01 * idle + bounce - sitAmount * 0.09;
+    // Fold only the skirt at its waist; the upper body keeps its natural proportions.
+    skirtPose.scale.y = 1 - 0.72 * sitAmount;
+    skirtPose.scale.z = 1 + 0.15 * sitAmount;
     body.rotation.y = spinAngle + turn * d;
     body.rotation.z = s * 0.025 * amount * walk + m.roll * d;
     skirt.rotation.z = s * 0.05 * amount * walk + m.roll * d * 0.6;
@@ -677,8 +695,8 @@ export function createCouple(dressColor) {
       const fi = fd + i * Math.PI;
       feet[i].position.set(
         x,
-        0.06 + Math.max(0, Math.cos(fw)) * 0.07 * amount * walk + Math.max(0, Math.cos(fi)) * 0.07 * m.feetAmp * d + 0.05 * air,
-        0.12 + Math.sin(fw) * 0.14 * amount * walk + Math.sin(fi) * 0.14 * m.feetAmp * d,
+        THREE.MathUtils.lerp(0.06 + Math.max(0, Math.cos(fw)) * 0.07 * amount * walk + Math.max(0, Math.cos(fi)) * 0.07 * m.feetAmp * d + 0.05 * air, 0.30, sitAmount),
+        THREE.MathUtils.lerp(0.12 + Math.sin(fw) * 0.14 * amount * walk + Math.sin(fi) * 0.14 * m.feetAmp * d, 0.55, sitAmount),
       );
     });
     // Her arm on his side: hangs by default, reaches for his hand when holding, and takes the dance pose
@@ -695,8 +713,10 @@ export function createCouple(dressColor) {
       const fi = fd + i * Math.PI;
       hip.rotation.x = Math.sin(fw) * 0.5 * amount * walk + Math.sin(fi) * m.legAmp * d - 0.6 * air;
       shins[i].rotation.x = 0.85 * Math.max(0, Math.cos(fw)) * amount * walk + 2 * m.legAmp * Math.max(0, Math.cos(fi)) * d + 1.0 * air;
+      hip.rotation.x = THREE.MathUtils.lerp(hip.rotation.x, -Math.PI * 0.48, sitAmount);
+      shins[i].rotation.x = THREE.MathUtils.lerp(shins[i].rotation.x, Math.PI * 0.48, sitAmount);
     });
-    boyBody.position.y = Math.abs(s) * 0.035 * amount * walk + Math.sin(t * 1.4 + 1) * 0.01 * idle + bounce;
+    boyBody.position.y = Math.abs(s) * 0.035 * amount * walk + Math.sin(t * 1.4 + 1) * 0.01 * idle + bounce - 0.06 * sitAmount;
     boyBody.rotation.z = s * 0.025 * amount * walk + m.roll * d;
     const wave = waveAmount;
     freeArm.rotation.x = -s * 0.5 * amount * (1 - wave) * walk;
@@ -759,5 +779,10 @@ export function createCouple(dressColor) {
     return danceName();
   }
 
-  return { root, animate, setDress, setEnvironment, measure, feet, stride: () => phase, toggleHolding, isHolding, nextDance, danceName };
+  function setSitting(value) {
+    sitting = value;
+    if (value) { danceId = -1; spinAngle = 0; }
+  }
+
+  return { root, animate, setSitting, setDress, setEnvironment, measure, feet, stride: () => phase, toggleHolding, isHolding, nextDance, danceName };
 }

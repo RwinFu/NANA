@@ -5,6 +5,7 @@ import { createRugGlint, createStoneGlint } from './rugglint.js';
 import { stoneNormal, doorNormal, giltNormal, ribbonNormal, heartGlass } from './architecture.js';
 import { buildTown } from './town.js';
 import { advanceHallProgress } from './house-reactivity.js';
+import { outdoorNormal } from './outdoor-textures.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -533,6 +534,7 @@ export function buildWorld(scene) {
   const cloudMat = track(
     new THREE.SpriteMaterial({ map: cloudTex, transparent: true, opacity: 0.16, depthWrite: false, fog: false })
   );
+  const clouds = [];
   [
     [-70, 16, -120, 60, 14],
     [40, 12, -135, 80, 16],
@@ -543,6 +545,7 @@ export function buildWorld(scene) {
     const cloud = new THREE.Sprite(cloudMat);
     cloud.position.set(x, y, z);
     cloud.scale.set(w, hgt, 1);
+    clouds.push({ cloud, x, phase: clouds.length * 1.1 });
     scene.add(cloud);
   });
 
@@ -1065,20 +1068,23 @@ export function buildWorld(scene) {
 
   // Garden: path, trees, bushes, lamps, flowers
   const stoneGeo = track(new THREE.CylinderGeometry(0.5, 0.55, 0.08, 10));
-  const stoneMat = new THREE.MeshStandardMaterial({ color: '#c9bfd1', roughness: 0.9 });
+  const stoneMat = track(new THREE.MeshStandardMaterial({ color: '#c9bfd1', roughness: 0.91, normalMap: outdoorNormal('stone', 2, 2), normalScale: new THREE.Vector2(0.25, 0.25) }));
   const stoneMeshes = [];
-  for (let i = 0; i < 16; i += 1) {
-    // each stone has its own material so it can glow on its own
-    const stone = new THREE.Mesh(stoneGeo, stoneMat.clone());
-    stone.position.set((Math.random() - 0.5) * 0.6, 0.04, 1.5 + i * 1.45);
-    stone.scale.set(1, 1, 0.8 + Math.random() * 0.4);
+  for (let i = 0; i < 20; i += 1) {
+    // An irregular but deterministic trail, with varying spacing and shapes.
+    const stone = new THREE.Mesh(stoneGeo, track(stoneMat.clone()));
+    stone.position.set(0.55 * Math.sin(i * 2.17) + 0.15 * Math.sin(i * 0.63), 0.04,
+      1.5 + i * 1.18 + 0.2 * Math.sin(i * 1.31));
+    stone.scale.set(0.78 + 0.15 * (0.5 + 0.5 * Math.sin(i * 2.4)), 1,
+      0.75 + 0.23 * (0.5 + 0.5 * Math.cos(i * 1.7)));
+    stone.rotation.y = Math.sin(i * 2.3) * 0.5;
     scene.add(stone);
     stoneMeshes.push(stone);
   }
   const stoneGlint = createStoneGlint(scene, stoneMeshes);
 
   const trunkGeo = track(new THREE.CylinderGeometry(0.18, 0.28, 2.2, 7));
-  const trunkMat = new THREE.MeshStandardMaterial({ color: '#4a3323', roughness: 1 });
+  const trunkMat = new THREE.MeshStandardMaterial({ color: '#4a3323', roughness: 0.95, normalMap: outdoorNormal('bark', 2, 1), normalScale: new THREE.Vector2(0.32, 0.32) });
   const leafGeo = track(new THREE.IcosahedronGeometry(1, 0));
   const leafGreen = new THREE.MeshStandardMaterial({ color: '#3e7a5c', roughness: 0.9, flatShading: true });
   const leafBlossom = new THREE.MeshStandardMaterial({ color: '#e7a0b8', roughness: 0.9, flatShading: true });
@@ -1087,13 +1093,21 @@ export function buildWorld(scene) {
     [11, 4], [15, 10], [9, 15], [16, 20], [12, 24],
     [-19, 2], [20, 1],
   ];
+  // Alternate whole trees, in path order on each side rather than array order.
+  const pinkTreeIndices = new Set();
+  for (const side of [-1, 1]) {
+    treeSpots.map(([x, z], index) => ({ x, z, index }))
+      .filter(({ x }) => Math.sign(x) === side)
+      .sort((a, b) => a.z - b.z)
+      .forEach(({ index }, rank) => { if (rank % 2 === 0) pinkTreeIndices.add(index); });
+  }
   const swayingLeaves = [];
   treeSpots.forEach(([x, z], i) => {
     const tree = new THREE.Group();
     const trunk = new THREE.Mesh(trunkGeo, trunkMat);
     trunk.position.y = 1.1;
     tree.add(trunk);
-    const mat = i % 2 === 0 ? leafBlossom : leafGreen;
+    const mat = pinkTreeIndices.has(i) ? leafBlossom : leafGreen;
     [[0, 3.1, 0, 1.5], [0.9, 2.6, 0.3, 1.0], [-0.8, 2.8, -0.2, 1.1]].forEach(([dx, dy, dz, s]) => {
       const leaf = new THREE.Mesh(leafGeo, mat);
       leaf.position.set(dx, dy, dz);
@@ -1101,6 +1115,7 @@ export function buildWorld(scene) {
       tree.add(leaf);
       swayingLeaves.push({ leaf, phase: i * 1.3 + dx, baseX: dx });
     });
+    tree.scale.setScalar(0.88 + (i % 4) * 0.09);
     tree.position.set(x, 0, z);
     tree.rotation.y = Math.random() * Math.PI;
     scene.add(tree);
@@ -1124,7 +1139,7 @@ export function buildWorld(scene) {
   });
 
   // Garden lamps
-  const poleMat = new THREE.MeshStandardMaterial({ color: '#15121c', roughness: 0.6, metalness: 0.4 });
+  const poleMat = new THREE.MeshStandardMaterial({ color: '#302a2d', roughness: 0.62, metalness: 0.38, normalMap: giltNormal(2, 2), normalScale: new THREE.Vector2(0.2, 0.2) });
   const poleGeo = track(new THREE.CylinderGeometry(0.05, 0.07, 3, 6));
   const lampGeo = track(new THREE.SphereGeometry(0.22, 12, 10));
   const lampMat = new THREE.MeshBasicMaterial({ color: '#ffd9a0', fog: false });
@@ -1165,6 +1180,22 @@ export function buildWorld(scene) {
     scene.add(lamp);
   });
 
+  // Small warm path markers, kept outside the walking corridor.
+  const markerGeo = track(new THREE.SphereGeometry(0.075, 8, 6));
+  const markerMat = track(new THREE.MeshBasicMaterial({ color: '#ffd6a0', fog: false }));
+  const markers = new THREE.InstancedMesh(markerGeo, markerMat, 20);
+  const markerDummy = new THREE.Object3D();
+  for (let i = 0; i < 20; i += 1) {
+    markerDummy.position.set((i % 2 ? 1 : -1) * 1.75, 0.16, 2.4 + Math.floor(i / 2) * 2.1);
+    markerDummy.updateMatrix();
+    markers.setMatrixAt(i, markerDummy.matrix);
+  }
+  scene.add(markers);
+  // A single soft entrance light preserves the dark sky and avoids many point lights.
+  const entranceLight = new THREE.PointLight('#ffc28b', 11, 11, 2);
+  entranceLight.position.set(0, 4.2, 2.6);
+  scene.add(entranceLight);
+
   // Fireflies in the garden
   const fireflyCount = 46;
   const fireflyGeo = track(new THREE.SphereGeometry(0.06, 6, 5));
@@ -1174,7 +1205,7 @@ export function buildWorld(scene) {
   const dummy = new THREE.Object3D();
   for (let i = 0; i < fireflyCount; i += 1) {
     fireflyData.push({
-      base: new THREE.Vector3((Math.random() - 0.5) * 36, 0.8 + Math.random() * 3.5, 2 + Math.random() * 22),
+      base: new THREE.Vector3((i % 2 ? 1 : -1) * (4.8 + Math.random() * 3.5), 0.5 + Math.random() * 1.8, 2 + Math.random() * 22),
       phase: Math.random() * Math.PI * 2,
       speed: 0.3 + Math.random() * 0.5,
     });
@@ -1254,10 +1285,12 @@ export function buildWorld(scene) {
       }));
       const ornamentGeo = index % 2 ? frameBeadGeo : frameJewelGeo;
       const corners = index % 3 === 0 ? [[-0.44, 0.44], [0.44, 0.44], [-0.44, -0.44], [0.44, -0.44]] : [[-0.44, 0.44], [0.44, 0.44]];
-      corners.forEach(([x, y]) => {
+      const ornaments = corners.map(([x, y]) => {
         const jewel = new THREE.Mesh(ornamentGeo, ornamentMat);
-        jewel.position.set(x, y, 0.57);
+        // BoxGeometry is only 0.08 deep: keep the jewel against its front face.
+        jewel.position.set(x, y, 0.08);
         frameMesh.add(jewel);
+        return { jewel, sideX: Math.sign(x), sideY: Math.sign(y) };
       });
 
       const placeholder = canvasTexture(256, 256, (ctx, w, h) => {
@@ -1285,16 +1318,16 @@ export function buildWorld(scene) {
 
       // Lamp above the frame, and a soft wash of light on the wall
       const lampArm = new THREE.Mesh(
-        new THREE.BoxGeometry(0.05, 0.5, 0.05),
+        new THREE.BoxGeometry(0.05, 0.24, 0.05),
         new THREE.MeshStandardMaterial({ color: '#15121c', metalness: 0.6, roughness: 0.4 })
       );
-      lampArm.position.set(0, 1.25, 0.25);
+      lampArm.position.set(0, 0.75, 0.08);
       group.add(lampArm);
       const lampHead = new THREE.Mesh(
         new THREE.SphereGeometry(0.1, 12, 10),
         new THREE.MeshBasicMaterial({ color: memory.frame.glow, fog: false })
       );
-      lampHead.position.set(0, 1.55, 0.3);
+      lampHead.position.set(0, 0.87, 0.1);
       group.add(lampHead);
       const warmGlow = new THREE.Color(memory.frame.glow).lerp(new THREE.Color('#ffd7a6'), 0.8);
       const wash = new THREE.Sprite(glowAdd(warmGlow, 0.20));
@@ -1312,6 +1345,8 @@ export function buildWorld(scene) {
         wash,
         frameMesh,
         lampHead,
+        lampArm,
+        ornaments,
         ornamentMat,
         maxW,
         maxH,
@@ -1359,7 +1394,18 @@ export function buildWorld(scene) {
       h = w / aspect;
     }
     frame.photo.scale.set(w, h, 1);
-    frame.frameMesh.scale.set(w + 0.26, h + 0.26, 1);
+    const frameW = w + 0.26;
+    const frameH = h + 0.26;
+    frame.frameMesh.scale.set(frameW, frameH, 1);
+    // The outer border is 0.13 wide. Position each ornament at its midpoint,
+    // and cancel the parent's x/y scale so jewels don't stretch with the photo.
+    frame.ornaments.forEach(({ jewel, sideX, sideY }) => {
+      jewel.position.set(sideX * (0.5 - 0.065 / frameW), sideY * (0.5 - 0.065 / frameH), 0.08);
+      jewel.scale.set(1 / frameW, 1 / frameH, 1);
+    });
+    const top = frameH / 2;
+    frame.lampArm.position.y = top + 0.12;
+    frame.lampHead.position.y = top + 0.24;
     frame.wash.scale.set(w + 2.2, h + 1.6, 1);
     frame.photo.material.map = texture;
     previous?.dispose();
@@ -1619,6 +1665,7 @@ export function buildWorld(scene) {
     hallProgress = advanceHallProgress(hallProgress, playerPosition, LAYOUT.hallHalfWidth, LAYOUT.hallLength);
     castle.update(t);
     town.update(t);
+    clouds.forEach(({ cloud, x, phase }) => { cloud.position.x = x + Math.sin(t * 0.025 + phase) * 2; });
     // Slow, subtle movement shared across the garden canopy and chandeliers.
     swayingLeaves.forEach(({ leaf, phase, baseX }) => {
       leaf.position.x = baseX + Math.sin(t * 0.45 + phase) * 0.025;

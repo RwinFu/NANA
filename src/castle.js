@@ -108,9 +108,9 @@ function makeRoseWindowTexture() {
 
 export function buildCastle(scene, track) {
   const stone = track(new THREE.MeshStandardMaterial({
-    color: '#fbf3ea', map: makeStoneTexture(), normalMap: stoneNormal(5, 4), normalScale: new THREE.Vector2(0.65, 0.65), roughness: 0.85,
+    color: '#fbf3ea', map: makeStoneTexture(), normalMap: stoneNormal(5, 4), normalScale: new THREE.Vector2(0.55, 0.55), roughness: 0.85,
   }));
-  const stoneLight = track(new THREE.MeshStandardMaterial({ color: '#fff8f1', roughness: 0.7, normalMap: stoneNormal(2, 1), normalScale: new THREE.Vector2(0.55, 0.55) }));
+  const stoneLight = track(new THREE.MeshStandardMaterial({ color: '#fff8f1', roughness: 0.7, normalMap: stoneNormal(2, 1), normalScale: new THREE.Vector2(0.45, 0.45) }));
   const roof = track(new THREE.MeshStandardMaterial({ color: '#e98fb1', roughness: 0.45 }));
   const roofDeep = track(new THREE.MeshStandardMaterial({ color: '#b5557a', roughness: 0.5 }));
   const gold = track(new THREE.MeshStandardMaterial({ color: '#f5c96a', metalness: 0.7, roughness: 0.3, normalMap: giltNormal(4, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
