@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { LAYOUT, wrapText } from './world.js';
 import { envelopeNormal } from './architecture.js';
+import { createEnvelopeShell } from './envelope-art.js';
 
 const FONT = '"Vazirmatn Variable", Vazirmatn, sans-serif';
 const PAPER_W = 2.7;
@@ -40,43 +41,9 @@ export function createEnvelope(scene, { fromName, toName, paragraph }) {
   group.position.set(x, y, z);
   scene.add(group);
 
-  const bodyMat = new THREE.MeshStandardMaterial({
-    color: '#fbefe0', roughness: 0.75, normalMap: envelopeNormal(8, 5), normalScale: new THREE.Vector2(0.9, 0.9),
-  });
-  const body = new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.08), bodyMat);
-  body.position.set(0, h / 2, 0);
-  group.add(body);
-
-  // Back inner lining, visible through the gap when the flap opens
-  const lining = new THREE.Mesh(
-    new THREE.PlaneGeometry(w - 0.2, h - 0.2),
-    new THREE.MeshStandardMaterial({ color: '#c99272', roughness: 0.9, side: THREE.DoubleSide })
-  );
-  lining.position.set(0, h / 2, -0.045);
-  group.add(lining);
-
-  // Seal
-  const seal = new THREE.Mesh(
-    new THREE.CircleGeometry(0.22, 32),
-    new THREE.MeshStandardMaterial({ color: '#b3223d', roughness: 0.5 })
-  );
-  seal.position.set(0, h * 0.4, 0.05);
-  group.add(seal);
-
-  // Flap, hinged on its top edge
-  const flapShape = new THREE.Shape();
-  flapShape.moveTo(-w / 2, 0);
-  flapShape.lineTo(w / 2, 0);
-  flapShape.lineTo(0, -h * 0.6);
-  flapShape.closePath();
-  const flapMat = new THREE.MeshStandardMaterial({
-    color: '#e59aae', roughness: 0.6, side: THREE.DoubleSide, normalMap: envelopeNormal(2.4, 2.4), normalScale: new THREE.Vector2(0.9, 0.9),
-  });
-  const flapPivot = new THREE.Group();
-  flapPivot.position.set(0, h, 0.045);
-  group.add(flapPivot);
-  const flap = new THREE.Mesh(new THREE.ShapeGeometry(flapShape), flapMat);
-  flapPivot.add(flap);
+  const shell = createEnvelopeShell(w, h, envelopeNormal(8, 5), envelopeNormal(2.4, 2.4));
+  group.add(shell.group);
+  const { body, flap, flapPivot } = shell;
 
   // Letter paper, hidden inside the envelope until it's pulled out
   const paperCanvas = document.createElement('canvas');
@@ -97,13 +64,13 @@ export function createEnvelope(scene, { fromName, toName, paragraph }) {
   glowCanvas.height = 256;
   const gctx = glowCanvas.getContext('2d');
   const grad = gctx.createRadialGradient(128, 128, 0, 128, 128, 128);
-  grad.addColorStop(0, 'rgba(255,190,140,0.9)');
-  grad.addColorStop(1, 'rgba(255,190,140,0)');
+  grad.addColorStop(0, 'rgba(239,188,189,0.65)');
+  grad.addColorStop(1, 'rgba(239,188,189,0)');
   gctx.fillStyle = grad;
   gctx.fillRect(0, 0, 256, 256);
   const glowTex = new THREE.CanvasTexture(glowCanvas);
   const glow = new THREE.Sprite(
-    new THREE.SpriteMaterial({ map: glowTex, transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })
+    new THREE.SpriteMaterial({ map: glowTex, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending, fog: false })
   );
   glow.scale.set(w + 2.6, h + 2.2, 1);
   glow.position.set(0, h / 2, -0.3);
@@ -152,7 +119,7 @@ export function createEnvelope(scene, { fromName, toName, paragraph }) {
       // Idle: the envelope floats very gently
       group.position.y = y + Math.sin(t * 1.2) * 0.03;
     }
-    if (state === 'closed') glow.material.opacity = 0.45 + Math.sin(t * 1.8) * 0.12;
+    if (state === 'closed') glow.material.opacity = 0.26 + Math.sin(t * 1.8) * 0.04;
   }
 
   return {
@@ -169,6 +136,10 @@ export function createEnvelope(scene, { fromName, toName, paragraph }) {
     update,
     setNames,
     dispose() {
+      shell.dispose();
+      paper.geometry.dispose();
+      paper.material.dispose();
+      glow.material.dispose();
       paperTex.dispose();
       glowTex.dispose();
     },

@@ -6,6 +6,7 @@ import { stoneNormal, doorNormal, giltNormal, ribbonNormal, heartGlass } from '.
 import { buildTown } from './town.js';
 import { advanceHallProgress } from './house-reactivity.js';
 import { outdoorNormal } from './outdoor-textures.js';
+import { createGardenGrass } from './garden-grass.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -580,6 +581,7 @@ export function buildWorld(scene) {
   grass.rotation.x = -Math.PI / 2;
   grass.position.set(0, 0, -20);
   scene.add(grass);
+  const gardenGrass = createGardenGrass(scene, grass.material);
 
   // Hall floor: inlaid parquet planks with a gold border line on every tile
   const parquetTex = canvasTexture(256, 256, (ctx, w, h) => {
@@ -1661,7 +1663,8 @@ export function buildWorld(scene) {
   let hallProgress = -1;
   const hallLightLevels = hallLights.map(() => 0.12);
 
-  function update(t, dt, highlightIndex, playerPosition = null) {
+  function update(t, dt, highlightIndex, playerPosition = null, grassActors = []) {
+    gardenGrass.update(t, dt, grassActors);
     hallProgress = advanceHallProgress(hallProgress, playerPosition, LAYOUT.hallHalfWidth, LAYOUT.hallLength);
     castle.update(t);
     town.update(t);
@@ -1741,6 +1744,7 @@ export function buildWorld(scene) {
   }
 
   function dispose() {
+    gardenGrass.dispose();
     disposables.forEach((obj) => {
       if (obj.dispose) obj.dispose();
     });

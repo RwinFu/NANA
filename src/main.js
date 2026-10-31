@@ -747,6 +747,9 @@ const clock = new THREE.Clock();
 const DOOR_Z = 0.12;
 let lastDoorZ = null;
 
+const grassBoyPosition = new THREE.Vector3();
+const grassCatPositions = [new THREE.Vector3(), new THREE.Vector3()];
+const grassActors = [];
 function frame() {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, clock.getDelta());
@@ -789,7 +792,16 @@ function frame() {
   world?.stoneGlint?.update(dt, t, hero.root.position, started && controls.moving);
   footprints?.update(dt, hero, started && controls.moving);
   envelope.update(t, dt);
-  world.update(t, dt, started ? nearFrame : -1, started ? hero.root.position : null);
+  grassActors.length = 0;
+  if (started) {
+    grassActors.push(hero.root.position);
+    const boy = hero.root.getObjectByName('boy');
+    if (boy) grassActors.push(boy.getWorldPosition(grassBoyPosition));
+    if (cats?.group.visible) cats.group.children.forEach((cat, i) => {
+      if (i < grassCatPositions.length && cat.visible) grassActors.push(cat.getWorldPosition(grassCatPositions[i]));
+    });
+  }
+  world.update(t, dt, started ? nearFrame : -1, started ? hero.root.position : null, grassActors);
   decor?.update(t, dt, hero.root.position, started && controls.moving, started && controls.airborne);
   // walking through the castle door: a crystal flash and petals
   if (started && !rescueActive) {
