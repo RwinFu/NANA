@@ -29,7 +29,7 @@ const EXIT_DELAY = 1.2;
 const GLITCH_S = 1.2; // the broken-signal burst at the gate, before the fade
 const FADE_MS = 1800;
 // The ending timeline, in seconds from the win
-const ENDING = { CHIME_AT: 0.9, DONE_AT: 2.15, SLOW: 0.3, SLOW_IN: 0.9 };
+const ENDING = { CHIME_AT: 0.7, DONE_AT: 2.5, SLOW: 0.35, SLOW_IN: 1.2 };
 // The golden hair the boy climbs: from the high balcony down to the ground
 // Two golden braids to climb: the first up the stage-1 tower to the balcony,
 // the second up the princess's tower
