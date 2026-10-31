@@ -714,38 +714,6 @@ const clock = new THREE.Clock();
 // The castle entrance, see buildWorld (the front doors are centred on this z)
 const DOOR_Z = 0.12;
 let lastDoorZ = null;
-// The first time the couple walks in: the camera takes a short look down the hall, then hands back to them
-const DOOR_SCENE_S = 3.6;
-let doorScene = null;
-let doorSceneDone = false;
-
-function startDoorScene() {
-  doorSceneDone = true;
-  const hz = hero.root.position.z;
-  doorScene = {
-    t: 0,
-    from: camera.position.clone(),
-    lookFrom: controls.focus.clone(),
-    to: new THREE.Vector3(0, 3.1, hz - 7),
-    lookTo: new THREE.Vector3(0, 3.0, -LAYOUT.hallLength),
-    look: new THREE.Vector3(),
-  };
-}
-
-// The couple stand still; the camera moves down the hall in the first 2.2 s, holds, then blends back to follow
-function updateDoorScene(dt) {
-  const d = doorScene;
-  d.t += dt;
-  const k = Math.min(1, d.t / 2.2);
-  const e = k * k * (3 - 2 * k);
-  camera.position.lerpVectors(d.from, d.to, e);
-  d.look.lerpVectors(d.lookFrom, d.lookTo, e);
-  camera.lookAt(d.look);
-  if (d.t >= DOOR_SCENE_S) {
-    doorScene = null;
-    transition = { from: camera.position.clone(), lookFrom: d.look.clone(), elapsed: 0, duration: 1.4 };
-  }
-}
 
 function frame() {
   requestAnimationFrame(frame);
@@ -754,9 +722,7 @@ function frame() {
   if (!renderer) return;
   if (rescueActive) return; // the rescue game is on screen
 
-  if (started && doorScene) {
-    updateDoorScene(dt);
-  } else if (started) {
+  if (started) {
     controls.update(dt);
     if (transition) {
       transition.elapsed += dt;
@@ -798,7 +764,6 @@ function frame() {
     const hz = hero.root.position.z;
     if (lastDoorZ !== null && Math.abs(hero.root.position.x) < LAYOUT.doorHalfWidth && (lastDoorZ - DOOR_Z) * (hz - DOOR_Z) < 0) {
       decor?.doorBurst();
-      if (!doorSceneDone) startDoorScene();
     }
     lastDoorZ = hz;
   }
