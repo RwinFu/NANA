@@ -168,10 +168,17 @@ function beginRescue() {
       audio.startSong();
     },
   });
-  if (import.meta.env.DEV) window.__rescue = rescue;
+  if (import.meta.env.DEV) {
+    window.__rescue = rescue;
+    // Preview the win transition without playing the entire rescue (development only).
+    if (new URLSearchParams(window.location.search).get('preview') === 'reveal') {
+      rescue.state().phase = 'won';
+      rescue.state().endT = 0;
+    }
+  }
 }
 
-function finishRescue() {
+function finishRescue(quick) {
   rescueActive = false;
   introPlaying = true;
   introFired = false;
@@ -180,7 +187,7 @@ function finishRescue() {
   dom.intro.classList.remove('is-ready');
   dom.intro.classList.add('flight-only');
   dom.intro.hidden = false;
-  rescue.reveal(); // the black screen lifts into the intro
+  rescue.reveal(quick); // the night veil lifts into the castle flight
 }
 
 if (renderer) {

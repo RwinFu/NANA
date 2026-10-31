@@ -1166,3 +1166,30 @@ dialog h2 {
 }
 .rescue.rescue-howto.is-leaving { opacity: 0; pointer-events: none; }
 .rescue.rescue-howto .rescue-card { position: absolute; }
+
+/* A shared midnight palette bridges the 2D world and the castle. */
+.rescue-night {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0;
+  background: radial-gradient(ellipse at 50% 75%, #28203f 0%, #11142a 48%, #070918 100%);
+  transition: opacity 1.6s ease-in-out;
+}
+.rescue-night-stars {
+  position: absolute;
+  inset: 0;
+  background-image:
+    radial-gradient(1.5px 1.5px at 12% 21%, #fff4ff 98%, transparent),
+    radial-gradient(1px 1px at 27% 35%, #e9cdff 98%, transparent),
+    radial-gradient(2px 2px at 38% 13%, #ffe8f7 98%, transparent),
+    radial-gradient(1px 1px at 53% 28%, #fff 98%, transparent),
+    radial-gradient(1.5px 1.5px at 68% 15%, #e9ceff 98%, transparent),
+    radial-gradient(1px 1px at 81% 39%, #fff2fb 98%, transparent),
+    radial-gradient(2px 2px at 91% 19%, #ffe5f3 98%, transparent),
+    radial-gradient(1px 1px at 19% 56%, #f4d7ff 98%, transparent),
+    radial-gradient(1px 1px at 73% 58%, #fff 98%, transparent);
+  filter: drop-shadow(0 0 5px #d9adff);
+}
+.rescue.is-night .rescue-night { opacity: 1; }
+.rescue.is-night.is-leaving { transition: opacity 2.7s ease-in-out; }
