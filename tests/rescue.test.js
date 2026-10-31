@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { ledgeX, helpAfterLoss, ROCK_WARNING, VICTORY_GATE_CUE, VICTORY_EXIT, PORTAL_ZOOM_START, PORTAL_ZOOM_DURATION, portalZoom, portalCharacterOpacity } from '../src/rescue-timing.js';
+import { ledgeX, helpAfterLoss, ROCK_WARNING, VICTORY_GATE_CUE, VICTORY_EXIT, PORTAL_ZOOM_START, PORTAL_ZOOM_DURATION, portalZoom, portalCamera, portalCharacterOpacity } from '../src/rescue-timing.js';
 
 // Minimal DOM/canvas harness: exercises the real simulation and UI handlers,
 // not browser layout or rendered appearance.
@@ -35,6 +35,22 @@ test('doorway zoom starts after the entrance and eases smoothly to full size', (
   assert.equal(portalCharacterOpacity(4146, 4150), 1);
   assert.ok(portalCharacterOpacity(4164, 4150) > 0 && portalCharacterOpacity(4164, 4150) < 1);
   assert.equal(portalCharacterOpacity(4182, 4150), 0);
+});
+
+test('victory camera centres the doorway and the final view fits inside its sky', () => {
+  const start = portalCamera(PORTAL_ZOOM_START, 4150, 3340, 960, 540);
+  assert.deepEqual([start.x, start.y, start.targetX, start.targetY, start.zoom, start.hudOpacity], [870, 307, 870, 307, 1, 1]);
+  const mid = portalCamera(PORTAL_ZOOM_START + PORTAL_ZOOM_DURATION / 2, 4150, 3340, 960, 540);
+  assert.ok(mid.targetX < start.targetX && mid.targetX > 480);
+  assert.ok(mid.zoom > 1 && mid.zoom < 25);
+  const end = portalCamera(VICTORY_EXIT, 4150, 3340, 960, 540);
+  assert.deepEqual([end.targetX, end.targetY, end.zoom, end.hudOpacity], [480, 270, 25, 0]);
+  // Inverse-transform all viewport corners to the door's local coordinates.
+  for (const x of [0, 960]) for (const y of [0, 540]) {
+    const doorX = 60 + (x - end.targetX) / end.zoom;
+    const doorY = 307 + (y - end.targetY) / end.zoom;
+    assert.ok(doorX > 14 && doorX < 106 && doorY > 230 && doorY < 430);
+  }
 });
 
 test('platform movement is slow, bounded and deterministic', () => {

@@ -4,7 +4,8 @@
 // onDone() is called once the game is won (or skipped); the intro plays after it.
 
 import { sfx } from './sfx.js';
-import { VICTORY_WALK_START, VICTORY_GATE_CUE, VICTORY_EXIT, PORTAL_ZOOM_START, portalZoom, portalCharacterOpacity, ROCK_WARNING, ledgeX, helpAfterLoss } from './rescue-timing.js';
+import { followHero, princessPose } from './princess-animation.js';
+import { VICTORY_WALK_START, VICTORY_GATE_CUE, VICTORY_EXIT, PORTAL_ZOOM_START, portalCamera, portalCharacterOpacity, ROCK_WARNING, ledgeX, helpAfterLoss } from './rescue-timing.js';
 
 const W = 960;
 const H = 540;
@@ -154,7 +155,7 @@ function newState() {
     msgT: 0,
     p: { x: 40, y: GROUND_Y, vx: 0, vy: 0, facing: 1, onGround: true, phase: 0, inv: 0, coyote: 0, jumpBuf: 0, fireCd: 0, climb: false, usedDouble: false },
     dragon: { x: 1500, y: 150, hp: DRAGON_HITS, state: 'fight', active: false, alpha: 1, flap: 0, hit: 0, fireT: 1.5, surprise: 0 },
-    princess: { x: PRINCESS_AT.x, y: PRINCESS_AT.y, state: 'captive', facing: 1, phase: 0, moving: 0 },
+    princess: { x: PRINCESS_AT.x, y: PRINCESS_AT.y, state: 'captive', facing: 1, phase: 0, speed: 0, airborne: false, climbing: false, trail: [] },
     fire: [],
     sparks: [],
     rocks: [],
@@ -579,13 +580,7 @@ function updatePrincess(g, dt) {
     pr.phase += dt * 4;
     return;
   }
-  const target = g.p.x - 46;
-  const before = pr.x;
-  pr.x += (target - pr.x) * Math.min(1, dt * 5);
-  pr.y += (g.p.y - pr.y) * Math.min(1, dt * 8);
-  pr.moving = pr.x - before;
-  pr.phase += Math.abs(pr.moving) * 0.6 + dt * 2;
-  pr.facing = 1;
+  followHero(pr, g.p, g.t, dt);
 }
 
 // ---------- drawing ---------------------------------------------------------
@@ -954,7 +949,7 @@ function drawGateNight(ctx, x, t, zoom = 1) {
   ctx.restore();
 }
 
-function drawGate(ctx, g, t) {
+function drawGate(ctx, g, t, zoom = 1) {
   const x = GATE_X;
   ctx.fillStyle = '#3a2a52';
   ctx.beginPath();
@@ -971,7 +966,7 @@ function drawGate(ctx, g, t) {
     glow.addColorStop(1, 'rgba(126,91,179,0)');
     ctx.fillStyle = glow;
     ctx.fillRect(x - 100, 120, 320, 330);
-    drawGateNight(ctx, x, t);
+    drawGateNight(ctx, x, t, zoom);
   } else {
     ctx.strokeStyle = '#8a7fa0';
     ctx.lineWidth = 3;
@@ -985,84 +980,101 @@ function drawGate(ctx, g, t) {
 }
 
 function drawPrincess(ctx, pr, t) {
-  const bob = pr.state === 'freed' ? Math.abs(Math.sin(pr.phase)) * 2 : 0;
-  const sway = pr.state === 'freed' ? Math.sin(pr.phase) * 2 : Math.sin(t * 2) * 0.8;
+  const pose = princessPose(pr, t);
+  const { step, lift, hair, breath } = pose;
+  const arm = pose.airborne ? -0.35 : step * 0.45;
   ctx.save();
-  ctx.translate(pr.x, pr.y - bob);
+  ctx.translate(pr.x, pr.y);
   ctx.scale(pr.facing, 1);
-  // A soft pink-gold light around her, so she stands out against the dark tower
-  const halo = ctx.createRadialGradient(0, -36, 6, 0, -36, 70);
-  halo.addColorStop(0, `rgba(255,214,235,${(0.24 + 0.05 * Math.sin(t * 2.4)).toFixed(3)})`);
-  halo.addColorStop(1, 'rgba(255,214,235,0)');
-  ctx.fillStyle = halo;
-  ctx.fillRect(-72, -106, 144, 140);
-  // Long hair at the back
-  ctx.fillStyle = '#6b3a2a';
-  ctx.beginPath();
-  ctx.moveTo(-9, -50);
-  ctx.quadraticCurveTo(-18, -30, -13, -16);
-  ctx.lineTo(-4, -22);
-  ctx.closePath();
-  ctx.fill();
-  // Dress
-  ctx.fillStyle = '#ff7fb0';
-  ctx.beginPath();
-  ctx.moveTo(-7, -32);
-  ctx.lineTo(7, -32);
-  ctx.lineTo(16 + sway, 0);
-  ctx.lineTo(-16 + sway, 0);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = '#fff0f6';
-  ctx.fillRect(-16 + sway, -4, 32, 4);
-  ctx.fillStyle = '#ffd66b';
-  ctx.fillRect(-7, -33, 14, 2.5);
-  ctx.fillStyle = '#ff4f8b';
-  ctx.fillRect(-6, -41, 12, 10);
-  // Arms: raised on the bars while captive
-  ctx.strokeStyle = '#ffd9b8';
-  ctx.lineWidth = 3.5;
   ctx.lineCap = 'round';
-  if (pr.state === 'captive') {
-    limb(ctx, -5, -38, 12, -2.5);
-    limb(ctx, 5, -38, 12, 2.5);
-  } else {
-    limb(ctx, -5, -38, 12, 0.5 + sway * 0.05);
-    limb(ctx, 5, -38, 12, -0.4 - sway * 0.05);
-  }
-  // Head, hair and tiara
-  ctx.fillStyle = '#ffd9b8';
+  ctx.lineJoin = 'round';
+
+  // Behind the figure: long chestnut hair, with a little delayed sway.
+  ctx.fillStyle = '#60372f';
   ctx.beginPath();
-  ctx.arc(0, -48, 8.5, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#6b3a2a';
-  ctx.beginPath();
-  ctx.arc(0, -50, 9, Math.PI * 0.95, Math.PI * 2.05);
-  ctx.fill();
-  ctx.fillStyle = '#ffd66b';
-  ctx.beginPath();
-  ctx.moveTo(-7, -55);
-  ctx.lineTo(-5, -63);
-  ctx.lineTo(-2, -57);
-  ctx.lineTo(0, -65);
-  ctx.lineTo(2, -57);
-  ctx.lineTo(5, -63);
-  ctx.lineTo(7, -55);
+  ctx.moveTo(-10, -58 - lift);
+  ctx.bezierCurveTo(-19, -53 - lift, -17 + hair, -30, -15 + hair, -17);
+  ctx.quadraticCurveTo(-10 + hair, -11, -4, -18);
+  ctx.lineTo(4, -46 - lift);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = '#ff4f8b';
+  ctx.strokeStyle = '#855042';
+  ctx.lineWidth = 1.3;
   ctx.beginPath();
-  ctx.arc(0, -58, 1.6, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = '#2b1b33';
-  ctx.beginPath();
-  ctx.arc(3, -48, 1.4, 0, Math.PI * 2);
-  ctx.fill();
-  ctx.strokeStyle = '#2b1b33';
-  ctx.lineWidth = 1.2;
-  ctx.beginPath();
-  ctx.arc(3, -45, 2.5, 0.2, 1.2);
+  ctx.moveTo(-11, -49 - lift);
+  ctx.quadraticCurveTo(-14 + hair, -31, -11 + hair, -21);
   ctx.stroke();
+
+  // Feet use opposite steps. Their baseline stays on the supporting surface.
+  const leg = (side, swing) => {
+    const footX = side * 3 + swing * 5;
+    const footY = -Math.max(0, swing) * 2;
+    ctx.strokeStyle = '#f4c5b7'; ctx.lineWidth = 3.5;
+    ctx.beginPath(); ctx.moveTo(side * 3, -14 - lift); ctx.lineTo(footX, footY - 3); ctx.stroke();
+    ctx.fillStyle = '#713c59';
+    ctx.beginPath(); ctx.ellipse(footX + 1, footY - 2, 4, 2.4, 0, 0, Math.PI * 2); ctx.fill();
+  };
+  leg(-1, -step);
+  leg(1, step);
+
+  // Back arm sits behind the dress, and counter-swings against the legs.
+  ctx.strokeStyle = '#f5c7b6'; ctx.lineWidth = 4;
+  ctx.beginPath();
+  ctx.moveTo(-6, -40 - lift);
+  ctx.quadraticCurveTo(-12, -34 - lift, -11 - arm * 5, -27 - lift);
+  ctx.stroke();
+
+  // Shaped bodice and flowing rose skirt: simple enough to read at game scale.
+  ctx.fillStyle = '#dc6595';
+  ctx.beginPath();
+  ctx.moveTo(-7, -41 - lift); ctx.quadraticCurveTo(0, -45 - lift, 7, -41 - lift);
+  ctx.lineTo(8, -26 - lift); ctx.lineTo(-8, -26 - lift); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#f58cb1';
+  ctx.beginPath();
+  ctx.moveTo(-7, -28 - lift); ctx.lineTo(7, -28 - lift);
+  ctx.quadraticCurveTo(10 + step, -19, 15 + step, -10);
+  ctx.quadraticCurveTo(0, -6, -15 + step, -10);
+  ctx.quadraticCurveTo(-10 + step, -19, -7, -28 - lift);
+  ctx.fill();
+  ctx.strokeStyle = '#fbd4e2'; ctx.lineWidth = 2;
+  ctx.beginPath(); ctx.quadraticCurveTo(0, -6, 15 + step, -10); ctx.stroke();
+  ctx.fillStyle = '#f3ce84'; ctx.fillRect(-7, -29 - lift, 14, 2.5);
+  ctx.fillStyle = '#fff0f3';
+  ctx.beginPath(); ctx.ellipse(0, -39 - lift, 4, 2, 0, 0, Math.PI * 2); ctx.fill();
+
+  // Front arm and hand; she reaches gently toward the cage while waiting.
+  ctx.strokeStyle = '#f5c7b6'; ctx.lineWidth = 4;
+  ctx.beginPath(); ctx.moveTo(6, -39 - lift);
+  if (pose.captive) ctx.quadraticCurveTo(13, -38, 15, -46);
+  else if (pose.climbing) ctx.quadraticCurveTo(14, -44, 12, -52);
+  else ctx.quadraticCurveTo(12, -32 - lift, 10 + arm * 6, -25 - lift);
+  ctx.stroke();
+
+  // Head, fringe, expressive eye and a small rose-gold tiara.
+  ctx.fillStyle = '#f7d0be';
+  ctx.beginPath(); ctx.ellipse(0, -52 - lift + breath, 9.5, 10, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = '#60372f';
+  ctx.beginPath();
+  ctx.moveTo(-9, -51 - lift); ctx.quadraticCurveTo(-13, -65 - lift, 0, -64 - lift);
+  ctx.quadraticCurveTo(10, -64 - lift, 9, -55 - lift);
+  ctx.quadraticCurveTo(4, -57 - lift, 1, -61 - lift);
+  ctx.quadraticCurveTo(-3, -54 - lift, -9, -51 - lift); ctx.fill();
+  ctx.fillStyle = '#e8b966';
+  ctx.beginPath(); ctx.moveTo(-7, -62 - lift); ctx.lineTo(-6, -68 - lift);
+  ctx.lineTo(-2, -65 - lift); ctx.lineTo(1, -71 - lift);
+  ctx.lineTo(4, -65 - lift); ctx.lineTo(8, -68 - lift);
+  ctx.lineTo(7, -61 - lift); ctx.closePath(); ctx.fill();
+  ctx.fillStyle = '#f78eb4'; ctx.beginPath(); ctx.arc(1, -65 - lift, 1.4, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#4a3035'; ctx.lineWidth = 1.3;
+  if (pose.blink) {
+    ctx.beginPath(); ctx.moveTo(3, -52 - lift); ctx.lineTo(6, -52 - lift); ctx.stroke();
+  } else {
+    ctx.fillStyle = '#4a3035'; ctx.beginPath(); ctx.ellipse(4.5, -52 - lift, 1.2, 1.8, 0, 0, Math.PI * 2); ctx.fill();
+  }
+  ctx.fillStyle = 'rgba(230,117,139,0.55)';
+  ctx.beginPath(); ctx.ellipse(7, -48.5 - lift, 2, 1, 0, 0, Math.PI * 2); ctx.fill();
+  ctx.strokeStyle = '#9b5863'; ctx.lineWidth = 0.9;
+  ctx.beginPath(); ctx.arc(4, -47 - lift, 2, 0.2, 1.3); ctx.stroke();
   ctx.restore();
 }
 
@@ -1301,12 +1313,12 @@ function drawSkyLanterns(ctx, g, t) {
   ctx.globalAlpha = 1;
 }
 
-function drawGlimmer(ctx, t) {
+function drawGlimmer(ctx, t, opacity = 1) {
   ctx.fillStyle = '#ffe9a8';
   for (const q of GLIMMER) {
     const y = ((q.y - t * q.sp) % H + H) % H;
     const x = q.x + Math.sin(t * 0.8 + q.ph) * q.sw;
-    ctx.globalAlpha = 0.35 + 0.35 * Math.sin(t * 3 + q.ph);
+    ctx.globalAlpha = opacity * (0.35 + 0.35 * Math.sin(t * 3 + q.ph));
     ctx.fillRect(x, y, q.s, q.s);
   }
   ctx.globalAlpha = 1;
@@ -1718,6 +1730,15 @@ function drawHud(ctx, g) {
 }
 
 function render(ctx, g, t) {
+  const camera = g.phase === 'won' ? portalCamera(g.endT, GATE_X, g.camX, W, H) : null;
+  // Transform the entire scene, not just the doorway: the stone frame and
+  // surroundings move out of view as the camera approaches the night sky.
+  ctx.save();
+  if (camera && camera.zoom > 1) {
+    ctx.translate(camera.targetX, camera.targetY);
+    ctx.scale(camera.zoom, camera.zoom);
+    ctx.translate(-camera.x, -camera.y);
+  }
   drawSky(ctx, g, t);
   drawClouds(ctx, g, t);
   drawSkyLanterns(ctx, g, t);
@@ -1728,7 +1749,7 @@ function render(ctx, g, t) {
   ctx.translate(-g.camX + (g.shake > 0 ? (Math.random() - 0.5) * g.shake * 16 : 0), g.shake > 0 ? (Math.random() - 0.5) * g.shake * 10 : 0);
   drawTower(ctx);
   drawFloor(ctx, g);
-  drawGate(ctx, g, t);
+  drawGate(ctx, g, t, camera?.zoom || 1);
   for (const r of ROPES) drawRope(ctx, t, r);
   // The doorway is a threshold: once a character crosses its near edge,
   // hide the part inside and beyond it, so nobody reappears on the far side.
@@ -1749,14 +1770,18 @@ function render(ctx, g, t) {
   drawSparks(ctx, g);
   drawParts(ctx, g);
   ctx.restore(); // doorway clipping
-  ctx.restore();
+  ctx.restore(); // world coordinates
+  ctx.restore(); // camera zoom
   if (g.flash > 0) {
     ctx.fillStyle = `rgba(230,220,255,${(g.flash * 0.45).toFixed(3)})`;
     ctx.fillRect(0, 0, W, H);
   }
-  drawGlimmer(ctx, t);
+  ctx.save();
+  drawGlimmer(ctx, t, camera ? camera.hudOpacity : 1);
+  ctx.globalAlpha = camera ? camera.hudOpacity : 1;
   drawHud(ctx, g);
   drawAbilities(ctx, g);
+  ctx.restore();
   if (g.phase === 'lost') {
     ctx.fillStyle = 'rgba(5,4,13,0.6)';
     ctx.fillRect(0, 0, W, H);
@@ -1767,20 +1792,6 @@ function render(ctx, g, t) {
     ctx.fillStyle = `rgba(255,143,184,${0.65 + 0.2 * Math.sin(g.t * 4)})`;
     heartShape(ctx, g.p.x - 20, g.p.y - 86 - Math.sin(g.t * 2) * 3, 8);
     ctx.fill();
-    ctx.restore();
-  }
-  if (g.phase === 'won' && g.endT >= PORTAL_ZOOM_START) {
-    // Grow the actual doorway scene around its centre, rather than fading in
-    // an unrelated full-screen overlay. The camera is already settled here.
-    const zoom = portalZoom(g.endT);
-    const cx = GATE_X + 60 - g.camX;
-    const cy = 307;
-    ctx.save();
-    ctx.translate(cx, cy);
-    ctx.scale(zoom, zoom);
-    ctx.translate(-cx, -cy);
-    ctx.translate(-g.camX, 0);
-    drawGateNight(ctx, GATE_X, t, zoom);
     ctx.restore();
   }
 }
@@ -2103,6 +2114,13 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
     g.dragon.fireT = Math.max(g.dragon.fireT, 1.5);
     Object.assign(g.p, { x: g.checkpoint, y: GROUND_Y, vx: 0, vy: 0, onGround: true,
       climb: false, inv: 2, coyote: 0, jumpBuf: 0, usedDouble: false });
+    if (g.rescued) {
+      // Retry is a teleport, so don't interpolate an old route across it.
+      g.princess.trail.length = 0;
+      g.princess.x = g.p.x - 18 * g.p.facing;
+      g.princess.y = g.p.y;
+      g.princess.speed = 0;
+    }
     pressed.jump = false; pressed.fire = false;
     say(g, 'از آخرین نقطه‌ی امن ادامه بده!', 2.5);
     syncUi();
