@@ -726,29 +726,20 @@ function startDoorScene() {
     t: 0,
     from: camera.position.clone(),
     lookFrom: controls.focus.clone(),
-    // the camera passes through the middle of the doorway, not through the facade beside it
-    via: new THREE.Vector3(0, 2.9, DOOR_Z + 0.8),
-    lookVia: new THREE.Vector3(0, 2.4, -4),
     to: new THREE.Vector3(0, 3.1, hz - 7),
     lookTo: new THREE.Vector3(0, 3.0, -LAYOUT.hallLength),
     look: new THREE.Vector3(),
   };
 }
 
-// The couple stand still. The camera moves to the doorway (1 s), then down the hall (1.4 s), holds, then blends back to follow
+// The couple stand still; the camera moves down the hall in the first 2.2 s, holds, then blends back to follow
 function updateDoorScene(dt) {
   const d = doorScene;
   d.t += dt;
-  const ease = (x) => x * x * (3 - 2 * x);
-  if (d.t < 1.0) {
-    const e = ease(d.t / 1.0);
-    camera.position.lerpVectors(d.from, d.via, e);
-    d.look.lerpVectors(d.lookFrom, d.lookVia, e);
-  } else {
-    const e = ease(Math.min(1, (d.t - 1.0) / 1.4));
-    camera.position.lerpVectors(d.via, d.to, e);
-    d.look.lerpVectors(d.lookVia, d.lookTo, e);
-  }
+  const k = Math.min(1, d.t / 2.2);
+  const e = k * k * (3 - 2 * k);
+  camera.position.lerpVectors(d.from, d.to, e);
+  d.look.lerpVectors(d.lookFrom, d.lookTo, e);
   camera.lookAt(d.look);
   if (d.t >= DOOR_SCENE_S) {
     doorScene = null;
