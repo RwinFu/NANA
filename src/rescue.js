@@ -1677,6 +1677,7 @@ function buildDom() {
   root.innerHTML = `
     <canvas class="rescue-canvas" aria-hidden="true"></canvas>
     <div class="rescue-fade" aria-hidden="true"></div>
+    <div class="rescue-night" aria-hidden="true"><div class="rescue-night-stars"></div></div>
     <div class="rescue-card" data-card="lost" hidden>
       <div class="rescue-card-inner">
         <h2>پرنسس منتظر است</h2>
@@ -1928,27 +1929,31 @@ export function createRescueGame({ onDone, autoStart = false, onGate = null }) {
     if (!exiting) raf = requestAnimationFrame(loop);
   }
 
-  // Fade the screen to black, then hand over to the next scene
+  // The winning scene dissolves into the same deep night as the castle.
+  // Skipping retains the original quick fade and does not trigger the song.
   function exitToIntro(quick) {
     if (exiting) return;
     exiting = true;
-    g.phase = 'done';
     cancelAnimationFrame(raf);
     releaseAll();
     detach();
-    root.classList.toggle('is-quick', quick);
-    root.classList.add('is-dark');
     syncUi();
     draw();
+    g.phase = 'done';
+    if (quick) {
+      root.classList.add('is-quick', 'is-dark');
+    } else {
+      root.classList.add('is-night');
+    }
     window.setTimeout(() => {
-      if (onDone) onDone();
-    }, quick ? 700 : FADE_MS + 200);
+      if (onDone) onDone(quick);
+    }, quick ? 700 : 1800);
   }
 
-  // Fade the black away and remove the overlay
-  function reveal() {
-    root.classList.add('is-leaving');
-    window.setTimeout(() => root.remove(), FADE_MS + 300);
+  function reveal(quick = false) {
+    // Let the first 3D frame render behind the starry veil before it fades.
+    requestAnimationFrame(() => requestAnimationFrame(() => root.classList.add('is-leaving')));
+    window.setTimeout(() => root.remove(), quick ? FADE_MS + 300 : 3000);
   }
 
   function startGame() {
