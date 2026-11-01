@@ -33,6 +33,9 @@ export const LAYOUT = {
     // Outside faces, including the 0.34 m of masonry built around the room (castle-outer.js); the
     // wall itself is `masonry`. The east side is the hall's own wall.
     ox0: -16.34, ox1: -3.85, oz0: -23.74, oz1: -16.26, // outside faces (the hall wall is its east side)
+    // The room's own faces, inside that stone. Its east side is the hall's west wall, whose outer face
+    // (ix1) is where the annex must stop: building past it puts stone inside the hall.
+    ix0: -16.0, ix1: -4.15, iz0: -23.4, iz1: -16.6,
     masonry: 0.34,
     x0: -15.6, x1: -4.15, z0: -23.0, z1: -17.0, // inside faces: 11.5 m long, 6 m wide
     door: { z0: -21.3, z1: -18.7, top: 6.0 }, // doorway in the hall's west wall, centred on the hall's middle (z0 is the far edge)

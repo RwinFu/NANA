@@ -48,6 +48,7 @@ function arrowSlit(parent, dark, surround, x, y, z, facing = 1, rotY = 0) {
 
 export function buildCastleOuter(scene, track, { hallHalfWidth = 3.85, spring = 6.15, length = 40, room } = {}) {
   const group = new THREE.Group();
+  group.name = 'castle-outer';
   scene.add(group);
 
   const wallStone = track(stoneMaterial({ color: '#ddd0c4', tone: 168, seed: 31, rows: 7, normal: 0.6 }));
@@ -182,12 +183,16 @@ export function buildCastleOuter(scene, track, { hallHalfWidth = 3.85, spring = 
     const H = room.height;
     const { ox0, ox1, oz0, oz1 } = room;
     const t = 0.34;
-    const wSpan = ox1 - ox0;
+    // The annex stops at the hall's own wall. `ox1` is the outer face of that wall (the room's east
+    // side), so the annex's north and south walls have to end at the room's inner face `ix1`. Running
+    // them on to ox1 puts a metre of stone, quoins and roof inside the hall, over the photo frames.
+    const xStop = room.ix1 ?? ox1;
+    const wSpan = xStop - ox0;
     const dSpan = oz1 - oz0;
-    const xc = (ox0 + ox1) / 2;
+    const xc = (ox0 + xStop) / 2;
     const zc = (oz0 + oz1) / 2;
 
-    // three outer walls: west (x = ox0), south (z = oz0), north (z = oz1)
+    // three outer walls: west (x = ox0), south (z = oz0), north (z = oz1), all stopping at the hall
     stoneBox(group, wallStone, t, H, dSpan + t * 2, ox0 - t / 2, H / 2, zc);
     stoneBox(group, wallStone, wSpan, H, t, xc, H / 2, oz0 - t / 2);
     stoneBox(group, wallStone, wSpan, H, t, xc, H / 2, oz1 + t / 2);
@@ -195,13 +200,22 @@ export function buildCastleOuter(scene, track, { hallHalfWidth = 3.85, spring = 
     stoneBox(group, plinthStone, t + 0.14, plinthTop, dSpan + t * 2 + 0.14, ox0 - t / 2, plinthTop / 2, zc);
     stoneBox(group, plinthStone, wSpan + 0.14, plinthTop, t + 0.14, xc, plinthTop / 2, oz0 - t / 2);
     stoneBox(group, plinthStone, wSpan + 0.14, plinthTop, t + 0.14, xc, plinthTop / 2, oz1 + t / 2);
+    // The hall's wall stops at the springline (6.15 m) but the annex's ceiling slab starts at 6.40 m,
+    // which left a slot at the junction that you could see the roof through from inside the room.
+    // This fills it exactly over the hall's own 0.3 m of wall: flush with the hall on its east and
+    // with the room on its west, so it adds nothing inside either of them.
+    // The hall's barrel roof overhangs its wall by 0.5 m, so its eave hangs 20 cm inside the room,
+    // under the ceiling. This stone band absorbs that lip: to anyone in the room it is a cornice
+    // along the top of the east wall, and the roof is hidden inside it.
+    stoneBox(group, wallStone, 0.5, 0.28, dSpan + t * 2, -4.1, 6.27, zc);
     // a string course at the eaves
     stoneBox(group, trimStone, t + 0.1, 0.14, dSpan + t * 2, ox0 - t / 2, H - 0.28, zc);
     stoneBox(group, trimStone, wSpan, 0.14, t + 0.1, xc, H - 0.28, oz0 - t / 2);
     stoneBox(group, trimStone, wSpan, 0.14, t + 0.1, xc, H - 0.28, oz1 + t / 2);
 
-    // quoins: long and short blocks at the three outside corners
-    [[ox0, oz0], [ox0, oz1], [ox1, oz0], [ox1, oz1]].forEach(([qx, qz]) => {
+    // quoins: long and short blocks at the two outside corners only. The east pair would sit against
+    // (and slightly inside) the hall's wall.
+    [[ox0, oz0], [ox0, oz1]].forEach(([qx, qz]) => {
       for (let k = 0; k < Math.floor(H / 0.72); k += 1) {
         const y = 0.36 + k * 0.72;
         const long = k % 2 === 0;
@@ -212,16 +226,19 @@ export function buildCastleOuter(scene, track, { hallHalfWidth = 3.85, spring = 
       }
     });
 
-    // contact shadow round the annex
-    [[ox0 - t - 0.02, zc, dSpan + t * 2, -Math.PI / 2], [0, 0, 0, 0]].slice(0, 1).forEach(([sx, sz, len, rot]) => {
-      const foot = new THREE.Mesh(new THREE.PlaneGeometry(len, 0.9), footShade);
-      foot.position.set(sx, 0.35, sz);
-      foot.rotation.y = rot;
+    // contact shadow along the annex's west face
+    {
+      const foot = new THREE.Mesh(new THREE.PlaneGeometry(dSpan + t * 2, 0.9), footShade);
+      foot.position.set(ox0 - t - 0.02, 0.35, zc);
+      foot.rotation.y = -Math.PI / 2;
       group.add(foot);
-    });
+    }
+    // (these two stop at the hall wall as well: the room's floor runs on to x = ix1 there)
     [oz0 - t - 0.02, oz1 + t + 0.02].forEach((sz, i) => {
-      const foot = new THREE.Mesh(new THREE.PlaneGeometry(wSpan + t * 2, 0.9), footShade);
-      foot.position.set(xc, 0.35, sz);
+      const width = wSpan + t * 2 - 0.36;
+      const foot = new THREE.Mesh(new THREE.PlaneGeometry(width, 0.9), footShade);
+      // its east edge stops at the hall wall, so it does not lie on the room's floor
+      foot.position.set(ox0 - t + width / 2, 0.35, sz);
       foot.rotation.y = i === 0 ? Math.PI : 0;
       group.add(foot);
     });
@@ -305,19 +322,26 @@ export function buildCastleOuter(scene, track, { hallHalfWidth = 3.85, spring = 
       stoneBox(group, darkMat, 0.34, 0.12, 0.34, chx, H + 2.36, chz);
     }
 
-    // a tiled gable roof over the annex, overhanging on all sides
+    // a tiled gable roof over the annex: it overhangs the garden, the west and the back, and butts
+    // against the hall on the east instead of pushing tiles through its wall
+    const roofW = wSpan + t * 2;
     gableRoof({
       parent: group,
       tiles: roomTiles,
       stone: trimStone,
-      w: wSpan + t * 2,
+      w: roofW,
       d: dSpan + t * 2,
       rise: 1.15,
-      x: xc,
-      y: H,
+      // its east edge lands against the hall's wall, a little short of it so no tile pokes through
+      // into the hall; its west edge overhangs the garden side
+      x: (ox0 - t + (xStop - 0.06)) / 2,
+      // sat on top of the room's ceiling slab: at H the eave's underside poked through it and
+      // showed a strip of tiles to anyone standing in the room
+      y: H + 0.22,
       z: zc,
       along: 'x',
-      overhang: 0.42,
+      overhangs: { x0: 0.42, x1: 0, z0: 0.42, z1: 0.42 },
+      // (with x1 = 0 the east gable and ridge stop 6 cm short of the hall wall)
     });
   }
 
@@ -337,8 +361,15 @@ export function buildCastleOuter(scene, track, { hallHalfWidth = 3.85, spring = 
     const back = stonePanel(group, wallStone, shape, 0, 0, -length - 0.42);
     back.rotation.y = Math.PI;
     stoneBox(group, plinthStone, R * 2 + 0.2, plinthTop, 0.5, 0, plinthTop / 2, -length - 0.42);
+    // The buttresses face outward. Facing them inward put a pier through the hall's end wall, a
+    // couple of metres behind the heart window.
     [-R * 0.55, R * 0.55].forEach((x) => {
-      buttress(group, plinthStone, trimStone, x, 0, 5.2, -length - 0.5, 0.55, 0.7, 0);
+      const depth = 0.55;
+      const width = 0.7;
+      stoneBox(group, plinthStone, depth, 5.2, width, x, 2.6, -length - 0.42 - depth / 2);
+      stoneBox(group, trimStone, depth * 1.15, 0.18, width * 1.15, x, 5.29, -length - 0.42 - depth / 2);
+      const cap = stoneBox(group, trimStone, depth * 1.3, 0.3, width * 1.05, x, 5.52, -length - 0.42 - depth / 2);
+      cap.rotation.x = -0.35; // shed the rain away from the wall
     });
     // a stone cross on the gable, so the rear end has a centre
     stoneBox(group, trimStone, 0.18, 1.5, 0.2, 0, spring + 2.2, -length - 0.45);

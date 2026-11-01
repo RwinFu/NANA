@@ -157,22 +157,39 @@ export function stonePanel(parent, material, shape, x, y, z, tile = TILE) {
 
 // A gable roof: two tiled slopes with a ridge, a stone gable end at each side, and eaves that
 // overhang the wall. `along` is 'x' (ridge runs left to right) or 'z'.
-export function gableRoof({ parent, tiles, stone, w, d, rise, x, y, z, along = 'x', overhang = 0.35, thickness = 0.16 }) {
+export function gableRoof({
+  parent, tiles, stone, w, d, rise, x, y, z, along = 'x', overhang = 0.35, thickness = 0.16,
+  // Per-side overhangs, for a roof that has to butt against another building on one side instead of
+  // overhanging it (a symmetric overhang there would push tiles through its wall).
+  overhangs = null,
+}) {
   const group = new THREE.Group();
   group.position.set(x, y, z);
   parent.add(group);
+  const oh = overhangs
+    ? { x0: overhangs.x0 ?? overhang, x1: overhangs.x1 ?? overhang, z0: overhangs.z0 ?? overhang, z1: overhangs.z1 ?? overhang }
+    : { x0: overhang, x1: overhang, z0: overhang, z1: overhang };
   const span = along === 'x' ? d : w; // the direction the slopes run down
-  const ridgeLen = (along === 'x' ? w : d) + overhang * 2;
-  const half = span / 2 + overhang;
+  // the two ends of the ridge, and the middle of the roof, in the roof's own frame
+  const endA = along === 'x' ? -(w / 2 + oh.x0) : -(d / 2 + oh.z0);
+  const endB = along === 'x' ? w / 2 + oh.x1 : d / 2 + oh.z1;
+  const centre = (endA + endB) / 2;
+  const ridgeSpan = endB - endA;
+  const acrossA = -(span / 2) - (along === 'x' ? oh.z0 : oh.x0);
+  const acrossB = span / 2 + (along === 'x' ? oh.z1 : oh.x1);
+  const acrossCentre = (acrossA + acrossB) / 2;
+  const fullSpan = acrossB - acrossA;
+  const half = fullSpan / 2;
   const slope = Math.hypot(half, rise);
   const angle = Math.atan2(rise, half);
 
   [-1, 1].forEach((side) => {
-    const slopeW = along === 'x' ? ridgeLen : slope;
-    const slopeD = along === 'x' ? slope : ridgeLen;
+    const slopeW = along === 'x' ? ridgeSpan : slope;
+    const slopeD = along === 'x' ? slope : ridgeSpan;
     const geo = boxUV(new THREE.BoxGeometry(slopeW, thickness, slopeD), slopeW, thickness, slopeD);
     const mesh = new THREE.Mesh(geo, tiles);
-    mesh.position.set(along === 'x' ? 0 : side * (half / 2), rise / 2, along === 'x' ? side * (half / 2) : 0);
+    const runSide = (side * fullSpan) / 4;
+    mesh.position.set(along === 'x' ? centre : acrossCentre + runSide, rise / 2, along === 'x' ? acrossCentre + runSide : centre);
     if (along === 'x') mesh.rotation.x = side * angle;
     else mesh.rotation.z = -side * angle;
     group.add(mesh);
@@ -181,17 +198,18 @@ export function gableRoof({ parent, tiles, stone, w, d, rise, x, y, z, along = '
   // stone gable ends, filling the triangles the slopes leave open
   [-1, 1].forEach((side) => {
     const shape = new THREE.Shape();
-    shape.moveTo(-span / 2, 0);
-    shape.lineTo(span / 2, 0);
-    shape.lineTo(0, rise);
+    shape.moveTo(acrossA, 0);
+    shape.lineTo(acrossB, 0);
+    shape.lineTo(acrossCentre, rise);
     shape.closePath();
-    const panel = stonePanel(group, stone, shape, along === 'x' ? side * (ridgeLen / 2 - 0.02) : 0, 0, along === 'x' ? 0 : side * (ridgeLen / 2 - 0.02));
+    const at = side < 0 ? endA + 0.02 : endB - 0.02;
+    const panel = stonePanel(group, stone, shape, along === 'x' ? at : acrossCentre, 0, along === 'x' ? acrossCentre : at);
     if (along === 'x') panel.rotation.y = side * Math.PI / 2;
   });
 
   // a stone ridge cap, so the two slopes do not meet in a bare line
-  const capW = along === 'x' ? ridgeLen : 0.42;
-  const capD = along === 'x' ? 0.42 : ridgeLen;
-  stoneBox(group, stone, capW, 0.18, capD, 0, rise + 0.04, 0);
+  const capW = along === 'x' ? ridgeSpan : 0.42;
+  const capD = along === 'x' ? 0.42 : ridgeSpan;
+  stoneBox(group, stone, capW, 0.18, capD, along === 'x' ? centre : acrossCentre, rise + 0.04, along === 'x' ? acrossCentre : centre);
   return group;
 }
