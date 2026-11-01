@@ -17,7 +17,8 @@ export const letterParagraphs = [
   'اولین سالگردمون و ولنتاین مبارک عشقم؛ قول میدم هر روز بیشتر از دیروز دوستت داشته باشم و کنارت باشم. ❤️',
 ];
 
-export const memoryImage = (filename) => `${import.meta.env.BASE_URL}memories/${filename}`;
+// `?.` so the module can also be imported outside Vite (the tests do, for the letter's timing)
+export const memoryImage = (filename) => `${import.meta.env?.BASE_URL || '/'}memories/${filename}`;
 
 // tone: the frame's metal/wood color and the glow color of its lamp (hex).
 export const memories = [

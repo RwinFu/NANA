@@ -253,6 +253,14 @@ if (renderer) {
     fromName: store.get().fromName,
     toName: store.get().toName,
     paragraph: letterParagraphs[1],
+    audio,
+    // each beat fires its own burst of light where the envelope is, so the opening is not silent
+    onBeat: (beat) => {
+      // a small spill of light at the seal as it gives, and a fuller one as the flap comes up
+      const sx = window.innerWidth / 2;
+      if (beat === 'break') fx.burst(sx, window.innerHeight * 0.47, '#ffd2c4', 6);
+      if (beat === 'flap') fx.burst(sx, window.innerHeight * 0.44, '#ffe0b0', 22);
+    },
   });
 
   controls = createControls({
@@ -366,9 +374,28 @@ function fillLetter(state) {
 }
 fillLetter(store.get());
 
-function openLetter() {
+// A camera move of its own, laid over the follow camera while the envelope opens or is being read.
+let letterView = null;
+
+// The reader opens in the same cream, the same border and the same font as the paper in 3D (see
+// style.css), and it grows in from where the sheet sits in the hall rather than sliding up from the
+// bottom of the screen, so the letter does not jump from a prop to a web page.
+function openLetter({ fromScreen = false } = {}) {
   audio.chime(523.25);
-  openDialog(dom.letter);
+  const dialog = dom.letter;
+  dialog.dataset.fromPaper = fromScreen ? 'yes' : 'no';
+  openDialog(dialog);
+  if (fromScreen) {
+    // The reader is over a sheet that is still in front of the camera; a quick lift into place, then
+    // out of the way of the text.
+    dialog.animate?.(
+      [
+        { transform: 'translateY(7vh) scale(0.5)', opacity: 0 },
+        { transform: 'none', opacity: 1 },
+      ],
+      { duration: 460, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' }
+    );
+  }
 }
 
 function openEnvelope() {
@@ -378,12 +405,27 @@ function openEnvelope() {
     return;
   }
   if (envelope.isBusy) return;
+  // The camera comes to the letter while it opens: the same eased hand-off the intro uses, so this is
+  // a scene rather than something happening three metres away.
+  const place = envelope.focus(window.innerWidth / Math.max(1, window.innerHeight));
+  if (started && !letterView) {
+    letterView = {
+      phase: 'in',
+      fromPos: camera.position.clone(),
+      fromLook: controls ? controls.focus.clone() : place.look.clone(),
+      toPos: place.from,
+      toLook: place.look,
+      elapsed: 0,
+      duration: 1.15,
+    };
+  }
   envelope.open(() => {
-    fx.burst(window.innerWidth / 2, window.innerHeight * 0.4, '#ffd98a', 36);
+    fx.burst(window.innerWidth / 2, window.innerHeight * 0.44, '#ffd98a', 30);
     decor?.celebrate();
-    openLetter();
+    openLetter({ fromScreen: true });
   });
 }
+
 
 // Postcard
 let postcardUrl = null;
@@ -616,7 +658,7 @@ function buyFlower() {
 }
 
 function updatePrompt() {
-  if (!started || anyDialogOpen()) {
+  if (!started || anyDialogOpen() || letterView) {
     dom.prompt.hidden = true;
     return;
   }
@@ -966,8 +1008,37 @@ function frame() {
   if (rescueActive) return; // the rescue game is on screen
 
   if (started) {
-    controls.update(dt);
-    if (transition) {
+    // The letter's camera. While it is moving, or while the letter is open, the follow camera is not
+    // asked for a view of its own: this is the one scene in the house that is watched, not walked
+    // through. When the reader closes, the follow camera takes the view back with the same ease.
+    if (!letterView || letterView.phase === 'out') controls.update(dt);
+    if (letterView) {
+      const v = letterView;
+      v.elapsed += dt;
+      const k = Math.min(1, v.elapsed / v.duration);
+      const e = k * k * (3 - 2 * k);
+      if (v.phase === 'in') {
+        camera.position.lerpVectors(v.fromPos, v.toPos, e);
+        camera.lookAt(new THREE.Vector3().lerpVectors(v.fromLook, v.toLook, e));
+        if (k >= 1) { v.phase = 'hold'; v.elapsed = 0; }
+      } else if (v.phase === 'hold') {
+        // hold the pose we arrived at, and wait for the reader to close
+        camera.position.copy(v.toPos);
+        camera.lookAt(v.toLook);
+        if (!dom.letter.open) {
+          v.phase = 'out';
+          v.elapsed = 0;
+          v.fromPos = camera.position.clone();
+          v.fromLook = v.toLook.clone();
+        }
+      } else {
+        // 'out': controls.update has just placed the follow camera, so ease from the held pose to it
+        camera.position.lerpVectors(v.fromPos, camera.position.clone(), e);
+        camera.lookAt(new THREE.Vector3().lerpVectors(v.fromLook, controls.focus, e));
+        if (k >= 1) letterView = null;
+      }
+    }
+    if (transition && !letterView) {
       transition.elapsed += dt;
       const k = Math.min(1, transition.elapsed / transition.duration);
       const e = k * k * (3 - 2 * k);
@@ -992,7 +1063,9 @@ function frame() {
 
   if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
   updateBouquetPose(dt);
-  hero.animate(dt, t, started && controls.moving, controls.airborne);
+  // The couple stands still while the letter is being opened and read.
+  const frozen = !!letterView && letterView.phase !== 'out';
+  hero.animate(dt, t, started && controls.moving && !frozen, controls.airborne);
   cats?.update(dt, t, hero, started, benchSeated, { intro: introPlaying, doorOpen: world.frontDoorOpen });
   syncCoupleUi();
   trail?.update(dt, hero.root.position, started && controls.moving, camera);
