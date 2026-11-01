@@ -83,6 +83,12 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
     );
     if (inHouse) return true;
   }
+  // The low garden wall that runs along the lane, so the couple stays on the stones
+  if (onLane && y < 0.9) {
+    const laneEdge = STREET.halfWidth - margin;
+    if (Math.abs(Math.abs(x - STREET.x) - (STREET.halfWidth + 0.85)) < 0.2 + margin && z < 16 && z > -34) return true;
+    if (Math.abs(x - STREET.x) > laneEdge + 0.7) return true;
+  }
   // The town wall, apart from the gatehouse's own opening, and the gatehouse itself
   if (Math.abs(z - TOWN_WALL_Z) < 0.7 + margin && y < TOWN_WALL_HEIGHT && Math.abs(x - GATE.x) > GATE_HALF_WIDTH - margin) {
     return true;

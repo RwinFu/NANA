@@ -1,5 +1,5 @@
 import * as THREE from 'three';
-import { stoneCanvas, roofCanvas, cobbleCanvas, toTexture } from './town-art.js';
+import { stoneCanvas, roofCanvas, cobbleCanvas, plasterCanvas, windowPaneCanvas, toTexture } from './town-art.js';
 import {
   STREET, STREET_HALF_WIDTH, TOWN_WALL_Z, TOWN_WALL_LEN, TOWN_WALL_HEIGHT, GATE_HALF_WIDTH,
   PLAZA, GATE, CLOCK_TOWER, TOWN_HOUSES,
@@ -91,6 +91,14 @@ export function buildTown(scene, track) {
   const stoneMap = track(toTexture(stoneCanvas({ seed: 11, tone: 168 }), 2, 2));
   const stoneMapTall = track(toTexture(stoneCanvas({ seed: 12, tone: 172 }), 1, 3));
   const roofMap = track(toTexture(roofCanvas({ seed: 21, tone: 150 }), 3, 2));
+  // One plaster map per house tone: mottled limewash, so a near wall is a surface, not a colour.
+  const plasterMaps = ['#4e4152', '#574a5c', '#463a4d', '#5c4f57'].map((c, i) =>
+    track(toTexture(plasterCanvas({ seed: 41 + i, tone: 150 }), 2, 2))
+  );
+  // The glazed windows on the lane side are real panes with their own canvases, so a lit window
+  // throws a warm rectangle instead of a painted dot. One lit and one dark texture are enough.
+  const paneLitTex = track(toTexture(windowPaneCanvas({ seed: 7, lit: true }), 1, 1));
+  const paneDarkTex = track(toTexture(windowPaneCanvas({ seed: 7, lit: false }), 1, 1));
   const stoneMats = ['#59505f', '#645a6a', '#4f4656', '#6b6168', '#5b5350'].map((c) =>
     track(new THREE.MeshStandardMaterial({ color: c, roughness: 0.78, map: stoneMap, bumpMap: stoneMap, bumpScale: 0.06 }))
   );
@@ -133,10 +141,15 @@ export function buildTown(scene, track) {
     const house = makeWindowTexture(Math.floor(rand() * 1e6));
     house.tex.repeat.set(Math.max(1, w / 6), Math.max(1, h / 6));
     track(house.tex);
+    const wallTone = pick(['#4e4152', '#574a5c', '#463a4d', '#5c4f57']);
+    const plaster = plasterMaps[Math.floor(rand() * plasterMaps.length)];
     const wallMat = track(
       new THREE.MeshStandardMaterial({
-        color: pick(['#4e4152', '#574a5c', '#463a4d', '#5c4f57', '#504448']),
-        roughness: 0.9,
+        color: wallTone,
+        map: plaster,
+        bumpMap: plaster,
+        bumpScale: 0.05,
+        roughness: 0.92,
         emissive: '#ffffff',
         emissiveMap: house.tex,
         emissiveIntensity: 1.1,
@@ -157,6 +170,88 @@ export function buildTown(scene, track) {
     );
     eave.position.set(x, h - 0.08, z);
     scene.add(eave);
+    // The houses that face the lane get a façade: half-timbering, glazed windows with shutters, and
+    // a door with a step. From three metres away this is what stops a box reading as a box.
+    const facesLane = !far && Math.abs(Math.abs(x - STREET.x) - 3.2) < 6.5;
+    if (facesLane) {
+      const toLane = x < STREET.x ? 1 : -1; // the side of the house that looks at the lane
+      const wallZ = z;
+      const faceX = x + toLane * (w / 2 + 0.03);
+
+      // Half-timbering: dark beams across the wall between the floors
+      const timberMat = track(new THREE.MeshStandardMaterial({ color: '#33262f', roughness: 0.85 }));
+      const beamH = 0.22;
+      const floors = Math.max(1, Math.floor((h - 1.2) / 2.4));
+      for (let f = 1; f <= floors; f += 1) {
+        const y = 0.6 + f * 2.4;
+        if (y > h - 0.5) break;
+        const beam = new THREE.Mesh(track(new THREE.BoxGeometry(0.12, beamH, d + 0.12)), timberMat);
+        beam.position.set(faceX, y, wallZ);
+        scene.add(beam);
+      }
+      // a vertical post at each end of the façade
+      [-1, 1].forEach((side) => {
+        const post = new THREE.Mesh(track(new THREE.BoxGeometry(0.14, h - 0.7, 0.14)), timberMat);
+        post.position.set(faceX, (h - 0.7) / 2 + 0.35, wallZ + side * (d / 2 - 0.1));
+        scene.add(post);
+      });
+
+      // Glazed windows: a frame, a pane that follows the town's evening, and shutters
+      const panes = [];
+      const cols = Math.max(1, Math.floor(d / 1.9));
+      for (let f = 0; f <= floors; f += 1) {
+        const y = 1.5 + f * 2.4;
+        if (y > h - 0.9) break;
+        for (let c = 0; c < cols; c += 1) {
+          const cz = wallZ - d / 2 + (d / (cols + 1)) * (c + 1);
+          const paneGeo = track(new THREE.PlaneGeometry(0.78, 1.02));
+          const paneMat = track(new THREE.MeshBasicMaterial({ fog: false }));
+          const pane = new THREE.Mesh(paneGeo, paneMat);
+          pane.position.set(faceX + toLane * 0.02, y, cz);
+          pane.rotation.y = toLane > 0 ? Math.PI / 2 : -Math.PI / 2;
+          scene.add(pane);
+          panes.push(paneMat);
+          // the stone surround
+          const frame = new THREE.Mesh(track(new THREE.BoxGeometry(0.1, 1.24, 1.0)), stoneMats[1]);
+          frame.position.set(faceX - toLane * 0.05, y, cz);
+          scene.add(frame);
+          // shutters, hinged flat against the wall
+          [-1, 1].forEach((side) => {
+            const shutter = new THREE.Mesh(track(new THREE.BoxGeometry(0.08, 1.06, 0.36)), timberMat);
+            shutter.position.set(faceX + toLane * 0.02, y, cz + side * 0.68);
+            scene.add(shutter);
+          });
+        }
+      }
+
+      // A door with a step and a lantern over it, on the lane side
+      const doorMat = track(new THREE.MeshStandardMaterial({ color: '#5a2f3a', roughness: 0.7 }));
+      const door = new THREE.Mesh(track(new THREE.BoxGeometry(0.14, 2.1, 1.05)), doorMat);
+      door.position.set(faceX + toLane * 0.02, 1.05, wallZ + (rand() < 0.5 ? -1 : 1) * (d / 4));
+      scene.add(door);
+      const step = new THREE.Mesh(track(new THREE.BoxGeometry(0.5, 0.16, 1.4)), stoneMats[1]);
+      step.position.set(door.position.x + toLane * 0.25, 0.08, door.position.z);
+      scene.add(step);
+      const lintel = new THREE.Mesh(track(new THREE.BoxGeometry(0.16, 0.16, 1.3)), timberMat);
+      lintel.position.set(faceX, 2.2, door.position.z);
+      scene.add(lintel);
+      const lamp = new THREE.Sprite(
+        track(new THREE.SpriteMaterial({
+          map: glowTex, color: '#ffd6a0', transparent: true, opacity: 0.85,
+          depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+        }))
+      );
+      lamp.position.set(door.position.x + toLane * 0.18, 2.45, door.position.z);
+      lamp.scale.setScalar(1.4);
+      scene.add(lamp);
+      house.panes = panes;
+      const litNow = !isWindowLit(mulberry32(house.seed)(), 0, new Date().getHours());
+      panes.forEach((mat, i) => {
+        mat.map = (i % 2 === 0 ? litNow : !litNow) ? paneLitTex : paneDarkTex;
+        mat.needsUpdate = true;
+      });
+    }
+
     // Steep roof: a pyramid on square houses, a cone on round turrets
     const roofH = range(2.5, 4.5);
     const round = rand() < 0.4;
@@ -369,6 +464,36 @@ export function buildTown(scene, track) {
     }
   }
 
+  // ---- A low garden wall along the lane -----------------------------------
+  // A knee-high wall with a pot on every pier: it gives the lane a foreground line, so the houses
+  // behind it read as houses instead of one long wall.
+  {
+    const lowWallMat = track(new THREE.MeshStandardMaterial({ color: '#5b5262', map: stoneMap, bumpMap: stoneMap, bumpScale: 0.05, roughness: 0.85 }));
+    const potMat = track(new THREE.MeshStandardMaterial({ color: '#7a4b3c', roughness: 0.9 }));
+    const leafMat2 = track(new THREE.MeshStandardMaterial({ color: '#38624c', roughness: 0.95, flatShading: true }));
+    const seg = 2.4;
+    [-1, 1].forEach((side) => {
+      const x = STREET.x + side * (STREET_HALF_WIDTH + 0.85);
+      for (let z = 16; z > -34; z -= seg) {
+        const piece = new THREE.Mesh(track(new THREE.BoxGeometry(0.26, 0.72, seg - 0.14)), lowWallMat);
+        piece.position.set(x, 0.36, z - seg / 2);
+        scene.add(piece);
+        if (Math.round(z) % 5 === 0) {
+          const pier = new THREE.Mesh(track(new THREE.BoxGeometry(0.42, 0.95, 0.42)), lowWallMat);
+          pier.position.set(x, 0.47, z);
+          scene.add(pier);
+          const pot = new THREE.Mesh(track(new THREE.CylinderGeometry(0.2, 0.14, 0.34, 10)), potMat);
+          pot.position.set(x, 1.12, z);
+          scene.add(pot);
+          const bush = new THREE.Mesh(track(new THREE.IcosahedronGeometry(0.28, 0)), leafMat2);
+          bush.position.set(x, 1.38, z);
+          bush.scale.set(1, 0.85, 1);
+          scene.add(bush);
+        }
+      }
+    });
+  }
+
   // ---- Lamps down the lane -----------------------------------------------
   // Three real lights only, so the lane glows without costing a light per lamp.
   const lampParts = [];
@@ -488,6 +613,15 @@ export function buildTown(scene, track) {
         if (house.hour !== undefined && Math.abs(house.hour - hour) < 3) continue; // already matches
         house.hour = hour;
         paintWindows(house, hour, t);
+        if (house.panes) {
+          // the panes on this house follow the same evening, a window at a time
+          const seed = mulberry32(house.seed)();
+          house.panes.forEach((mat, i) => {
+            const on = !isWindowLit(seed + i * 0.13, t * 0.6, hour);
+            mat.map = on ? paneLitTex : paneDarkTex;
+            mat.needsUpdate = true;
+          });
+        }
         painted += 1;
       }
     }

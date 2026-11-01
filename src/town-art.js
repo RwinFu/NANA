@@ -162,6 +162,85 @@ export function cobbleCanvas({ seed = 3, size = 512, tone = 132 } = {}) {
   return canvas;
 }
 
+// Old plaster or limewash: a near-flat tone with mottling, a few hairline cracks and a dark base.
+// This is what a house wall is mostly made of, so it must not be flat, and must not be busy either.
+export function plasterCanvas({ seed = 4, size = 256, tone = 150 } = {}) {
+  const rand = rng(seed);
+  const { canvas, ctx } = canvasOf(size);
+  ctx.fillStyle = `rgb(${tone},${tone - 2},${tone + 2})`;
+  ctx.fillRect(0, 0, size, size);
+  // faint limewash banding, as if brushed on in horizontal passes
+  for (let k = 0; k < 9; k += 1) {
+    ctx.fillStyle = k % 2 ? 'rgba(255,252,246,0.035)' : 'rgba(36,28,40,0.03)';
+    ctx.fillRect(0, (k / 9) * size, size, size / 9);
+  }
+  // soft mottling: overlapping translucent blots, a touch lighter and darker
+  for (let k = 0; k < 220; k += 1) {
+    const x = rand() * size;
+    const y = rand() * size;
+    const r = 6 + rand() * 26;
+    const light = rand() < 0.5;
+    const g = ctx.createRadialGradient(x, y, 0, x, y, r);
+    g.addColorStop(0, light ? 'rgba(255,250,244,0.05)' : 'rgba(40,32,44,0.045)');
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(x - r, y - r, r * 2, r * 2);
+  }
+  // hairline cracks, with a slightly darker shadow beside them
+  for (let k = 0; k < 5; k += 1) {
+    let x = rand() * size;
+    let y = rand() * size;
+    ctx.strokeStyle = 'rgba(30,24,34,0.22)';
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    for (let step = 0; step < 6; step += 1) {
+      x += (rand() - 0.5) * 22;
+      y += 6 + rand() * 12;
+      ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+  }
+  // a damp band where the wall meets the ground
+  const base = ctx.createLinearGradient(0, size * 0.78, 0, size);
+  base.addColorStop(0, 'rgba(28,22,32,0)');
+  base.addColorStop(1, 'rgba(28,22,32,0.28)');
+  ctx.fillStyle = base;
+  ctx.fillRect(0, size * 0.78, size, size * 0.22);
+  return canvas;
+}
+
+// A window for a town house's façade: a dark pane, a frame, and a warm inner glow that is drawn in
+// its own canvas so it can be switched on and off with the room behind it.
+export function windowPaneCanvas({ seed = 5, size = 64, lit = true } = {}) {
+  const rand = rng(seed);
+  const { canvas, ctx } = canvasOf(size);
+  ctx.fillStyle = '#0d0a12';
+  ctx.fillRect(0, 0, size, size);
+  if (lit) {
+    const glow = ctx.createLinearGradient(0, size, 0, 0);
+    glow.addColorStop(0, 'rgba(255,196,120,0.95)');
+    glow.addColorStop(1, 'rgba(255,228,178,0.75)');
+    ctx.fillStyle = glow;
+    ctx.fillRect(2, 2, size - 4, size - 4);
+    // curtains, or a room behind
+    ctx.fillStyle = 'rgba(120,60,60,0.45)';
+    for (let k = 0; k < 3; k += 1) ctx.fillRect(4 + rand() * (size - 12), 4, 2, size - 8);
+  }
+  // the frame: a cross of mullions and a border
+  ctx.strokeStyle = 'rgba(22,16,26,0.9)';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(1.5, 1.5, size - 3, size - 3);
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(size / 2, 2);
+  ctx.lineTo(size / 2, size - 2);
+  ctx.moveTo(2, size / 2);
+  ctx.lineTo(size - 2, size / 2);
+  ctx.stroke();
+  return canvas;
+}
+
 // Wraps a canvas as a repeating colour texture in sRGB.
 export function toTexture(canvas, repeatX = 1, repeatY = 1) {
   const tex = new THREE.CanvasTexture(canvas);
