@@ -150,6 +150,7 @@ const camera = new THREE.PerspectiveCamera(
 );
 let world = null;
 let hero = null;
+let photoTick = 0; // seconds since the room's photos were last checked for
 let cats = null;
 let decor = null;
 let trail = null;
@@ -1080,6 +1081,13 @@ function frame() {
   if (started) updateSparkles(t, dt, 1);
 
   if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
+  // The photo room's pictures and the room's clip download when the couple comes near them, not at
+  // start-up: they used to all start at once, 4 MB of photo while the world was still being built.
+  photoTick += dt;
+  if (started && photoTick > 0.5) {
+    photoTick = 0;
+    world.photos.update({ x: hero.root.position.x, z: hero.root.position.z });
+  }
   updateBouquetPose(dt);
   // The couple stands still while the letter is being opened and read, and so do the effects that
   // follow their feet: they follow the couple's movement, not the camera's.

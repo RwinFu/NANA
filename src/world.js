@@ -1424,7 +1424,8 @@ export function buildWorld(scene, camera) {
         maxH,
         // world-space point the player walks toward, and where the wall is
         center: group.position.clone(),
-        loaded: false,
+        loaded: false, // the photo has decoded and is on the frame
+        requested: false, // its download has been started
       };
     });
   }
@@ -1506,20 +1507,37 @@ export function buildWorld(scene, camera) {
     frame.photo.material.needsUpdate = true;
   }
 
-  // Load all photos; each frame updates itself as soon as its image is ready.
+  // Photos are downloaded when the room they hang in is approached, not while the world is being
+  // built (see photos.js). A frame shows the "در حال بارگذاری" card it was born with until its own
+  // photo has decoded, so starting later is invisible: nothing empty is ever on screen. Each group is
+  // remembered here and can be kicked off early.
   const loader = new THREE.TextureLoader();
-  frames.forEach((frame) => {
-    loader.load(
-      frame.memory.image,
-      (tex) => {
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.anisotropy = 4;
-        applyPhoto(frame, tex);
-      },
-      undefined,
-      () => fallbackPhoto(frame)
-    );
-  });
+  let hallPhotosStarted = false;
+  function loadPhotos(list) {
+    list.forEach((frame) => {
+      if (frame.loaded || frame.requested) return;
+      frame.requested = true;
+      loader.load(
+        frame.memory.image,
+        (tex) => {
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = 4;
+          applyPhoto(frame, tex);
+        },
+        undefined,
+        () => fallbackPhoto(frame)
+      );
+    });
+  }
+  function startHallPhotos() {
+    if (hallPhotosStarted) return;
+    hallPhotosStarted = true;
+    loadPhotos(hallFrames);
+  }
+  // The hall's photos are what the tour is walking towards, so they are asked for straight away: the
+  // gate (the rescue game) gives them a couple of minutes of cover. The photo room's pictures and the
+  // clip wait until that room is being approached (see photos.js).
+  startHallPhotos();
 
   // The photo room, a corridor inside the castle: plum velvet walls, gold trim, a chandelier,
   // nine photos along the walls, and the video in a gold frame at the far end.
@@ -1631,7 +1649,8 @@ export function buildWorld(scene, camera) {
   roomVideo.defaultMuted = true;
   roomVideo.playsInline = true;
   roomVideo.autoplay = true;
-  roomVideo.preload = 'auto';
+  // the clip itself is only downloaded when the couple is near the screen (see startRoomVideo)
+  roomVideo.preload = 'none';
   // iOS only treats a video as inline when it is also marked this way in markup, and it only
   // decodes a video that is in the document: keep it attached, invisible, 1px in a corner.
   // The clip has no sound track at all; muted is what lets a phone start it on its own.
@@ -1704,8 +1723,14 @@ export function buildWorld(scene, camera) {
   if (posterTexture) track(posterTexture);
   // From the first decoded frame on, the video itself is what is on the screen.
   roomVideo.addEventListener('loadeddata', () => { posterMesh.visible = false; }, { once: true });
-  // The controller starts the clip once it has a frame to show.
-  roomVideo.load();
+  // The controller starts the clip once it has a frame to show; the download is asked for by
+  // startRoomVideo(), so a 1 MB clip does not compete with the start-up.
+  let roomVideoStarted = false;
+  function startRoomVideo() {
+    if (roomVideoStarted) return;
+    roomVideoStarted = true;
+    roomVideo.load();
+  }
   scene.updateMatrixWorld(true);
   screen.getWorldPosition(videoWorld);
 
@@ -1887,6 +1912,15 @@ export function buildWorld(scene, camera) {
 
   return {
     frames,
+    // Photos and the room's clip download when their room is reached, not while this is being built.
+    // main.js drives these from the walk; each is safe to call twice.
+    photos: {
+      startHall: startHallPhotos,
+      startRoom: () => loadPhotos(roomFrames),
+      startVideo: startRoomVideo,
+      get hallStarted() { return hallPhotosStarted; },
+      get videoStarted() { return roomVideoStarted; },
+    },
     castle,
     setDedication,
     burstHearts,
