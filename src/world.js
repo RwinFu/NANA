@@ -8,6 +8,7 @@ import { advanceHallProgress } from './house-reactivity.js';
 import { outdoorNormal } from './outdoor-textures.js';
 import { roomFrameSlot, hallFrameSlot } from './room-frame-layout.js';
 import { createGardenGrass } from './garden-grass.js';
+import { gateGreeting, GATE_TRIGGER } from './town-night.js';
 import { createVideoPlayback, shouldPlayVideo } from './video-screen.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
@@ -1092,10 +1093,12 @@ export function buildWorld(scene, camera) {
   const leafGeo = track(new THREE.IcosahedronGeometry(1, 0));
   const leafGreen = new THREE.MeshStandardMaterial({ color: '#3e7a5c', roughness: 0.9, flatShading: true });
   const leafBlossom = new THREE.MeshStandardMaterial({ color: '#e7a0b8', roughness: 0.9, flatShading: true });
+  // The lane to town leaves the garden at x = -19, so the two west trees move out of its way and
+  // stand as its gateway instead.
   const treeSpots = [
-    [-11, 3], [-21, 11], [-6, 22], [-17, 18], [-12, 22],
+    [-11, 3], [-20.8, 24.2], [-6, 22], [-17, 18], [-12, 22],
     [11, 4], [15, 10], [9, 15], [16, 20], [12, 24],
-    [-19, 2], [20, 1],
+    [-20.8, 20.4], [20, 1],
   ];
   // Alternate whole trees, in path order on each side rather than array order.
   const pinkTreeIndices = new Set();
@@ -1721,7 +1724,7 @@ export function buildWorld(scene, camera) {
     }));
     hallProgress = advanceHallProgress(hallProgress, playerPosition, LAYOUT.hallHalfWidth, LAYOUT.hallLength);
     castle.update(t);
-    town.update(t);
+    town.update(t, dt); // the clock and the town's windows keep their own, slow time
     clouds.forEach(({ cloud, x, phase }) => { cloud.position.x = x + Math.sin(t * 0.025 + phase) * 2; });
     // Slow, subtle movement shared across the garden canopy and chandeliers.
     swayingLeaves.forEach(({ leaf, phase, baseX }) => {
@@ -1839,5 +1842,10 @@ export function buildWorld(scene, camera) {
       },
     },
     get frontDoorOpen() { return frontDoor.isOpen; },
+    // The walk to town ends here: the gate's doorstep, and what the town's clock says
+    town: {
+      gate: GATE_TRIGGER,
+      greeting: (now = new Date()) => gateGreeting(now),
+    },
   };
 }

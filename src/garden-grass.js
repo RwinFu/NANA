@@ -1,7 +1,8 @@
 import * as THREE from 'three';
 
 // Kept independent of navigation: these are visual tufts, never colliders.
-const TREES = [[-11, 3], [-21, 11], [-6, 22], [-17, 18], [-12, 22], [11, 4], [15, 10], [9, 15], [16, 20], [12, 24], [-19, 2], [20, 1]];
+// The two trees by the lane are at x = -20.8 (see world.js), so keep their tufts off the stones.
+const TREES = [[-11, 3], [-20.8, 24.2], [-6, 22], [-17, 18], [-12, 22], [11, 4], [15, 10], [9, 15], [16, 20], [12, 24], [-20.8, 20.4], [20, 1]];
 const LAMPS = [[-9, 3], [9, 3], [-9, 14], [9, 14]];
 const TUFT_COUNT = 1000;
 const FLOWER_COUNT = 54;
@@ -19,6 +20,8 @@ function random(seed) {
 
 export function grassAllowed(x, z) {
   if (Math.abs(x) < 1.55 || Math.abs(x) > 21.5 || z < 1.8 || z > 25.5) return false;
+  // The lane to town leaves on the west side; keep its stones clear of grass
+  if (Math.abs(x + 19) < 2.9) return false;
   if (Math.hypot(x + 14, z - 8) < 2.15) return false; // fountain
   if (Math.abs(x + 14) < 1.7 && Math.abs(z - 11.4) < 1.2) return false; // bench
   return true;

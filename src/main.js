@@ -509,6 +509,30 @@ function closeVideoPanel() {
 
 dom.video.addEventListener('close', closeVideoPanel);
 
+// The walk to town: when the couple reaches the gate's doorstep, the town's own clock says hello
+// once per visit, and they turn back for home.
+const TOWN_RADIUS = 3.6;
+let townVisited = false;
+function checkTownWalk() {
+  if (!world?.town || !controls || townVisited || benchSeated) return;
+  const gate = world.town.gate;
+  if (!controls.isNear(gate.x, gate.z, TOWN_RADIUS)) return;
+  townVisited = true;
+  const line = world.town.greeting();
+  toast(line, 6500);
+  world.burstHearts(new THREE.Vector3(gate.x, 1.4, gate.z), 6);
+  audio.chime(659.25);
+  // a breath later, the couple turns back toward the house
+  window.setTimeout(() => {
+    const home = { x: 0, z: 12 };
+    if (controls && !benchSeated) controls.faceToward(home.x, home.z);
+  }, 1400);
+  window.setTimeout(() => {
+    toast('برگردیم خونه؟ ✨', 3200);
+    townVisited = false; // they may come back another time
+  }, 9000);
+}
+
 function updatePrompt() {
   if (!started || anyDialogOpen()) {
     dom.prompt.hidden = true;
@@ -685,6 +709,7 @@ function setFormError(message) {
 
 function start(state) {
   started = true;
+  townVisited = false;
   audio.unlock();
   setMusicUi();
 
@@ -905,6 +930,7 @@ function frame() {
     lastDoorZ = hz;
   }
   if (started) updatePrompt();
+  if (started) checkTownWalk();
 
   adaptQuality(dt);
   renderer.render(scene, camera);

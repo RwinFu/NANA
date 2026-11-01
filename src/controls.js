@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { isCastleSolid } from './castle.js';
 import { LAYOUT } from './world.js';
 import { FOUNTAIN, GARDEN_BENCH } from './decor.js';
+import { inLane, inPlaza, STREET, PLAZA, TOWN_HOUSES, GATE, TOWN_WALL_Z, GATE_HALF_WIDTH, TOWN_WALL_HEIGHT } from './town-night.js';
 
 const PLAYER_RADIUS = 0.3;
 // The boy walks beside the princess, so the hall walls keep this extra distance
@@ -66,9 +67,29 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   }
   // The room's ceiling: the camera must not rise above it and look in from the top
   if (inBox && y >= R.height - margin && y < R.height + 0.3) return true;
+  // The lane to town and the square in front of its gate are outside the garden's own limits
+  const onLane = inLane(x, z, margin) || inPlaza(x, z, margin);
   // Garden limits
-  if (Math.abs(x) > LAYOUT.gardenHalfWidth) return true;
-  if (z > LAYOUT.gardenDepth) return true;
+  if (!onLane && Math.abs(x) > LAYOUT.gardenHalfWidth) return true;
+  if (!onLane && z > LAYOUT.gardenDepth) return true;
+  // Past the castle, only the lane and the square are open ground: the castle's own service yards
+  // behind the facade are not.
+  if (!onLane && z < -1 && y < 12) return true;
+  // A couple of metres either side of the lane are a soft shoulder, nothing more
+  if (onLane && y < 2) {
+    // ... and the houses that frame it are solid
+    const inHouse = TOWN_HOUSES.some(
+      (h) => Math.abs(x - h.x) < h.w / 2 + margin && Math.abs(z - h.z) < h.d / 2 + margin
+    );
+    if (inHouse) return true;
+  }
+  // The town wall, apart from the gatehouse's own opening, and the gatehouse itself
+  if (Math.abs(z - TOWN_WALL_Z) < 0.7 + margin && y < TOWN_WALL_HEIGHT && Math.abs(x - GATE.x) > GATE_HALF_WIDTH - margin) {
+    return true;
+  }
+  // The gatehouse itself: 10 m wide, its face at GATE.z + 3, its back against the wall. The lane
+  // ends at its steps.
+  if (Math.abs(x - GATE.x) < 5 + margin && z < GATE.z + 3 + margin && z > GATE.z - 5 && y < 13) return true;
   return false;
 }
 
