@@ -6,7 +6,7 @@ import '@fontsource/lalezar/400.css';
 import './style.css';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { allMemories, defaults, letterParagraphs } from './memories.js';
+import { allMemories, defaults, letterParagraphs, soloVideo } from './memories.js';
 import { createStore, formatNumber } from './state.js';
 import { buildWorld, LAYOUT } from './world.js';
 import { createCouple } from './characters.js';
@@ -587,11 +587,14 @@ function nearVideoScreen() {
 }
 
 let videoPanelTimer = 0;
+const VIDEO_SRC = soloVideo.src;
 function openVideo() {
   if (!world) return;
   window.clearTimeout(videoPanelTimer); // the panel may be reopening while it unloads
   const player = dom.videoPlayer;
-  if (player.getAttribute('src') !== world.video.src) player.src = world.video.src;
+  // The clip lives in this element (index.html) and downloads with the page, so opening the panel is
+  // an instant play rather than the start of a 1 MB download. Only set it if something cleared it.
+  if (!player.getAttribute('src')) player.src = VIDEO_SRC;
   player.currentTime = 0;
   openDialog(dom.video);
   // The clip has no sound track: it stays muted so it can start on its own, on any phone.
@@ -604,11 +607,9 @@ function closeVideoPanel() {
   const player = dom.videoPlayer;
   if (!player.paused) player.pause();
   window.clearTimeout(videoPanelTimer);
-  // Drop the stream so the game world keeps the whole decoder to itself.
-  videoPanelTimer = window.setTimeout(() => {
-    player.removeAttribute('src');
-    player.load();
-  }, 400);
+  // The stream is kept, not dropped: it is already downloaded and dropping it means the next tap has
+  // to fetch 1 MB again. Only one of the two copies is ever playing, so the decoder is not doubled.
+  videoPanelTimer = 0;
 }
 
 dom.video.addEventListener('close', closeVideoPanel);

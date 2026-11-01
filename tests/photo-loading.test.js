@@ -59,9 +59,10 @@ test('nothing in the photo path unloads a picture once it has arrived', () => {
   // was already there, so an empty frame is never shown
   assert.match(world, /const placeholder = canvasTexture\(/);
   assert.match(world, /applyPhoto\(frame, tex\)/);
-  // the clip is the only thing still deferred, and it is not a photo
-  assert.match(world, /roomVideo\.preload = 'none'/);
-  assert.match(world, /createVideoLatch\(startRoomVideo\)/);
+  // and the clip downloads with the page too; it is its *playing* that waits for the couple
+  assert.match(world, /roomVideo\.preload = 'auto'/);
+  assert.match(world, /startRoomVideo\(\);/);
+  assert.match(world, /videoPlayback\.sync\(/);
 });
 
 test('the page tells the browser about every photo before the app is parsed', () => {

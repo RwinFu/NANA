@@ -17,7 +17,6 @@ import { skyLight, horizonColor } from './night-light.js';
 import { castleStone, hallInterior } from './palette.js';
 import { masonryMap, masonryBump } from './castle-stone.js';
 import { photoImage, startPhotos } from './photo-cache.js';
-import { createVideoLatch } from './photos.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -1642,12 +1641,15 @@ export function buildWorld(scene, camera) {
   roomVideo.muted = true;
   roomVideo.defaultMuted = true;
   roomVideo.playsInline = true;
-  // Not autoplay: the clip is started by startRoomVideo() when the couple comes near the screen. An
-  // autoplaying video is a live decoder for the whole game, including the two minutes of the gate,
-  // for a screen nobody is looking at yet.
+  // Not autoplay: the clip is started by the loop when the couple comes near the screen. An autoplaying
+  // video is a live decoder for the whole game, including the two minutes of the gate, for a screen
+  // nobody is looking at yet.
   roomVideo.autoplay = false;
-  // the clip itself is only downloaded when the couple is near the screen (see startRoomVideo)
-  roomVideo.preload = 'none';
+  // But it is downloaded from the first moment: the clip is 1.08 MB, it is the only film in the house,
+  // and waiting until the couple reached its screen meant the poster (or a black rectangle) was what
+  // they saw for the first seconds. `auto` fetches it through the page's start-up; the gate is two
+  // minutes long, which is more than enough on any connection.
+  roomVideo.preload = 'auto';
   // iOS only treats a video as inline when it is also marked this way in markup, and it only
   // decodes a video that is in the document: keep it attached, invisible, 1px in a corner.
   // The clip has no sound track at all; muted is what lets a phone start it on its own.
@@ -1730,18 +1732,20 @@ export function buildWorld(scene, camera) {
   }
   // From the first decoded frame on, the video itself is what is on the screen.
   roomVideo.addEventListener('loadeddata', () => { posterMesh.visible = false; }, { once: true });
-  // The controller starts the clip once it has a frame to show; the download is asked for by
-  // startRoomVideo(), so a 1 MB clip does not compete with the start-up.
+  // The clip is asked for as soon as the world exists, so it has the whole gate to arrive; it starts
+  // *playing* when the couple comes near the screen (videoPlayback.sync) and the poster is what is on
+  // the screen until the first frame has decoded.
   let roomVideoStarted = false;
-  const videoLatch = createVideoLatch(startRoomVideo);
   function startRoomVideo() {
-    if (roomVideoStarted) return;
+    if (roomVideoStarted) return false;
     roomVideoStarted = true;
-    // Arming lets the clip play; loading starts the download. The poster stays on the screen until
-    // the first frame has decoded (see above), so the screen is never blank.
+    // the download is asked for here; the poster is on the screen until the first frame has decoded
     videoPlayback.arm();
     roomVideo.load();
+    return true;
   }
+  // asked for now, not when the couple reaches the screen: the clip gets the whole gate to arrive
+  startRoomVideo();
   scene.updateMatrixWorld(true);
   screen.getWorldPosition(videoWorld);
 
@@ -1923,14 +1927,8 @@ export function buildWorld(scene, camera) {
 
   return {
     frames,
-    // Every photo is already downloading; the clip waits until the screen is approached (it is a
-    // 1.08 MB video, and the bandwidth is better spent on the pictures).
+    // Every photo is already downloading, and so is the clip.
     photos: {
-      // called from the walk with where the couple is; the clip starts once, and stays started
-      near(position) {
-        if (!videoLatch.update(position)) return false;
-        return true;
-      },
       get videoStarted() { return roomVideoStarted; },
     },
     castle,
@@ -1945,9 +1943,10 @@ export function buildWorld(scene, camera) {
     updateDoors(dt, px, pz) {
       doors.forEach((d) => d.update(dt, px, pz));
     },
-    // The room's video screen, for the interact prompt and the big player
+    // The room's video screen, for the interact prompt and the big player. The big panel plays the clip
+    // in its own <video> element (index.html), which is already downloading, so tapping the screen does
+    // not start a download and the wall screen does not have to be decoded twice.
     video: {
-      src: soloVideo.src,
       screen,
       // Where the couple has to be for the prompt to appear
       get centre() { return videoWorld; },

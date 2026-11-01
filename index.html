@@ -171,7 +171,9 @@
         <button class="close" type="button" data-close aria-label="بستن">×</button>
         <div class="video-media">
           <figure class="memory-frame video-frame">
-            <video id="video-player" controls playsinline preload="metadata"></video>
+            <!-- The same clip as the wall screen. It is fetched with the page (the gate is the cover) so a tap on
+             the screen plays at once instead of starting a 1 MB download. Silent, as always. -->
+            <video id="video-player" controls playsinline preload="auto" muted></video>
           </figure>
         </div>
         <div class="video-copy">
