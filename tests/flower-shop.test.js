@@ -2,7 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { createCouple } from '../src/characters.js';
-import { createBouquet, flowerArmPose, bouquetSlot, buyRose, nextRoseIndex, SHOP, shopClearsEnvelope, buyLine } from '../src/flower-shop.js';
+import {
+  createBouquet, flowerArmPose, bouquetSlot, buyRose, nextRoseIndex, buyLine,
+  SHOP, shopClearsLane, stallCorners, shopFront, ROSE_COLOURS,
+} from '../src/flower-shop.js';
+import { STREET, PLAZA } from '../src/town-night.js';
 
 // The couple and the bouquet are built from canvases; a stub is enough, they only have to exist.
 function stubCanvas() {
@@ -71,17 +75,43 @@ test('buying takes the next rose in the row, then says the shop is empty', () =>
   assert.match(buyLine(5), /پنج/);
 });
 
-test('the stall stands clear of the envelope and inside the hall', () => {
-  // the envelope's own footprint, from src/world.js
-  assert.equal(shopClearsEnvelope({ x: 0, y: 0.6, z: -38.9, w: 3.4, h: 2.2 }), true);
-  // and the counter is inside the hall's last metres
-  assert.ok(SHOP.z > -38.9, 'in front of the envelope');
-  assert.ok(SHOP.z < -34, 'but right at the end, so the walk down the hall leads somewhere');
-  assert.ok(SHOP.halfWidth * 2 < 3.85 * 2, 'the stall fits between the hall walls');
-  // She has to be able to stand at the counter. The hall leaves the boy 1.5 m beside her, so the
-  // corridor's middle is |x| < 3.85 - 0.3 - 1.5 = 2.05; the buy spot must be inside that.
-  assert.ok(Math.abs(SHOP.buySpot.x) < 2.0, 'the counter can be reached from the walkable middle');
-  assert.ok(SHOP.buySpot.z > SHOP.z, 'and from the front of it');
+test('the stall stands on the town square, at the end of the walk, and never in the lane', () => {
+  // The walk to town is the lane; a counter standing in it would close the town off. The stall's
+  // own footprint has to stay outside it, and inside the square it is meant to be the end of.
+  assert.equal(shopClearsLane(STREET.x, STREET.halfWidth + 0.4), true, 'clear of the lane itself');
+  const corners = stallCorners();
+  assert.equal(corners.length, 4);
+  for (const p of corners) {
+    assert.ok(Math.abs(p.x - STREET.x) > STREET.halfWidth + 0.3, `corner (${p.x.toFixed(2)}, ${p.z.toFixed(2)}) is in the lane`);
+    // on the square's paving, so the stall is not floating on the grass
+    assert.ok(Math.hypot(p.x - PLAZA.x, p.z - PLAZA.z) <= PLAZA.r + 0.4, 'the stall stands on the square');
+  }
+  // It is west of the lane (on the left as you walk down it), which is where it was asked to be
+  assert.ok(SHOP.x < STREET.x, 'west of the lane, on its left');
+  assert.ok(SHOP.z < STREET.z1 + 12, 'and at the far end of the walk, by the gate');
+  // The buy spot is in front of the counter, on this side of it, and out of the lane as well
+  const front = shopFront();
+  assert.ok(front.z > 0 || Math.abs(SHOP.rotY) < 0.1, 'the counter faces the way the couple come');
+  // She stands at the kerb: on ground the couple can actually reach (the lane's corridor or the
+  // square around it), which is what the walk rules open up — anything else and the stall is a
+  // landmark she can see but never walk to.
+  assert.ok(
+    Math.hypot(SHOP.buySpot.x - PLAZA.x, SHOP.buySpot.z - PLAZA.z) <= PLAZA.r + 1.6,
+    'the buy spot is on the square, within a step of the lane',
+  );
+  const d = Math.hypot(SHOP.buySpot.x - SHOP.x, SHOP.buySpot.z - SHOP.z);
+  assert.ok(d > 1.2 && d < SHOP.radius, `the buy spot is in front of the counter (${d.toFixed(2)} m)`);
+});
+
+test('the five roses are five different colours, matching the ones on the counter', () => {
+  const colours = new Set(ROSE_COLOURS.map((c) => c.petal));
+  assert.equal(ROSE_COLOURS.length, 5);
+  assert.equal(colours.size, 5, 'no two roses share a colour');
+  assert.deepEqual(
+    SHOP.roses.map((r) => r.colour).sort(),
+    [0, 1, 2, 3, 4],
+    'each spot on the counter is a different colour',
+  );
 });
 
 test('a bought rose hangs in her hand and never enters her dress', () => {

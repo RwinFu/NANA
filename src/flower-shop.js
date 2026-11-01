@@ -2,48 +2,95 @@ import * as THREE from 'three';
 import { surfaceNormal } from './surface.js';
 import { outdoorNormal } from './outdoor-textures.js';
 
-// The flower shop at the far end of the gallery hall.
+// The flower shop at the far end of the paved walk: the square in front of the town gate, on its
+// west (left) side as you come down the lane.
 //
-// The hall used to end at the envelope in front of the heart window, with two dark metres either
-// side of it. Now there is a little shop there: a wooden stall with a striped awning, five pink
-// roses in a row on the counter, a lantern, and roses spilling out of a bucket on the ground. Walk
-// up to it and press E (or tap the prompt) to buy the next rose in the row. Each rose she buys stays
-// in her left hand — the arm on the side away from the boy, so it never crosses her dress.
+// It is a wooden stall under a striped awning, with five roses in a row on the counter, a lantern,
+// a bucket of spares and a shopkeeper in a straw hat. Walk up to it and press E (or tap the prompt)
+// to buy the next rose. Each one is a different colour — red, yellow, white, lilac, coral — and the
+// rose she buys is the colour she keeps, standing in her left hand, the arm on the side away from
+// the boy, so it never crosses her dress.
 //
-// The stall sits under the heart window and never crosses the envelope's footprint, so the finale
-// still has its spot.
+// The stall faces the walk: it stands west of the lane's own corridor, so the walk to the gate is
+// never blocked, and the couple step aside to the counter.
+
+// One rose per colour, so the bunch she ends up with is mixed rather than five pinks.
+export const ROSE_COLOURS = [
+  { petal: '#e0384f', ribbon: '#ffe0e6' }, // red
+  { petal: '#ffc93c', ribbon: '#fff2c9' }, // yellow
+  { petal: '#fbf1f4', ribbon: '#ffd9e6' }, // white
+  { petal: '#a97cf0', ribbon: '#ece0ff' }, // lilac
+  { petal: '#ff9a5c', ribbon: '#ffe3d2' }, // coral
+];
+
+export const AWNING_TILT = 0.18; // the awning's own lean, used by both the build and the sway
 
 export const SHOP = {
-  // In the west corner at the end of the hall, not across the middle: the envelope in front of the
-  // heart window keeps the centre, and the couple can still walk up to it. This corner used to be
-  // the one dark patch at the end of the corridor.
-  x: -2.35,
-  z: -36.7,
-  counterY: 1.02,
+  // The square in front of the gate is centred at (-19, -33.5) with a 6.5 m radius; the stall stands
+  // in its western half, its back to the low garden wall side, so the lane keeps its own line.
+  x: -22.35,
+  z: -35.7,
+  // Facing north-east: the couple come down the lane from the north, so they see the front of the
+  // stall as they arrive, and the counter turns away from the gatehouse behind it.
+  rotY: 1.2,
+  // How far in front of the counter she stands to buy.
+  reach: 1.7,
+  counterY: 1.05,
   counterDepth: 0.36,
-  halfWidth: 0.95,
+  halfWidth: 1.12,
   // Each rose's own spot on the counter, relative to the stall: five in a row, all in reach.
   roses: [
-    { x: -0.66, y: 1.13, z: 0 },
-    { x: -0.33, y: 1.13, z: 0 },
-    { x: 0, y: 1.13, z: 0 },
-    { x: 0.33, y: 1.13, z: 0 },
-    { x: 0.66, y: 1.13, z: 0 },
+    { x: -0.66, y: 1.13, z: 0, colour: 0 },
+    { x: -0.33, y: 1.13, z: 0, colour: 1 },
+    { x: 0, y: 1.13, z: 0, colour: 2 },
+    { x: 0.33, y: 1.13, z: 0, colour: 3 },
+    { x: 0.66, y: 1.13, z: 0, colour: 4 },
   ],
-  // Where she stands to buy, in front of the counter's east half. The couple walk a corridor that
-  // leaves the boy a metre and a half of room by the wall, so the spot has to stay clear of that
-  // band: at |x| > ~2.05 the hall itself stops them.
-  buySpot: { x: -1.5, z: -35.45 },
   // How close she has to be to the counter to buy one.
   radius: 2.0,
   // Where the seller stands, behind the counter (relative to the stall).
   seller: { x: 0.3, z: -0.75 },
 };
 
-// The envelope and its pedestal keep the middle of the hall; the stall must leave them alone.
-export function shopClearsEnvelope(envelope) {
-  const dz = Math.abs(SHOP.z - envelope.z);
-  return dz > SHOP.counterDepth + 0.25;
+// Which way the stall faces, in world space (its local +z).
+export function shopFront() {
+  return { x: Math.sin(SHOP.rotY), z: Math.cos(SHOP.rotY) };
+}
+
+// Where she stands to buy: straight out from the counter, along that facing.
+SHOP.buySpot = (() => {
+  const front = shopFront();
+  return { x: SHOP.x + front.x * SHOP.reach, z: SHOP.z + front.z * SHOP.reach };
+})();
+
+// The colour of the rose that is the i-th in the row.
+export function roseColour(i) {
+  return ROSE_COLOURS[SHOP.roses[i] ? SHOP.roses[i].colour : 0];
+}
+
+// A world-space point, from a point in the stall's own frame (x along the counter, z out of its front)
+export function shopToWorld(x, z) {
+  const c = Math.cos(SHOP.rotY);
+  const s = Math.sin(SHOP.rotY);
+  return { x: SHOP.x + x * c + z * s, z: SHOP.z - x * s + z * c };
+}
+
+// The counter's four corners on the ground, in world space. Used by the walk rules (it is solid) and
+// by the tests that keep it out of the lane.
+export function stallCorners() {
+  const hw = SHOP.halfWidth + 0.12; // the top overhangs the box a little
+  const z0 = -SHOP.counterDepth;
+  const z1 = SHOP.counterDepth + 0.12;
+  return [
+    shopToWorld(-hw, z0), shopToWorld(hw, z0), shopToWorld(hw, z1), shopToWorld(-hw, z1),
+  ];
+}
+
+// The stall has to leave the lane's own corridor clear: the walk down to the gate is the main path,
+// and a counter standing in it would close the town off. `halfWidth` is the lane's walkable half
+// width (see src/town-night.js), plus the room the couple need beside it.
+export function shopClearsLane(streetX = -19, halfWidth = 2.3) {
+  return stallCorners().every((p) => Math.abs(p.x - streetX) > halfWidth);
 }
 
 // Which rose is next: the first one still on the counter.
@@ -67,7 +114,7 @@ export const SHOP_EMPTY_LINE = 'همه‌ی گل‌ها فروش رفت؛ فرد
 export const SHOP_BUY_LINES = [
   'این یکی مالِ توست 🌹',
   'گلِ دوم هم برداشتی، دستت پرِ گل شد 🌹',
-  'سه‌تا شد؛ عطرش کل راهرو را برداشته 🌹',
+  'سه‌تا شد؛ عطرش کل میدان را برداشته 🌹',
   'چهارمی هم مالِ تو؛ باز هم بخواهی هست 🌹',
   'پنج گل، پنج تا برای پنج سالِ ما 🌹',
 ];
@@ -264,6 +311,22 @@ function makeSeller(track) {
   const head = new THREE.Mesh(track(new THREE.SphereGeometry(0.17, 20, 16)), skin);
   head.position.y = 1.62;
   group.add(head);
+  // a face: two eyes and a small smile, or she reads as a blank balloon behind the counter
+  const eyeMat = track(new THREE.MeshStandardMaterial({ color: '#3a2a2a', roughness: 0.4 }));
+  const blushMat = track(new THREE.MeshStandardMaterial({ color: '#f0a79a', roughness: 0.8 }));
+  [-1, 1].forEach((side) => {
+    const eye = new THREE.Mesh(new THREE.SphereGeometry(0.023, 10, 8), eyeMat);
+    eye.position.set(side * 0.062, 1.65, 0.152);
+    group.add(eye);
+    const cheek = new THREE.Mesh(new THREE.SphereGeometry(0.032, 10, 8), blushMat);
+    cheek.scale.set(1, 0.7, 0.4);
+    cheek.position.set(side * 0.105, 1.6, 0.128);
+    group.add(cheek);
+  });
+  const smile = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.008, 6, 12, Math.PI), eyeMat);
+  smile.rotation.set(0, 0, Math.PI);
+  smile.position.set(0, 1.6, 0.155);
+  group.add(smile);
   const brim = new THREE.Mesh(track(new THREE.CylinderGeometry(0.34, 0.36, 0.035, 18)), straw);
   brim.position.y = 1.72;
   group.add(brim);
@@ -283,6 +346,8 @@ function makeSeller(track) {
 export function buildFlowerShop(scene, track) {
   const group = new THREE.Group();
   group.position.set(SHOP.x, 0, SHOP.z);
+  // turned to face the walk, so the couple see the counter as they come down the lane
+  group.rotation.y = SHOP.rotY;
   group.name = 'flower-shop';
   scene.add(group);
 
@@ -301,8 +366,8 @@ export function buildFlowerShop(scene, track) {
   const half = SHOP.halfWidth;
 
   // counter: a box of planks with a lip and two braces
-  const counter = new THREE.Mesh(new THREE.BoxGeometry(half * 2, 1.0, 0.5), wood);
-  counter.position.set(0, 0.5, 0);
+  const counter = new THREE.Mesh(new THREE.BoxGeometry(half * 2, 1.03, 0.5), wood);
+  counter.position.set(0, 0.515, 0);
   group.add(counter);
   const top = new THREE.Mesh(new THREE.BoxGeometry(half * 2 + 0.12, 0.08, 0.62), counterTop);
   top.position.set(0, SHOP.counterY, 0);
@@ -319,21 +384,21 @@ export function buildFlowerShop(scene, track) {
   // two posts and a striped awning over the counter, with a scalloped edge
   const posts = [];
   [-1, 1].forEach((side) => {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 2.5, 10), wood);
-    post.position.set(side * (half - 0.02), 1.25, -0.12);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.065, 3.0, 10), wood);
+    post.position.set(side * (half - 0.02), 1.5, -0.12);
     group.add(post);
     posts.push(post);
-    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.075, 12, 10), gold);
-    cap.position.set(side * (half - 0.02), 2.55, -0.12);
+    const cap = new THREE.Mesh(new THREE.SphereGeometry(0.08, 12, 10), gold);
+    cap.position.set(side * (half - 0.02), 3.05, -0.12);
     group.add(cap);
   });
-  const awning = new THREE.Mesh(new THREE.BoxGeometry(half * 2 + 0.3, 0.05, 1.15), awningMat);
-  awning.position.set(0, 2.5, 0.2);
-  awning.rotation.x = 0.18;
+  const awning = new THREE.Mesh(new THREE.BoxGeometry(half * 2 + 0.3, 0.05, 1.2), awningMat);
+  awning.position.set(0, 3.0, 0.22);
+  awning.rotation.x = AWNING_TILT;
   group.add(awning);
   // the scalloped fringe, one little half-cylinder per stripe
   const fringe = new THREE.Group();
-  fringe.position.set(0, 2.36, 0.75);
+  fringe.position.set(0, 2.86, 0.8);
   group.add(fringe);
   for (let i = 0; i < 12; i += 1) {
     const scallop = new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.1, 0.04, 12, 1, false, 0, Math.PI), awningMat);
@@ -348,33 +413,110 @@ export function buildFlowerShop(scene, track) {
     new THREE.PlaneGeometry(1.15, 0.42),
     new THREE.MeshBasicMaterial({ map: labelCanvas(), toneMapped: false }),
   );
-  sign.position.set(0, 2.14, 0.66);
+  sign.position.set(0, 2.56, 0.7);
   sign.rotation.x = -0.06;
   group.add(sign);
   const signBack = new THREE.Mesh(new THREE.BoxGeometry(1.24, 0.5, 0.05), woodDark);
-  signBack.position.set(0, 2.14, 0.62);
+  signBack.position.set(0, 2.56, 0.66);
   group.add(signBack);
   [-1, 1].forEach((side) => {
     const hook = new THREE.Mesh(new THREE.TorusGeometry(0.035, 0.008, 6, 10), gold);
-    hook.position.set(side * 0.5, 2.38, 0.64);
+    hook.position.set(side * 0.5, 2.8, 0.68);
     group.add(hook);
   });
 
-  // a little lantern on the right post
+  // a lantern on each post, so the stall reads as an open, lit shop on a dark square
   const lanternGlow = track(new THREE.MeshBasicMaterial({ color: '#ffd79a', toneMapped: false }));
-  const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), lanternGlow);
-  lantern.position.set(half + 0.06, 2.0, 0.05);
-  group.add(lantern);
-  const lanternRoof = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.11, 10), gold);
-  lanternRoof.position.set(half + 0.06, 2.12, 0.05);
-  group.add(lanternRoof);
+  const lanterns = [];
+  [-1, 1].forEach((side) => {
+    const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), lanternGlow);
+    lantern.position.set(side * (half + 0.07), 2.42, 0.06);
+    group.add(lantern);
+    lanterns.push(lantern);
+    const roof = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.11, 10), gold);
+    roof.position.set(side * (half + 0.07), 2.54, 0.06);
+    group.add(roof);
+    const ring = new THREE.Mesh(new THREE.TorusGeometry(0.055, 0.012, 6, 10), gold);
+    ring.rotation.x = Math.PI / 2;
+    ring.position.set(side * (half + 0.07), 2.51, 0.06);
+    group.add(ring);
+  });
+  // one warm light of its own: the square's lamps are a few metres away and the shop is the thing
+  // people walk to, so it gets a small, short-reach light rather than being a dark silhouette
+  // Kept low and gentle, and in front of the counter rather than over the shopkeeper's face: at head
+  // height and full strength the light blew her face out to white.
+  const shopLight = track(new THREE.PointLight('#ffc48a', 5.5, 7.5, 2));
+  shopLight.position.set(0, 1.95, 0.85);
+  group.add(shopLight);
+  // a soft warm halo, so the shop reads from the far end of the lane as a lit island on a dark square
+  const haloCanvas = document.createElement('canvas');
+  haloCanvas.width = haloCanvas.height = 128;
+  {
+    const ctx = haloCanvas.getContext('2d');
+    const g = ctx.createRadialGradient(64, 64, 0, 64, 64, 64);
+    g.addColorStop(0, 'rgba(255,206,150,0.85)');
+    g.addColorStop(0.45, 'rgba(255,186,120,0.22)');
+    g.addColorStop(1, 'rgba(255,186,120,0)');
+    ctx.fillStyle = g;
+    ctx.fillRect(0, 0, 128, 128);
+  }
+  const haloTex = new THREE.CanvasTexture(haloCanvas);
+  haloTex.colorSpace = THREE.NoColorSpace;
+  track(haloTex);
+  const halo = new THREE.Sprite(track(new THREE.SpriteMaterial({
+    map: haloTex, color: '#ffcf96', transparent: true, opacity: 0.8,
+    depthWrite: false, blending: THREE.AdditiveBlending, fog: false,
+  })));
+  halo.scale.set(4.6, 3.2, 1);
+  halo.position.set(0, 2.1, 0.4);
+  group.add(halo);
+
+  // two pots of pink blossom either side of the counter: the shop's own flowers, spilling out
+  const potMat = track(new THREE.MeshStandardMaterial({ color: '#7a4b3c', roughness: 0.9 }));
+  const blossomMat = track(new THREE.MeshStandardMaterial({ color: '#f19bbd', roughness: 0.85, flatShading: true }));
+  const potLeafMat = track(new THREE.MeshStandardMaterial({ color: '#3f7a55', roughness: 0.9, flatShading: true }));
+  [-1, 1].forEach((side) => {
+    const pot = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.16, 0.38, 12), potMat);
+    pot.position.set(side * (half + 0.34), 0.19, 0.5);
+    group.add(pot);
+    for (let i = 0; i < 5; i += 1) {
+      const a = (i / 5) * Math.PI * 2;
+      const leaf = new THREE.Mesh(new THREE.IcosahedronGeometry(0.16, 0), potLeafMat);
+      leaf.position.set(side * (half + 0.34) + Math.cos(a) * 0.11, 0.44, 0.5 + Math.sin(a) * 0.11);
+      leaf.scale.set(1, 0.8, 1);
+      group.add(leaf);
+      const flower = new THREE.Mesh(new THREE.IcosahedronGeometry(0.085, 0), blossomMat);
+      flower.position.set(side * (half + 0.34) + Math.cos(a) * 0.13, 0.58, 0.5 + Math.sin(a) * 0.13);
+      group.add(flower);
+    }
+  });
+
+  // a crate of spare blooms and a barrel, so the corner of the square looks lived in
+  const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.26, 0.62, 12), woodDark);
+  barrel.position.set(-half - 0.62, 0.31, 0.9);
+  group.add(barrel);
+  const barrelBand = new THREE.Mesh(new THREE.TorusGeometry(0.255, 0.02, 6, 14), gold);
+  barrelBand.rotation.x = Math.PI / 2;
+  barrelBand.position.set(-half - 0.62, 0.5, 0.9);
+  group.add(barrelBand);
+
+  // a string of little beads along the awning's front edge, catching that light
+  const beadMat = track(new THREE.MeshBasicMaterial({ color: '#ffe6b0', toneMapped: false }));
+  const beadGeo = track(new THREE.SphereGeometry(0.028, 8, 6));
+  for (let i = 0; i < 9; i += 1) {
+    const bead = new THREE.Mesh(beadGeo, beadMat);
+    bead.position.set(-half - 0.05 + (i * (half * 2 + 0.1)) / 8, 2.84 - Math.sin((i / 8) * Math.PI) * 0.045, 0.79);
+    group.add(bead);
+  }
 
   // five roses on the counter, each with a small vase and a price tag
   const counterRoses = SHOP.roses.map((spot, i) => {
+    const colour = ROSE_COLOURS[spot.colour];
     const vase = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.035, 0.1, 10), track(new THREE.MeshStandardMaterial({ color: '#f7e6ee', roughness: 0.3 })));
     vase.position.set(spot.x, SHOP.counterY + 0.06, 0.02);
     group.add(vase);
-    const rose = makeRose({ petalColor: i % 2 ? '#ff8fb0' : '#ff5f8f', ribbon: i % 2 ? '#fff1f7' : '#ffe6f0' });
+    // one of each colour, all five sold out before the shop says it is empty
+    const rose = makeRose({ petalColor: colour.petal, ribbon: colour.ribbon });
     rose.rotation.z = 0.08 * (i % 2 ? 1 : -1);
     group.add(rose);
     rose.userData.spot = { x: spot.x, y: SHOP.counterY + 0.1, z: 0.12 };
@@ -388,7 +530,8 @@ export function buildFlowerShop(scene, track) {
   group.add(bucket);
   const spare = new THREE.Group();
   for (let i = 0; i < 4; i += 1) {
-    const rose = makeRose({ petalColor: i % 2 ? '#ff8fb0' : '#ffd0e0', scale: 0.95 });
+    const top = ROSE_COLOURS[(i + 1) % ROSE_COLOURS.length];
+    const rose = makeRose({ petalColor: top.petal, ribbon: top.ribbon, scale: 0.95 });
     rose.position.set(-0.08 + i * 0.05, 0.3, 0.02 * i);
     rose.rotation.z = (i - 1.5) * 0.12;
     spare.add(rose);
@@ -421,9 +564,13 @@ export function buildFlowerShop(scene, track) {
 
   function update(t) {
     // the awning breathes a little, the lantern flickers, the seller sways and turns her head
-    awning.rotation.x = 0.18 + Math.sin(t * 0.8) * 0.012;
+    awning.rotation.x = AWNING_TILT + Math.sin(t * 0.8) * 0.012;
     const flicker = 0.86 + Math.sin(t * 5.1) * 0.08 + Math.sin(t * 11.7) * 0.04;
+    lanterns.forEach((l, i) => {
+      l.position.y = 2.42 + Math.sin(t * 1.3 + i * 1.7) * 0.004;
+    });
     lanternGlow.color.setRGB(1, 0.84 * flicker, 0.6 * flicker);
+    shopLight.intensity = 5.0 + flicker * 1.1;
     seller.group.rotation.y = Math.PI + Math.sin(t * 0.45) * 0.18;
     seller.head.rotation.z = Math.sin(t * 0.6) * 0.05;
     counterRoses.forEach((rose, i) => {
@@ -436,6 +583,8 @@ export function buildFlowerShop(scene, track) {
     group,
     // where the couple stands to buy: in front of the counter
     buyAt: { ...SHOP.buySpot },
+    // what she is standing in front of, for the hearts that pop when she buys
+    counter: { x: SHOP.x, z: SHOP.z },
     radius: SHOP.radius,
     sold,
     refresh,

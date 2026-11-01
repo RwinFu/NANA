@@ -2,7 +2,7 @@ import * as THREE from 'three';
 import { memories as memoryList, soloMemories, soloVideo } from './memories.js';
 import { buildCastle } from './castle.js';
 import { buildCastleOuter } from './castle-outer.js';
-import { buildFlowerShop, SHOP, shopClearsEnvelope } from './flower-shop.js';
+import { buildFlowerShop } from './flower-shop.js';
 import { stoneMaterial, boxUV } from './castle-stone.js';
 import { createRugGlint, createStoneGlint } from './rugglint.js';
 import { stoneNormal, doorNormal, giltNormal, ribbonNormal, heartGlass } from './architecture.js';
@@ -1223,6 +1223,10 @@ export function buildWorld(scene, camera) {
   });
   // The town beyond the castle, with its skyline, landmarks and drifting lanterns
   const town = buildTown(scene, track);
+  // The flower shop at the end of the paved walk: on the town square, west of the lane, so it stands
+  // at the end of the walk without ever standing in it. Built here because here is where the town's
+  // ground and its walls are made, and it needs to sit on that square, not float over the grass.
+  const flowerShop = buildFlowerShop(scene, track);
 
   // Hanging lanterns in the hall
   const lanternCount = 64;
@@ -1375,12 +1379,8 @@ export function buildWorld(scene, camera) {
 
   const frames = [...hallFrames, ...roomFrames];
 
-  // The end of the hall is a little flower shop: a striped stall under the heart window, with five
-  // roses on the counter. It was an empty dark corner; now the walk down the hall leads somewhere.
-  if (!shopClearsEnvelope(LAYOUT.envelope)) {
-    console.warn('flower shop would stand on the envelope');
-  }
-  const flowerShop = buildFlowerShop(scene, track);
+  // The flower shop stands on the town square, at the end of the paved walk, and is built with the
+  // town below: the hall keeps its own end, with the envelope in front of the heart window.
 
   function applyPhoto(frame, texture) {
     const previous = frame.photo.material.map;
@@ -1699,8 +1699,8 @@ export function buildWorld(scene, camera) {
     }));
     hallProgress = advanceHallProgress(hallProgress, playerPosition, LAYOUT.hallHalfWidth, LAYOUT.hallLength);
     castle.update(t, dt);
-    flowerShop.update(t);
     town.update(t, dt); // the clock and the town's windows keep their own, slow time
+    flowerShop.update(t); // the awning, the lantern and the shopkeeper
     clouds.forEach(({ cloud, x, phase }) => { cloud.position.x = x + Math.sin(t * 0.025 + phase) * 2; });
     // Slow, subtle movement shared across the garden canopy and chandeliers.
     swayingLeaves.forEach(({ leaf, phase, baseX }) => {

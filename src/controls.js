@@ -4,7 +4,7 @@ import { LAYOUT } from './world.js';
 import { FOUNTAIN, GARDEN_BENCH } from './decor.js';
 import { inLane, inPlaza, STREET, PLAZA, TOWN_HOUSES, GATE, TOWN_WALL_Z, GATE_HALF_WIDTH, TOWN_WALL_HEIGHT } from './town-night.js';
 import { behindCastleBlocked } from './walk-rules.js';
-import { SHOP } from './flower-shop.js';
+import { SHOP, stallCorners } from './flower-shop.js';
 
 const PLAYER_RADIUS = 0.3;
 // The boy walks beside the princess, so the hall walls keep this extra distance
@@ -55,10 +55,21 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   // Keep the bench solid without changing the route along the central path.
   if (Math.abs(x - GARDEN_BENCH.x) < GARDEN_BENCH.halfWidth + margin &&
       Math.abs(z - GARDEN_BENCH.z) < GARDEN_BENCH.halfDepth + margin && y < 1.4) return true;
-  // The flower shop's counter at the end of the hall: the couple buy their roses from the front
-  if (x > SHOP.x - SHOP.halfWidth - margin && x < SHOP.x + SHOP.halfWidth + margin
-      && z < SHOP.z + 0.42 + margin && z > SHOP.z - 0.55 && y < 2.6) {
-    return true;
+  // The flower shop's counter on the square: solid, so the couple buy from the front of it rather
+  // than walking through it. Checked against the stall's own footprint, because it is turned to
+  // face the walk rather than lined up with the axes.
+  if (y < 2.6) {
+    const corners = stallCorners();
+    const hw = SHOP.halfWidth + 0.12 + margin;
+    const dz = SHOP.counterDepth + 0.12 + margin;
+    // to the stall's own frame: turn the point back by -rotY and compare with the counter box
+    const dx = x - SHOP.x;
+    const dzz = z - SHOP.z;
+    const c = Math.cos(SHOP.rotY);
+    const s = Math.sin(SHOP.rotY);
+    const localX = dx * c - dzz * s;
+    const localZ = dx * s + dzz * c;
+    if (corners && Math.abs(localX) < hw && localZ > -dz && localZ < dz) return true;
   }
   // The big envelope at the end of the hall
   const env = LAYOUT.envelope;

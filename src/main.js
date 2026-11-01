@@ -20,7 +20,7 @@ import { composePostcard, canvasToBlob } from './postcard.js';
 import { createRescueGame, showHowTo } from './rescue.js';
 import { createCats } from './cats.js';
 import { buildDecor, GARDEN_BENCH } from './decor.js';
-import { createBouquet, buyLine, SHOP_EMPTY_LINE, flowerArmPose } from './flower-shop.js';
+import { createBouquet, buyLine, SHOP_EMPTY_LINE, flowerArmPose, ROSE_COLOURS } from './flower-shop.js';
 
 const $ = (sel) => document.querySelector(sel);
 const SWATCHES = [
@@ -555,10 +555,11 @@ function checkTownWalk() {
   toast(line, 6500);
   world.burstHearts(new THREE.Vector3(gate.x, 1.4, gate.z), 6);
   audio.chime(659.25);
-  // a breath later, the couple turns back toward the house
+  // a breath later, the couple turns back toward the house — unless they came to the flower shop,
+  // which stands on this same square: turning them round mid-purchase would be rude
   window.setTimeout(() => {
     const home = { x: 0, z: 12 };
-    if (controls && !benchSeated) controls.faceToward(home.x, home.z);
+    if (controls && !benchSeated && !nearFlowerShop()) controls.faceToward(home.x, home.z);
   }, 1400);
   window.setTimeout(() => {
     toast('برگردیم خونه؟ ✨', 3200);
@@ -566,7 +567,7 @@ function checkTownWalk() {
   }, 9000);
 }
 
-// ---------- the flower shop at the end of the hall ------------------------
+// ---------- the flower shop at the end of the walk ------------------------
 
 function nearFlowerShop() {
   if (!world?.flowers || !controls) return false;
@@ -605,7 +606,9 @@ function buyFlower() {
   }
   rosesBought += 1;
   syncBouquet();
-  bouquet.add({ petalColor: rosesBought % 2 ? '#ff5f8f' : '#ff8fb0' });
+  // the rose she keeps is the one she took off the counter: same colour, so the bunch ends up mixed
+  const picked = ROSE_COLOURS[(result.index >= 0 ? result.index : 0) % ROSE_COLOURS.length];
+  bouquet.add({ petalColor: picked.petal });
   toast(buyLine(rosesBought), 3200);
   audio.chime([523.25, 587.33, 659.25, 783.99, 880][Math.min(rosesBought, 5) - 1] || 880);
   world.burstHearts(new THREE.Vector3(world.flowers.centre.x, 1.5, world.flowers.centre.z + 0.4), 3);
