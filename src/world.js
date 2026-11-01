@@ -397,7 +397,8 @@ export function buildWorld(scene, camera) {
   // Sky: a night gradient dome that fades to a plum horizon behind the castle
   const HORIZON = '#2c1f4a';
   scene.background = new THREE.Color(HORIZON);
-  scene.fog = new THREE.Fog(HORIZON, 34, 110);
+  // Started further out than before: the lane to town must not be washed into the horizon colour
+  scene.fog = new THREE.Fog(HORIZON, 46, 165);
   const domeMat = track(
     new THREE.ShaderMaterial({
       side: THREE.BackSide,

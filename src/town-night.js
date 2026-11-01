@@ -20,7 +20,7 @@ export const GATE = { x: STREET.x, z: TOWN_WALL_Z + 4.6 };
 // A square in front of the gate, where the walk ends
 export const PLAZA = { x: STREET.x, z: -33.5, r: 6.5 };
 // The clock tower, inside the town and just past the gate: tall enough to read from the square
-export const CLOCK_TOWER = { x: -6, z: -56, dialY: 17.5, dialR: 1.7 };
+export const CLOCK_TOWER = { x: -4.5, z: -52.5, dialY: 15.5, dialR: 1.9 };
 
 // The houses that frame the lane, and the few behind the wall that make the skyline. Checked
 // against the castle, hall and photo room in the tests.

@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { stoneCanvas, roofCanvas, cobbleCanvas, toTexture } from './town-art.js';
 import {
   STREET, STREET_HALF_WIDTH, TOWN_WALL_Z, TOWN_WALL_LEN, TOWN_WALL_HEIGHT, GATE_HALF_WIDTH,
   PLAZA, GATE, CLOCK_TOWER, TOWN_HOUSES,
@@ -86,12 +87,16 @@ export function buildTown(scene, track) {
     return mesh;
   };
 
-  const stoneMats = ['#7d6b78', '#8a7a86', '#6f6178', '#9a8478', '#837070'].map((c) =>
-    track(new THREE.MeshStandardMaterial({ color: c, roughness: 0.9 }))
+  // Cut stone and tiles, drawn once and shared: a whole street of buildings, four textures.
+  const stoneMap = track(toTexture(stoneCanvas({ seed: 11, tone: 168 }), 2, 2));
+  const stoneMapTall = track(toTexture(stoneCanvas({ seed: 12, tone: 172 }), 1, 3));
+  const roofMap = track(toTexture(roofCanvas({ seed: 21, tone: 150 }), 3, 2));
+  const stoneMats = ['#59505f', '#645a6a', '#4f4656', '#6b6168', '#5b5350'].map((c) =>
+    track(new THREE.MeshStandardMaterial({ color: c, roughness: 0.78, map: stoneMap, bumpMap: stoneMap, bumpScale: 0.06 }))
   );
-  const stoneLight = track(new THREE.MeshStandardMaterial({ color: '#a89aa8', roughness: 0.85 }));
-  const roofMats = ['#b5557a', '#8e4a78', '#c46a8c'].map((c) =>
-    track(new THREE.MeshStandardMaterial({ color: c, roughness: 0.5 }))
+  const stoneLight = track(new THREE.MeshStandardMaterial({ color: '#7d7488', roughness: 0.8, map: stoneMapTall, bumpMap: stoneMapTall, bumpScale: 0.05 }));
+  const roofMats = ['#93476a', '#743d63', '#a05574'].map((c) =>
+    track(new THREE.MeshStandardMaterial({ color: c, roughness: 0.62, map: roofMap, bumpMap: roofMap, bumpScale: 0.04 }))
   );
   const gold = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.7, roughness: 0.35 }));
   const flagMat = track(new THREE.MeshStandardMaterial({ color: '#ff8fab', roughness: 0.6, side: THREE.DoubleSide }));
@@ -130,7 +135,7 @@ export function buildTown(scene, track) {
     track(house.tex);
     const wallMat = track(
       new THREE.MeshStandardMaterial({
-        color: pick(['#7d6b78', '#8a7a86', '#6f6178', '#9a8478']),
+        color: pick(['#4e4152', '#574a5c', '#463a4d', '#5c4f57', '#504448']),
         roughness: 0.9,
         emissive: '#ffffff',
         emissiveMap: house.tex,
@@ -138,6 +143,20 @@ export function buildTown(scene, track) {
       })
     );
     add(new THREE.BoxGeometry(w, h, d), wallMat, x, h / 2, z);
+    // A stone plinth where it meets the ground, and a gold eave under the roof: two lines that make
+    // a plain box read as a building at a glance.
+    const plinth = new THREE.Mesh(
+      track(new THREE.BoxGeometry(w + 0.24, 0.5, d + 0.24)),
+      stoneMats[1]
+    );
+    plinth.position.set(x, 0.25, z);
+    scene.add(plinth);
+    const eave = new THREE.Mesh(
+      track(new THREE.BoxGeometry(w + 0.5, 0.16, d + 0.5)),
+      stoneMats[4]
+    );
+    eave.position.set(x, h - 0.08, z);
+    scene.add(eave);
     // Steep roof: a pyramid on square houses, a cone on round turrets
     const roofH = range(2.5, 4.5);
     const round = rand() < 0.4;
@@ -316,22 +335,23 @@ export function buildTown(scene, track) {
     const length = STREET.z0 - STREET.z1;
     const lane = new THREE.Mesh(
       track(new THREE.PlaneGeometry(STREET_HALF_WIDTH * 2, length)),
-      track(new THREE.MeshStandardMaterial({ map: laneTex, roughness: 0.86 }))
+      track(new THREE.MeshStandardMaterial({ map: laneTex, bumpMap: laneTex, bumpScale: 0.035, roughness: 0.66 }))
     );
     lane.rotation.x = -Math.PI / 2;
     lane.position.set(STREET.x, 0.06, (STREET.z0 + STREET.z1) / 2);
     scene.add(lane);
     // kerb stones give the lane an edge instead of a painted stripe
-    const kerbMat = track(new THREE.MeshStandardMaterial({ color: '#8a8090', roughness: 0.9 }));
+    const kerbMat = track(new THREE.MeshStandardMaterial({ color: '#6a6172', map: stoneMap, bumpMap: stoneMap, bumpScale: 0.04, roughness: 0.82 }));
     [-1, 1].forEach((side) => {
       const kerb = new THREE.Mesh(track(new THREE.BoxGeometry(0.3, 0.22, length)), kerbMat);
       kerb.position.set(STREET.x + side * (STREET_HALF_WIDTH + 0.15), 0.11, (STREET.z0 + STREET.z1) / 2);
       scene.add(kerb);
     });
     // the square in front of the gate
+    const plazaMap = track(toTexture(cobbleCanvas({ seed: 31, tone: 124 }), 5, 5));
     const plaza = new THREE.Mesh(
       track(new THREE.CircleGeometry(PLAZA.r, 40)),
-      track(new THREE.MeshStandardMaterial({ color: '#4c4054', roughness: 0.88 }))
+      track(new THREE.MeshStandardMaterial({ color: '#cfc6dc', map: plazaMap, bumpMap: plazaMap, bumpScale: 0.05, roughness: 0.6 }))
     );
     plaza.rotation.x = -Math.PI / 2;
     plaza.position.set(PLAZA.x, 0.055, PLAZA.z);
