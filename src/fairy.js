@@ -552,8 +552,98 @@ export function createFairy(scene) {
     ribbonMat.opacity = 0.3 * s;
   }
 
+  // ---------- the return -----------------------------------------------------------
+  // The second flight: after the game has begun, the fairy comes back with the present. She is not the
+  // intro's butterfly any more — that one left — so this is a separate little state machine with its own
+  // path, and the intro's `vis` is left alone.
+  //
+  //   arrive : from high behind the castle down to a point in front of the couple
+  //   hold   : hovering, presenting the box
+  //   circle : one slow loop around the couple while the necklace turns in the air
+  //   leave  : back up and away, out over the garden
+  const gift = {
+    active: false,
+    t: 0,
+    from: new THREE.Vector3(),
+    to: new THREE.Vector3(),
+    centre: new THREE.Vector3(),
+    done: false,
+  };
+  const giftPos = new THREE.Vector3();
+  const giftNext = new THREE.Vector3();
+
+  // Start the return. `at` is where the couple are; the flight is built from that, so she arrives in
+  // front of them wherever they came out of the castle.
+  function beginReturn(at) {
+    gift.active = true;
+    gift.done = false;
+    gift.t = 0;
+    gift.centre.set(at.x, 1.2, at.z);
+    gift.from.set(at.x - 9, 13, at.z - 16);
+    gift.to.set(at.x + 0.2, 2.35, at.z + 1.9);
+    // the intro's butterfly is long gone; this flight has its own visibility
+    pos.copy(gift.from);
+    lastPos.copy(gift.from);
+    figure.scale.setScalar(1);
+  }
+
+  // Where the return flight is at time `time`, and what she is doing.
+  function returnAt(time, out) {
+    const centre = gift.centre;
+    const arriveEnd = 2.6;
+    const holdEnd = 5.4;
+    const circleEnd = 9.8;
+    const leaveEnd = 12.5;
+    if (time < arriveEnd) {
+      const k = Math.min(1, time / arriveEnd);
+      const e = k * k * (3 - 2 * k);
+      out.lerpVectors(gift.from, gift.to, e);
+      // a little weave on the way down, so it is a flight and not a slide
+      out.x += Math.sin(k * Math.PI * 2.2) * 0.9 * (1 - e);
+      out.z += Math.cos(k * Math.PI * 1.7) * 0.5 * (1 - e);
+      return { stage: 'arrive', k };
+    }
+    if (time < holdEnd) {
+      const k = (time - arriveEnd) / (holdEnd - arriveEnd);
+      out.copy(gift.to);
+      // hovering: a slow bob and a drift, the way she did over the letter
+      out.y += Math.sin(time * 1.9) * 0.06;
+      out.x += Math.sin(time * 1.3) * 0.07;
+      out.z += Math.cos(time * 1.1) * 0.05;
+      return { stage: 'hold', k };
+    }
+    if (time < circleEnd) {
+      const k = (time - holdEnd) / (circleEnd - holdEnd);
+      // One full, gentle loop around the couple, at head height, widening as it goes.
+      const angle = -Math.PI * 0.5 + k * Math.PI * 2;
+      const r = 1.9 + Math.sin(k * Math.PI) * 0.5;
+      out.set(
+        centre.x + Math.cos(angle) * r,
+        centre.y + 1.25 + Math.sin(k * Math.PI * 2) * 0.22,
+        centre.z + Math.sin(angle) * r * 0.85 + 0.8,
+      );
+      return { stage: 'circle', k };
+    }
+    if (time < leaveEnd) {
+      const k = (time - circleEnd) / (leaveEnd - circleEnd);
+      const e = k * k;
+      out.set(
+        centre.x + 1.9 + e * 4.5,
+        centre.y + 1.25 + e * 9.0,
+        centre.z + 0.8 + e * 5.0,
+      );
+      out.x += Math.sin(time * 2.4) * 0.4 * (1 - e);
+      return { stage: 'leave', k };
+    }
+    return { stage: 'gone', k: 1 };
+  }
+
   // Called every frame. p is the castle flight progress; started means the game has begun.
   function update(t, dt, p, started, camera) {
+    if (gift.active) {
+      updateReturn(t, dt, camera);
+      return;
+    }
     const target = started ? 0 : smoothstep(p * 2.2);
     vis += (target - vis) * Math.min(1, dt * 2.5);
     if (started) leave += dt;
@@ -639,5 +729,117 @@ export function createFairy(scene) {
     updateRibbon(camera, s);
   }
 
-  return { update, group, letter };
+  // The return's own frame: the same butterfly, a different path, and the box in her arms.
+  function updateReturn(t, dt, camera) {
+    gift.t += dt;
+    const time = gift.t;
+    const state = returnAt(time, giftPos);
+    returnAt(time + 0.05, giftNext);
+
+    if (state.stage === 'gone') {
+      gift.active = false;
+      gift.done = true;
+      group.visible = false;
+      if (giftBox) giftBox.visible = false;
+      return;
+    }
+
+    // she fades in as she arrives and out as she leaves, so nothing pops
+    const fade = state.stage === 'arrive' ? Math.min(1, time / 1.4)
+      : state.stage === 'leave' ? Math.max(0, 1 - state.k * 1.15)
+        : 1;
+    group.visible = fade > 0.01;
+    group.position.copy(giftPos);
+    group.scale.setScalar(0.95 * fade);
+
+    // face where she is going, and lean into the turn
+    aimM.lookAt(giftNext, giftPos, UP);
+    aimQ.setFromRotationMatrix(aimM);
+    group.quaternion.slerp(aimQ, Math.min(1, dt * 6));
+    velocity.subVectors(giftPos, lastPos).divideScalar(Math.max(dt, 1e-4));
+    lastPos.copy(giftPos);
+    const rightAxis = tmpRight.set(1, 0, 0).applyQuaternion(group.quaternion);
+    bank += (THREE.MathUtils.clamp(rightAxis.dot(velocity) * 0.05, -0.3, 0.3) - bank) * Math.min(1, dt * 4);
+
+    figure.position.y = Math.sin(t * 2.2) * 0.012;
+    figure.rotation.z = Math.sin(t * 1.1) * 0.04 - bank;
+    const flap = Math.sin(t * 7.5);
+    const flapLow = Math.sin(t * 7.5 - 0.5);
+    wings.forEach(({ upper, lower, side: sd }) => {
+      upper.rotation.z = sd * (0.34 + 0.05 * flap);
+      lower.rotation.z = -sd * (0.62 + 0.05 * flapLow);
+      upper.rotation.y = sd * (0.26 + 0.5 * (0.5 + 0.5 * flap));
+      lower.rotation.y = sd * (0.24 + 0.42 * (0.5 + 0.5 * flapLow));
+    });
+    updateSparkles(t);
+    aura.material.opacity = 0.18 + 0.06 * Math.sin(t * 2);
+
+    // The box hangs just under her, in the camera's own plane, so it is always readable from where the
+    // couple stand. It opens on its own at the start of 'present'.
+    if (giftBox) {
+      cameraUp.set(0, 1, 0).applyQuaternion(camera.quaternion);
+      cameraRight.set(1, 0, 0).applyQuaternion(camera.quaternion);
+      const hover = Math.sin(t * 1.6) * 0.02;
+      giftBox.position.copy(giftPos)
+        .addScaledVector(cameraUp, -0.42 + hover)
+        .addScaledVector(cameraRight, 0.06);
+      giftBox.quaternion.copy(camera.quaternion);
+      giftBox.scale.setScalar(fade);
+      giftBox.visible = fade > 0.01;
+      const openK = state.stage === 'arrive' ? 0
+        : state.stage === 'hold' ? Math.min(1, Math.max(0, (time - 2.9) / 1.2))
+          : 1;
+      giftBoxSetOpen(openK);
+    }
+
+    // her own stardust, on the return path
+    updateTrail(dt, fade > 0.01);
+  }
+
+  // The return's API: start it, ask about it, and hand over the box's open amount.
+  let giftBox = null;
+  let giftBoxSetOpen = () => {};
+
+  function attachGiftBox(box, setOpen) {
+    giftBox = box && box.group ? box.group : box;
+    giftBoxSetOpen = setOpen || (() => {});
+    if (giftBox) giftBox.visible = false;
+  }
+
+  return {
+    update,
+    group,
+    letter,
+    // where she is holding the box, in world space, for the necklace to rise from
+    get boxPosition() {
+      return giftBox ? giftBox.position : null;
+    },
+    // the return with the present
+    beginReturn,
+    attachGiftBox,
+    get returning() {
+      return gift.active;
+    },
+    get returnGiftStage() {
+      return gift.active ? giftBeatName(gift.t) : null;
+    },
+    get giftDone() {
+      return gift.done;
+    },
+    // where she is right now, for the necklace to follow
+    get position() {
+      return giftPos;
+    },
+  };
+
+  // The names used by src/gift.js, duplicated here only as a fallback for the getter above (the real
+  // schedule lives in gift.js and main.js drives it); kept tiny on purpose.
+  function giftBeatName(time) {
+    if (time < 2.6) return 'arrive';
+    if (time < 5.4) return 'present';
+    if (time < 7.6) return 'lift';
+    if (time < 9.8) return 'circle';
+    if (time < 11.6) return 'settle';
+    return 'glow';
+  }
 }

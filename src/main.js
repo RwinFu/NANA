@@ -19,6 +19,11 @@ import { createHouseSparkles } from './house-sparkles.js';
 import { createFootprints } from './footprints.js';
 import { createSparkles } from './castle.js';
 import { createFairy } from './fairy.js';
+import { createGiftBox } from './gift-box.js';
+import { createNecklace } from './necklace.js';
+import {
+  GIFT_SECONDS, giftReady, giftBeat, necklacePose, GIFT_LINES, GIFT_AFTER,
+} from './gift.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
 import { createRescueGame, showHowTo } from './rescue.js';
 import { createCats } from './cats.js';
@@ -172,6 +177,16 @@ let started = false;
 let transition = null;
 let introSparkles = null;
 let introFairy = null;
+// The present: the fairy's return, the box, and the necklace that stays on her afterwards.
+let giftBox = null;
+let necklace = null;
+let gift = null; // { t, beat, worn, wasInside }
+let giftGiven = false;
+let giftAfterLine = false;
+let wasInsideCastle = false;
+const giftNeck = new THREE.Vector3();
+const giftBoxAt = new THREE.Vector3();
+const giftHoldAt = new THREE.Vector3();
 let introSparkleLevel = 0;
 let introReady = false;
 let introFired = false;
@@ -252,9 +267,20 @@ if (renderer) {
   world = buildWorld(scene, camera);
   introSparkles = createSparkles(scene);
   introFairy = createFairy(scene);
+  // The present's own props: the box the fairy carries, and the necklace inside it. The necklace is built
+  // once and lives on her neck afterwards, so there is one necklace and not one per scene.
+  giftBox = createGiftBox((o) => o);
+  giftBox.visible = false;
+  scene.add(giftBox.group);
+  necklace = createNecklace((o) => o);
+  necklace.worn.visible = false;
+  introFairy.attachGiftBox(giftBox, giftBox.setOpen);
   hero = createCouple(store.get().avatarColor);
   syncBouquet(); // hangs her bouquet on her free arm (empty until she buys a rose)
   scene.add(hero.root);
+  // The necklace hangs on her body from the moment it is given: it is added here, hidden, so that the
+  // scene only has to make it visible and it is already in the right place.
+  hero.root.add(necklace.worn);
   // Start in the garden, not at the origin: the origin is the middle of the door, and the couple sank into it before the walk began
   hero.root.position.copy(LAYOUT.spawn);
   // A soft studio reflection for the characters' glossy parts (hair, eyes, gold, shoes)
@@ -637,6 +663,141 @@ function checkTownWalk() {
     toast('برگردیم خونه؟ ✨', 3200);
     townVisited = false; // they may come back another time
   }, 9000);
+}
+
+// ---------- the present: the fairy comes back --------------------------------
+//
+// The scene belongs to one moment: the first time the couple step out of the castle after they have been
+// in it. They walk in, they look around, they come back out — and the fairy is waiting over the garden
+// with a box. See src/gift.js for the schedule and src/necklace.js for the gold.
+
+const CASTLE_INSIDE_Z = -1.5; // well inside the hall, so the doorway itself does not count
+const CASTLE_OUTSIDE_Z = 1.2; // clear of the door, back on the garden path
+
+function inHallNow() {
+  const z = hero.root.position.z;
+  return Math.abs(hero.root.position.x) < LAYOUT.hallHalfWidth + 0.6 && z < CASTLE_INSIDE_Z && z > -LAYOUT.hallLength;
+}
+function outOfHallNow() {
+  const z = hero.root.position.z;
+  return z > CASTLE_OUTSIDE_Z || Math.abs(hero.root.position.x) > LAYOUT.hallHalfWidth + 2;
+}
+
+function beginGift() {
+  if (!introFairy || !necklace || !giftBox) return;
+  const p = hero.root.position;
+  gift = { t: 0, beat: 'arrive', worn: false, lastLine: null };
+  // the fairy's flight is built from where the couple are standing, so she arrives in front of them
+  introFairy.beginReturn({ x: p.x, z: p.z + 0.2 });
+  // the necklace starts inside the box, invisible until the lid lifts
+  necklace.worn.visible = false;
+  necklace.group.visible = true;
+  giftBox.group.visible = true;
+  giftBox.setOpen(0);
+  audio.chime(783.99);
+}
+
+// Where the box is, and where the necklace should hover, in world space, at this instant.
+function giftAnchors(outBox, outHold, outNeck) {
+  const p = hero.root.position;
+  const yaw = hero.root.rotation.y;
+  // a point in front of her, at chest height: the box hangs there and the necklace rises to it
+  const fx = Math.sin(yaw);
+  const fz = Math.cos(yaw);
+  outBox.set(p.x + fx * 1.35, 1.5, p.z + fz * 1.35);
+  outHold.set(p.x + fx * 0.75, 2.05, p.z + fz * 0.75);
+  // where it settles: her own neck, in her body's frame (NECK in gift.js), converted to world
+  outNeck.set(0, NECK_Y, NECK_Z);
+  hero.dressSpace.localToWorld(outNeck);
+  return { boxAt: outBox, holdAt: outHold, neckAt: outNeck };
+}
+
+// Her neck, in her own body's frame. This is the same constant the gold choker is built at in
+// characters.js (y = 1.68), and the pendant hangs a little below it on the front of her throat.
+const NECK_Y = 1.68;
+const NECK_Z = 0.115;
+
+function updateGift(dt) {
+  // The necklace's own shimmer runs for the rest of the game, once she is wearing it.
+  if (giftGiven && necklace) necklace.update(clock.elapsedTime, dt, 1);
+  if (!gift || !introFairy) return;
+  gift.t += dt;
+  const t = gift.t;
+  const beat = giftBeat(t);
+
+  // the couple face the fairy while she presents, and the walk keys are theirs again at the end
+  if (beat === 'present' && gift.beat !== 'present') {
+    const box = giftBox.group.position;
+    controls.faceToward(box.x, box.z);
+  }
+  if (GIFT_LINES[beat] && gift.lastLine !== beat) {
+    gift.lastLine = beat;
+    toast(GIFT_LINES[beat], 4200);
+    audio.chime(659.25);
+  }
+  gift.beat = beat;
+
+  // the necklace: in the box, through the air, then on her neck
+  const anchors = giftAnchors(giftBoxAt, giftHoldAt, giftNeck);
+  const pose = necklacePose(t, anchors);
+  if (t < 9.8) {
+    // it is not on her yet: it lives in the world, in front of the couple
+    if (necklace.worn.parent) necklace.worn.parent.remove(necklace.worn);
+    if (necklace.group.parent !== scene) scene.add(necklace.group);
+    necklace.group.position.set(pose.x, pose.y, pose.z);
+    necklace.group.scale.setScalar(pose.scale);
+    necklace.group.rotation.set(0.15, pose.spin, 0);
+    necklace.group.visible = t >= 5.4;
+  } else {
+    // it settles on her neck: from here on the necklace is a part of her body, so it moves with her
+    if (necklace.group.parent !== necklace.worn) necklace.worn.add(necklace.group);
+    necklace.group.position.set(0, NECK_Y, NECK_Z);
+    necklace.group.scale.setScalar(pose.scale);
+    necklace.group.rotation.set(0, 0, pose.spin);
+    necklace.group.visible = true;
+    necklace.worn.visible = true;
+    gift.worn = true;
+  }
+  necklace.update(t, dt, gift.worn ? 1 : 0.55);
+
+  // The garden answers at 'glow': the castle's own lights come up to full, then settle. They are left at
+  // 1, which is the state they are in for the whole game anyway, so there is nothing to put back.
+  if (beat === 'glow') {
+    const k = Math.min(1, (t - 11.6) / 0.9);
+    world.castle.setLit(Math.min(1, 0.85 + 0.15 * k));
+  }
+
+  if (t >= GIFT_SECONDS) finishGift();
+}
+
+function finishGift() {
+  if (!gift) return;
+  giftGiven = true;
+  gift = null;
+  // the necklace stays exactly where it is: on her neck, forever
+  if (necklace.group.parent !== necklace.worn) {
+    necklace.worn.add(necklace.group);
+    necklace.group.position.set(0, NECK_Y, NECK_Z);
+  }
+  necklace.group.visible = true;
+  necklace.worn.visible = true;
+  introFairy.attachGiftBox(null, null);
+  giftBox.group.visible = false;
+  giftBox.setOpen(0);
+  toast(GIFT_AFTER, 6500);
+  audio.fanfare();
+  updatePrompt();
+}
+
+// The trigger, checked every frame while the game is on: inside the castle at least once, then out.
+function checkGift() {
+  if (!started || gift || giftGiven || !introFairy || letterView || anyDialogOpen()) return;
+  if (inHallNow()) {
+    wasInsideCastle = true;
+    return;
+  }
+  if (!giftReady({ wasInside: wasInsideCastle, isOutside: outOfHallNow(), alreadyGiven: giftGiven, sceneActive: !!gift })) return;
+  beginGift();
 }
 
 // ---------- the flower shop at the end of the walk ------------------------
@@ -1140,6 +1301,8 @@ function frame() {
   }
   if (started) updatePrompt();
   if (started) checkTownWalk();
+  if (started) checkGift();
+  if (started) updateGift(dt);
 
   adaptQuality(dt);
   renderer.render(scene, camera);
