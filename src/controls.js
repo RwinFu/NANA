@@ -3,6 +3,7 @@ import { isCastleSolid } from './castle.js';
 import { LAYOUT } from './world.js';
 import { FOUNTAIN, GARDEN_BENCH } from './decor.js';
 import { inLane, inPlaza, STREET, PLAZA, TOWN_HOUSES, GATE, TOWN_WALL_Z, GATE_HALF_WIDTH, TOWN_WALL_HEIGHT } from './town-night.js';
+import { behindCastleBlocked } from './walk-rules.js';
 
 const PLAYER_RADIUS = 0.3;
 // The boy walks beside the princess, so the hall walls keep this extra distance
@@ -76,7 +77,11 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   // behind the facade are not. This has to stay *under* the roof (the wall's own top is 7 m, the
   // vault's crown 10.3 m): when it reached up to 12 m, the camera could not rise above the castle
   // to look at it, so its walls were only ever seen from the grass.
-  if (!onLane && z < -1 && y < 7) return true;
+  //
+  // It also has to leave the hall alone: the zone starts at z = -1, a step past the doorway, so an
+  // exception for the hall is what keeps the front door usable. See src/walk-rules.js.
+  const throughFrontDoor = Math.abs(x) < hall + 0.2 && z > -len - margin;
+  if (behindCastleBlocked({ z, y, onLane, inHall: throughFrontDoor, inRoom: inBox })) return true;
   // A couple of metres either side of the lane are a soft shoulder, nothing more
   if (onLane && y < 2) {
     // ... and the houses that frame it are solid

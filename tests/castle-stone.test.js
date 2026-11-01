@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import { stoneMaterial, boxUV, gableRoof, TILE } from '../src/castle-stone.js';
+import { behindCastleBlocked } from '../src/walk-rules.js';
 
 // A 2D canvas context is enough for the maps: they only need to exist, not to be read back.
 function stubCanvas() {
@@ -70,4 +71,22 @@ test('a gable roof sits over its wall and is closed by stone gables', () => {
   assert.equal(slopes.length, 2, 'two slopes');
   assert.ok(gables.length >= 3, 'two gable ends and a ridge cap');
   slopes.forEach((s) => assert.ok(s.geometry.attributes.uv, 'the tiles need to follow the slope'));
+});
+
+test('the yard behind the castle stays closed, but the hall behind the door does not', () => {
+  // A walk straight in from the garden: outside the door, in the doorway, and one metre inside.
+  for (const z of [6, 2, 0.6, 0, -0.9, -1.1, -6, -20, -37]) {
+    const blocked = behindCastleBlocked({ z, y: 0, onLane: false, inHall: true, inRoom: false });
+    assert.equal(blocked, false, `the hall must stay walkable at z = ${z}`);
+  }
+  // ... and the service yards either side of it, and behind it, stay out of bounds
+  for (const z of [-3, -14, -30, -39.5]) {
+    assert.equal(behindCastleBlocked({ z, y: 0, onLane: false, inHall: false, inRoom: false }), true);
+  }
+  // the photo room is reachable too
+  assert.equal(behindCastleBlocked({ z: -20, y: 0, onLane: false, inHall: false, inRoom: true }), false);
+  // the lane is open ground all the way to the gate
+  assert.equal(behindCastleBlocked({ z: -40, y: 0, onLane: true, inHall: false, inRoom: false }), false);
+  // the camera may rise above the walls to look at the castle
+  assert.equal(behindCastleBlocked({ z: -20, y: 9, onLane: false, inHall: false, inRoom: false }), false);
 });
