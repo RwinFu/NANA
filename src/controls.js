@@ -73,8 +73,10 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   if (!onLane && Math.abs(x) > LAYOUT.gardenHalfWidth) return true;
   if (!onLane && z > LAYOUT.gardenDepth) return true;
   // Past the castle, only the lane and the square are open ground: the castle's own service yards
-  // behind the facade are not.
-  if (!onLane && z < -1 && y < 12) return true;
+  // behind the facade are not. This has to stay *under* the roof (the wall's own top is 7 m, the
+  // vault's crown 10.3 m): when it reached up to 12 m, the camera could not rise above the castle
+  // to look at it, so its walls were only ever seen from the grass.
+  if (!onLane && z < -1 && y < 7) return true;
   // A couple of metres either side of the lane are a soft shoulder, nothing more
   if (onLane && y < 2) {
     // ... and the houses that frame it are solid

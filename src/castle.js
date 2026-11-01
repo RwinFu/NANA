@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { stoneNormal, giltNormal, leadedGlass } from './architecture.js';
+import { stoneMaterial, tileMaterial, boxUV, cylinderUV, coneUV } from './castle-stone.js';
 
 // The front of the house is a princess castle, in the spirit of a storybook castle:
 // a tall central keep with a spire and a rose window, two tall flanking towers, two low outer
@@ -21,47 +22,6 @@ function seeded(seed) {
     s = (s * 16807) % 2147483647;
     return s / 2147483647;
   };
-}
-
-// Cut-stone wall (ashlar): staggered rows of blocks with mortar joints, a faint edge highlight,
-// and a little weathering. Drawn on a canvas, so it needs no image file.
-function makeStoneTexture() {
-  const size = 512;
-  const canvas = document.createElement('canvas');
-  canvas.width = size;
-  canvas.height = size;
-  const ctx = canvas.getContext('2d');
-  const rand = seeded(7);
-  ctx.fillStyle = '#d6c4af';
-  ctx.fillRect(0, 0, size, size);
-  const rows = 8;
-  const rowH = size / rows;
-  for (let r = 0; r < rows; r += 1) {
-    const y = r * rowH;
-    let x = (r % 2) * -(size / 8);
-    while (x < size) {
-      const w = (size / 4) * (0.8 + rand() * 0.5);
-      const tone = 232 + Math.floor(rand() * 16 - 8);
-      ctx.fillStyle = `rgb(${tone},${tone - 12},${tone - 24})`;
-      ctx.fillRect(x + 3, y + 3, w - 6, rowH - 6);
-      ctx.fillStyle = 'rgba(255,255,255,0.22)';
-      ctx.fillRect(x + 3, y + 3, w - 6, 3);
-      ctx.fillStyle = 'rgba(120,90,70,0.10)';
-      ctx.fillRect(x + 3, y + rowH - 6, w - 6, 3);
-      x += w;
-    }
-  }
-  for (let i = 0; i < 1600; i += 1) {
-    ctx.fillStyle = `rgba(120,90,70,${rand() * 0.08})`;
-    ctx.fillRect(rand() * size, rand() * size, 2, 2);
-  }
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  texture.wrapS = THREE.RepeatWrapping;
-  texture.wrapT = THREE.RepeatWrapping;
-  texture.repeat.set(5, 4);
-  texture.anisotropy = 8;
-  return texture;
 }
 
 // Stained glass for the rose window: twelve petals of rose and gold around a medallion
@@ -107,12 +67,13 @@ function makeRoseWindowTexture() {
 }
 
 export function buildCastle(scene, track) {
-  const stone = track(new THREE.MeshStandardMaterial({
-    color: '#fbf3ea', map: makeStoneTexture(), normalMap: stoneNormal(5, 4), normalScale: new THREE.Vector2(0.55, 0.55), roughness: 0.85,
-  }));
+  // The stone carries its map in metres (see castle-stone.js), so a tower and a wall show the same
+  // size blocks. The tiled roofs reuse the town's roof map, tinted.
+  const stone = track(stoneMaterial({ color: '#f2e7db', tone: 178, seed: 71, rows: 7, normal: 0.5 }));
   const stoneLight = track(new THREE.MeshStandardMaterial({ color: '#fff8f1', roughness: 0.7, normalMap: stoneNormal(2, 1), normalScale: new THREE.Vector2(0.45, 0.45) }));
-  const roof = track(new THREE.MeshStandardMaterial({ color: '#e98fb1', roughness: 0.45 }));
-  const roofDeep = track(new THREE.MeshStandardMaterial({ color: '#b5557a', roughness: 0.5 }));
+  const stoneDark = track(stoneMaterial({ color: '#c9bcb1', tone: 150, seed: 77, rows: 5, normal: 0.65 }));
+  const roof = track(tileMaterial({ color: '#e98fb1', tone: 124, seed: 81, roughness: 0.5 }));
+  const roofDeep = track(tileMaterial({ color: '#b5557a', tone: 108, seed: 85, roughness: 0.55 }));
   const gold = track(new THREE.MeshStandardMaterial({ color: '#f5c96a', metalness: 0.7, roughness: 0.3, normalMap: giltNormal(4, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
   const flagMat = track(new THREE.MeshStandardMaterial({ color: '#ff8fab', roughness: 0.6, side: THREE.DoubleSide }));
   const bannerMat = track(new THREE.MeshStandardMaterial({ color: '#c2456f', roughness: 0.7, side: THREE.DoubleSide }));
@@ -126,24 +87,37 @@ export function buildCastle(scene, track) {
   const dimWin = new THREE.Color('#5b4a3a');
   const brightWin = new THREE.Color('#ffd38a');
   const add = (geometry, material, x, y, z) => {
+    // A stone box's UVs are rewritten to metres, so a merlon and a wall show the same size blocks
+    const p = geometry.parameters;
+    if (p && geometry.type === 'BoxGeometry' && (material === stone || material === stoneDark)) {
+      boxUV(geometry, p.width, p.height, p.depth);
+    }
     const mesh = track(new THREE.Mesh(geometry, material));
     mesh.position.set(x, y, z);
     scene.add(mesh);
     return mesh;
   };
-  // A window: a glowing pane, a gold arch above it and a stone sill below it
-  const addWindow = (w, h, x, y, z) => {
+  // A window: a glowing pane, a gold arch above it and a stone sill below it. The frame is built
+  // around the origin and turned, so a window can also sit on the side of a round tower.
+  const addWindow = (w, h, x, y, z, rotY = 0) => {
     const glass = leadedGlass(2, 3);
     const mat = track(new THREE.MeshStandardMaterial({
       color: '#120e0c', emissive: dimWin.clone(), emissiveIntensity: 1, emissiveMap: glass.emissiveMap,
       normalMap: glass.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughness: 0.35, fog: false, side: THREE.DoubleSide,
     }));
+    const group = new THREE.Group();
+    group.position.set(x, y, z);
+    group.rotation.y = rotY;
+    scene.add(group);
     const pane = track(new THREE.Mesh(new THREE.PlaneGeometry(w, h), mat));
-    pane.position.set(x, y, z);
-    scene.add(pane);
+    group.add(pane);
     windows.push(mat);
-    add(new THREE.TorusGeometry(w / 2 + 0.04, 0.035, 8, 24, Math.PI), gold, x, y + h / 2, z + 0.02);
-    add(new THREE.BoxGeometry(w + 0.28, 0.08, 0.2), stoneLight, x, y - h / 2 - 0.05, z + 0.08);
+    const arch = new THREE.Mesh(track(new THREE.TorusGeometry(w / 2 + 0.04, 0.035, 8, 24, Math.PI)), gold);
+    arch.position.set(0, h / 2, 0.02);
+    group.add(arch);
+    const sill = new THREE.Mesh(track(new THREE.BoxGeometry(w + 0.28, 0.08, 0.2)), stoneLight);
+    sill.position.set(0, -h / 2 - 0.05, 0.08);
+    group.add(sill);
     return pane;
   };
 
@@ -185,13 +159,22 @@ export function buildCastle(scene, track) {
 
   // Round tower: a cone roof with an eave, a corbel row under the eave, a belt course,
   // a plinth, two windows, a gold tip and a pennant
+  // Cylinder and cone UVs in metres, so the ashlar courses run round a tower at the same size as
+  // the blocks in the walls, and the roof tiles keep their scale on a cone.
+  const drum = (geo, r, h) => cylinderUV(geo, r, h);
+  const cone = (geo, r, h) => coneUV(geo, r, h);
+
   function tower({ x, z, r, h }, roofScale = 0.42) {
-    add(new THREE.CylinderGeometry(r, r * 1.06, h, 28), stone, x, h / 2, z);
+    // the drum, with a battered plinth at the foot and a string course under the corbels
+    add(drum(new THREE.CylinderGeometry(r, r * 1.06, h, 32), r, h), stone, x, h / 2, z);
+    add(drum(new THREE.CylinderGeometry(r * 1.09, r * 1.15, 1.0, 32), r, 1.0), stoneDark, x, 0.5, z);
+    const collar = add(new THREE.TorusGeometry(r * 1.1, 0.09, 8, 44), stoneLight, x, 1.02, z);
+    collar.rotation.x = Math.PI / 2;
     const beltY = h * 0.72;
     const belt = add(new THREE.TorusGeometry(r * 1.03, 0.08, 8, 40), stoneLight, x, beltY, z);
     belt.rotation.x = Math.PI / 2;
     const roofH = h * roofScale;
-    add(new THREE.ConeGeometry(r * 1.22, roofH, 28), roof, x, h + roofH / 2, z);
+    add(cone(new THREE.ConeGeometry(r * 1.22, roofH, 32), r * 1.22, roofH), roof, x, h + roofH / 2, z);
     const eave = add(new THREE.TorusGeometry(r * 1.22, 0.07, 8, 36), roofDeep, x, h, z);
     eave.rotation.x = Math.PI / 2;
     add(new THREE.SphereGeometry(0.12, 14, 12), gold, x, h + roofH + 0.04, z);
@@ -204,8 +187,11 @@ export function buildCastle(scene, track) {
       corbels.push({ x: x + Math.cos(a) * r * 1.04, y: h - 0.45, z: z + Math.sin(a) * r * 1.04, rotY: -a });
     }
     instanced(new THREE.BoxGeometry(0.16, 0.3, 0.2), stoneLight, corbels);
-    addWindow(0.42, 0.95, x, h * 0.55, z + r + 0.01);
-    addWindow(0.42, 0.95, x, h * 0.3, z + r + 0.01);
+    // windows round the drum, not just the one that happens to face the garden
+    [0.3, 0.62, 0.95, 1.35, 2.0].forEach((frac, i) => {
+      const a = frac * Math.PI * 2;
+      addWindow(0.42, 0.95, x + Math.sin(a) * (r + 0.02), i % 2 ? h * 0.55 : h * 0.3, z + Math.cos(a) * (r + 0.02), a);
+    });
     addPennant(x, h + roofH, z);
   }
 
@@ -213,11 +199,12 @@ export function buildCastle(scene, track) {
 
   // Central keep: stone drum on a plinth, an eave under the spire, a rose window and a spire with a pennant
   const keepH = KEEP.top - KEEP.base;
-  add(new THREE.CylinderGeometry(KEEP.r, KEEP.r * 1.05, keepH, 28), stone, KEEP.x, KEEP.base + keepH / 2, KEEP.z);
+  add(drum(new THREE.CylinderGeometry(KEEP.r, KEEP.r * 1.05, keepH, 32), KEEP.r, keepH), stone, KEEP.x, KEEP.base + keepH / 2, KEEP.z);
+  add(drum(new THREE.CylinderGeometry(KEEP.r * 1.08, KEEP.r * 1.12, 0.8, 32), KEEP.r, 0.8), stoneDark, KEEP.x, KEEP.base + 0.4, KEEP.z);
   const keepBelt = add(new THREE.TorusGeometry(KEEP.r * 1.03, 0.1, 8, 40), stoneLight, KEEP.x, KEEP.base + keepH * 0.55, KEEP.z);
   keepBelt.rotation.x = Math.PI / 2;
   const keepRoofH = 6.5;
-  add(new THREE.ConeGeometry(KEEP.r * 1.2, keepRoofH, 28), roofDeep, KEEP.x, KEEP.top + keepRoofH / 2, KEEP.z);
+  add(cone(new THREE.ConeGeometry(KEEP.r * 1.2, keepRoofH, 28), KEEP.r * 1.2, keepRoofH), roofDeep, KEEP.x, KEEP.top + keepRoofH / 2, KEEP.z);
   const keepEave = add(new THREE.TorusGeometry(KEEP.r * 1.2, 0.09, 8, 40), gold, KEEP.x, KEEP.top, KEEP.z);
   keepEave.rotation.x = Math.PI / 2;
   add(new THREE.SphereGeometry(0.18, 14, 12), gold, KEEP.x, KEEP.top + keepRoofH + 0.1, KEEP.z);
@@ -244,14 +231,32 @@ export function buildCastle(scene, track) {
     add(new THREE.BoxGeometry(1.8, 0.25, 1.0), stoneLight, x, 8.1, 0.2);
   });
 
-  // Side wings: stone walls that run back from the outer towers, with merlons along the top
+  // Side wings: massive stone arms that run back from the outer towers to the hall's roof. They used
+  // to stop dead in mid-air and leave a grey skin behind them; now they meet the tiled barrel roof,
+  // with a plinth, buttresses, and merlons stepping up along the outer edge.
   [-1, 1].forEach((side) => {
     const wx = side * TOWERS[0].x;
-    add(new THREE.BoxGeometry(2.2, 8, 6), stone, wx, 4, -3);
-    add(new THREE.BoxGeometry(2.5, 0.25, 6.2), stoneLight, wx, 8.1, -3);
-    for (let z = -5.5; z <= -0.5; z += 1) {
-      add(new THREE.BoxGeometry(0.6, 0.6, 0.55), stone, wx, 8.4, z);
+    const w = 2.2;
+    const wingH = 8.6;
+    const back = -7.0;
+    const span = 6.0; // from z = -1 to z = -7
+    add(boxUV(new THREE.BoxGeometry(w, wingH, span), w, wingH, span), stone, wx, wingH / 2, back / 2 - 0.5);
+    add(boxUV(new THREE.BoxGeometry(w + 0.18, 1.0, span + 0.18), w, 1.0, span), stoneDark, wx, 0.5, back / 2 - 0.5);
+    add(new THREE.BoxGeometry(w + 0.26, 0.12, span + 0.2), stoneLight, wx, 1.02, back / 2 - 0.5);
+    // a weathered cap, and merlons stepping up to the hall roof
+    add(new THREE.BoxGeometry(w + 0.34, 0.22, span + 0.3), stoneLight, wx, wingH + 0.05, back / 2 - 0.5);
+    for (let z = -1.2; z > back; z -= 1.05) {
+      const lift = Math.max(0, (-z) / -back) * 1.5;
+      add(boxUV(new THREE.BoxGeometry(0.62, 0.66 + lift, 0.56), 0.62, 0.66 + lift, 0.56), stone, wx + side * 0.5, wingH + 0.5 + lift, z);
     }
+    // a lean-to roof over the wing, tiled, running back to the hall
+    const slope = add(boxUV(new THREE.BoxGeometry(w + 0.5, 0.14, span + 0.4), w + 0.5, 0.14, span + 0.4), roofDeep, wx, wingH + 0.2, back / 2 - 0.5);
+    slope.rotation.x = 0.16;
+    // one narrow window, so the wing is not a monolith
+    addWindow(0.36, 0.9, wx + side * (w / 2 + 0.01), 5.2, -3.4, side * Math.PI / 2);
+    // a buttress on the garden side, where the wing meets the front wall
+    add(boxUV(new THREE.BoxGeometry(0.7, 6.2, 0.9), 0.7, 6.2, 0.9), stoneDark, wx - side * 0.2, 3.1, -0.6);
+    add(new THREE.BoxGeometry(0.9, 0.24, 1.1), stoneLight, wx - side * 0.2, 6.3, -0.6);
   });
 
   // Arched windows on the front wall, either side of the door
