@@ -398,34 +398,41 @@ function openLetter({ fromScreen = false } = {}) {
   }
 }
 
+// Bring the camera to the letter. The envelope offers a pose (`focus`) and this eases the real camera
+// onto it: the same eased hand-off the intro uses, so the opening is a scene rather than something
+// happening three metres away. The envelope itself never touches the camera.
+function watchLetter() {
+  if (!started || letterView || !envelope) return;
+  const place = envelope.focus(window.innerWidth / Math.max(1, window.innerHeight));
+  letterView = {
+    phase: 'in',
+    fromPos: camera.position.clone(),
+    fromLook: controls ? controls.focus.clone() : place.look.clone(),
+    toPos: place.from,
+    toLook: place.look,
+    seen: false, // has the reader been open yet?
+    elapsed: 0,
+    // the envelope's own opening takes 2.3 s, so the move is over before there is something to read
+    duration: 1.7,
+  };
+}
+
 function openEnvelope() {
   if (!envelope) return;
   if (envelope.isOpen) {
-    openLetter();
+    // already opened once: come back to the letter and read it again
+    watchLetter();
+    openLetter({ fromScreen: true });
     return;
   }
   if (envelope.isBusy) return;
-  // The camera comes to the letter while it opens: the same eased hand-off the intro uses, so this is
-  // a scene rather than something happening three metres away.
-  const place = envelope.focus(window.innerWidth / Math.max(1, window.innerHeight));
-  if (started && !letterView) {
-    letterView = {
-      phase: 'in',
-      fromPos: camera.position.clone(),
-      fromLook: controls ? controls.focus.clone() : place.look.clone(),
-      toPos: place.from,
-      toLook: place.look,
-      elapsed: 0,
-      duration: 1.15,
-    };
-  }
+  watchLetter();
   envelope.open(() => {
     fx.burst(window.innerWidth / 2, window.innerHeight * 0.44, '#ffd98a', 30);
     decor?.celebrate();
     openLetter({ fromScreen: true });
   });
 }
-
 
 // Postcard
 let postcardUrl = null;
@@ -1022,10 +1029,13 @@ function frame() {
         camera.lookAt(new THREE.Vector3().lerpVectors(v.fromLook, v.toLook, e));
         if (k >= 1) { v.phase = 'hold'; v.elapsed = 0; }
       } else if (v.phase === 'hold') {
-        // hold the pose we arrived at, and wait for the reader to close
+        // Hold the pose we arrived at and wait for the reader to close. The reader only opens at the end
+        // of the opening, which is after the camera has arrived, so "the dialog is not open yet" is not
+        // the same as "the reader has been closed": the camera must wait until it has seen it open.
         camera.position.copy(v.toPos);
         camera.lookAt(v.toLook);
-        if (!dom.letter.open) {
+        if (dom.letter.open) v.seen = true;
+        else if (v.seen) {
           v.phase = 'out';
           v.elapsed = 0;
           v.fromPos = camera.position.clone();
