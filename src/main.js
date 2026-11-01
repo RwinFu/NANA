@@ -1,3 +1,6 @@
+// FIRST: the photos (see preload-photos.js). Kept above the fonts and the stylesheet so the requests
+// go out before anything else in the page is worked on.
+import './preload-photos.js';
 import '@fontsource-variable/vazirmatn';
 import '@fontsource/lalezar/400.css';
 import './style.css';
@@ -150,7 +153,7 @@ const camera = new THREE.PerspectiveCamera(
 );
 let world = null;
 let hero = null;
-let photoTick = 0; // seconds since the room's photos were last checked for
+let photoTick = 0; // seconds since the clip's trigger was last checked
 let cats = null;
 let decor = null;
 let trail = null;
@@ -1095,12 +1098,11 @@ function frame() {
   if (started) updateSparkles(t, dt, 1);
 
   if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
-  // The photo room's pictures and the room's clip download when the couple comes near them, not at
-  // start-up: they used to all start at once, 4 MB of photo while the world was still being built.
+  // The photos are all downloading already; the room's clip waits until the couple is near its screen.
   photoTick += dt;
   if (started && photoTick > 0.5) {
     photoTick = 0;
-    world.photos.update({ x: hero.root.position.x, z: hero.root.position.z });
+    world.photos.near({ x: hero.root.position.x, z: hero.root.position.z });
   }
   updateBouquetPose(dt);
   // The couple stands still while the letter is being opened and read, and so do the effects that

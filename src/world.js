@@ -16,6 +16,8 @@ import { createVideoPlayback, shouldPlayVideo } from './video-screen.js';
 import { skyLight, horizonColor } from './night-light.js';
 import { castleStone, hallInterior } from './palette.js';
 import { masonryMap, masonryBump } from './castle-stone.js';
+import { photoImage, startPhotos } from './photo-cache.js';
+import { createVideoLatch } from './photos.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -1507,37 +1509,29 @@ export function buildWorld(scene, camera) {
     frame.photo.material.needsUpdate = true;
   }
 
-  // Photos are downloaded when the room they hang in is approached, not while the world is being
-  // built (see photos.js). A frame shows the "در حال بارگذاری" card it was born with until its own
-  // photo has decoded, so starting later is invisible: nothing empty is ever on screen. Each group is
-  // remembered here and can be kicked off early.
-  const loader = new THREE.TextureLoader();
-  let hallPhotosStarted = false;
+  // Every photo is asked for on the page's first line (see photo-cache.js and main.js), so all of them
+  // are already on the wire before this function runs; the frames attach them as they land. A frame
+  // shows the "در حال بارگذاری" card it was born with until its own photo has decoded, so the hall and
+  // the room fill in wherever the download has got to and nothing empty is ever on screen.
   function loadPhotos(list) {
     list.forEach((frame) => {
       if (frame.loaded || frame.requested) return;
       frame.requested = true;
-      loader.load(
-        frame.memory.image,
-        (tex) => {
+      photoImage(frame.memory.image).then(
+        (image) => {
+          const tex = new THREE.Texture(image);
           tex.colorSpace = THREE.SRGBColorSpace;
           tex.anisotropy = 4;
+          tex.needsUpdate = true;
           applyPhoto(frame, tex);
         },
-        undefined,
         () => fallbackPhoto(frame)
       );
     });
   }
-  function startHallPhotos() {
-    if (hallPhotosStarted) return;
-    hallPhotosStarted = true;
-    loadPhotos(hallFrames);
-  }
-  // The hall's photos are what the tour is walking towards, so they are asked for straight away: the
-  // gate (the rescue game) gives them a couple of minutes of cover. The photo room's pictures and the
-  // clip wait until that room is being approached (see photos.js).
-  startHallPhotos();
+  // Both walls are loaded together and as soon as the frames exist: the room's pictures are as important
+  // as the hall's, and they are already downloading.
+  loadPhotos(frames);
 
   // The photo room, a corridor inside the castle: plum velvet walls, gold trim, a chandelier,
   // nine photos along the walls, and the video in a gold frame at the far end.
@@ -1715,20 +1709,31 @@ export function buildWorld(scene, camera) {
   roomVideo.addEventListener('loadedmetadata', () => {
     sizeScreen(roomVideo.videoWidth / roomVideo.videoHeight || 16 / 9);
   });
-  const posterTexture = soloVideo.poster ? new THREE.TextureLoader().load(soloVideo.poster, (tex) => {
-    tex.colorSpace = THREE.SRGBColorSpace;
-    posterMesh.material.map = tex;
-    posterMesh.material.needsUpdate = true;
-    // Keep the screen's proportions until the clip reports its own
-    if (!roomVideo.videoWidth) sizeScreen(tex.image.width / tex.image.height);
-    if (roomVideo.readyState < 2) posterMesh.visible = true;
-  }) : null;
-  if (posterTexture) track(posterTexture);
+  // The poster is a photo like the others, so it comes through the same cache (and is already on its
+  // way from the first line of the page). It is 61 KB; the screen is never blank without it.
+  const posterTexture = soloVideo.poster ? new THREE.Texture() : null;
+  if (soloVideo.poster) {
+    track(posterTexture);
+    photoImage(soloVideo.poster).then(
+      (image) => {
+        posterTexture.image = image;
+        posterTexture.colorSpace = THREE.SRGBColorSpace;
+        posterTexture.needsUpdate = true;
+        posterMesh.material.map = posterTexture;
+        posterMesh.material.needsUpdate = true;
+        // Keep the screen's proportions until the clip reports its own
+        if (!roomVideo.videoWidth) sizeScreen(image.width / image.height);
+        if (roomVideo.readyState < 2) posterMesh.visible = true;
+      },
+      () => {}
+    );
+  }
   // From the first decoded frame on, the video itself is what is on the screen.
   roomVideo.addEventListener('loadeddata', () => { posterMesh.visible = false; }, { once: true });
   // The controller starts the clip once it has a frame to show; the download is asked for by
   // startRoomVideo(), so a 1 MB clip does not compete with the start-up.
   let roomVideoStarted = false;
+  const videoLatch = createVideoLatch(startRoomVideo);
   function startRoomVideo() {
     if (roomVideoStarted) return;
     roomVideoStarted = true;
@@ -1918,13 +1923,14 @@ export function buildWorld(scene, camera) {
 
   return {
     frames,
-    // Photos and the room's clip download when their room is reached, not while this is being built.
-    // main.js drives these from the walk; each is safe to call twice.
+    // Every photo is already downloading; the clip waits until the screen is approached (it is a
+    // 1.08 MB video, and the bandwidth is better spent on the pictures).
     photos: {
-      startHall: startHallPhotos,
-      startRoom: () => loadPhotos(roomFrames),
-      startVideo: startRoomVideo,
-      get hallStarted() { return hallPhotosStarted; },
+      // called from the walk with where the couple is; the clip starts once, and stays started
+      near(position) {
+        if (!videoLatch.update(position)) return false;
+        return true;
+      },
       get videoStarted() { return roomVideoStarted; },
     },
     castle,
