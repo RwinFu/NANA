@@ -1223,3 +1223,44 @@ dialog.letter-sheet .letter-body { border-block: 1px solid rgba(150, 104, 87, .2
 @media (max-width: 760px) {
   dialog.memory-sheet[open] { grid-template-columns: 1fr; gap: 20px; }
 }
+
+/* The room's video, played large */
+
+dialog.video-sheet[open] {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+  gap: 36px;
+  align-items: center;
+  padding-top: 44px;
+}
+
+.video-frame {
+  --frame: #d9a441;
+  display: flex;
+  justify-content: center;
+}
+
+.video-frame video {
+  display: block;
+  width: auto;
+  max-width: 100%;
+  max-height: 58vh; /* portrait clip: let the height decide */
+  aspect-ratio: 9 / 16;
+  background: #0b0a12;
+  border-radius: 2px;
+}
+
+.video-copy h2 { margin: 6px 0 10px; }
+.video-copy .memory-meta { display: flex; gap: 12px; flex-wrap: wrap; }
+
+dialog.video-sheet .memory-meta > span:first-child { color: #9c5b60; }
+dialog.video-sheet .video-frame {
+  padding: 12px;
+  border: 7px solid #fffaf0;
+  box-shadow: 0 12px 28px rgba(88, 55, 46, .22), 0 0 0 1px rgba(119, 80, 66, .25);
+}
+
+@media (max-width: 760px) {
+  dialog.video-sheet[open] { grid-template-columns: 1fr; gap: 20px; }
+  .video-frame video { max-height: 46vh; }
+}

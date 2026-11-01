@@ -59,6 +59,8 @@ const dom = {
   letter: $('#letter-dialog'),
   postcard: $('#postcard-dialog'),
   help: $('#help-dialog'),
+  video: $('#video-dialog'),
+  videoPlayer: $('#video-player'),
 };
 
 const store = createStore();
@@ -191,14 +193,20 @@ function finishRescue(quick) {
   rescue.reveal(quick); // the night veil lifts into the castle flight
 }
 
+// Render scale the loop is allowed to fall back to when frames get slow.
+// A slower GPU then draws fewer pixels instead of the video losing frames.
+const MAX_SCALE = 1.5;
+let qualityScale = MAX_SCALE;
+let qualityCooldown = 0; // seconds to wait before lowering the scale again
+
 if (renderer) {
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 1.75));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, qualityScale));
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
 
-  world = buildWorld(scene);
+  world = buildWorld(scene, camera);
   introSparkles = createSparkles(scene);
   introFairy = createFairy(scene);
   hero = createCouple(store.get().avatarColor);
@@ -357,7 +365,7 @@ let postcardBusy = false;
 async function openPostcard() {
   if (!renderer || postcardBusy) return;
   postcardBusy = true;
-  ['finale-dialog', 'memory-dialog', 'letter-dialog', 'help-dialog'].forEach((id) => closeDialog(document.getElementById(id)));
+  ['finale-dialog', 'memory-dialog', 'letter-dialog', 'help-dialog', 'video-dialog'].forEach((id) => closeDialog(document.getElementById(id)));
   const img = $('#postcard-img');
   const busy = $('#postcard-busy');
   busy.hidden = false;
@@ -417,6 +425,13 @@ function tapFrame(ndc) {
     if (frame) openMemory(frame.index);
     return;
   }
+  if (world.video && nearVideoScreen()) {
+    const videoHits = raycaster.intersectObject(world.video.screen, false);
+    if (videoHits.length && videoHits[0].distance < VIDEO_RADIUS + 2) {
+      openVideo();
+      return;
+    }
+  }
   if (envelope) {
     const envHits = raycaster.intersectObjects(envelope.hitTargets, false);
     if (envHits.length && envHits[0].distance < 14) openEnvelope();
@@ -459,6 +474,41 @@ function toggleBench() {
 }
 
 let promptTarget = null;
+// The clip in the photo room, played large on a panel (silent, like the clip itself).
+// A short tap on the screen in the room opens it too, so a phone needs no keyboard.
+const VIDEO_RADIUS = 3.0;
+function nearVideoScreen() {
+  if (!world || !controls) return false;
+  return world.video.isNear(controls.position.x, controls.position.z, VIDEO_RADIUS);
+}
+
+let videoPanelTimer = 0;
+function openVideo() {
+  if (!world) return;
+  window.clearTimeout(videoPanelTimer); // the panel may be reopening while it unloads
+  const player = dom.videoPlayer;
+  if (player.getAttribute('src') !== world.video.src) player.src = world.video.src;
+  player.currentTime = 0;
+  openDialog(dom.video);
+  // The clip has no sound track: it stays muted so it can start on its own, on any phone.
+  player.muted = true;
+  const attempt = player.play();
+  if (attempt && typeof attempt.catch === 'function') attempt.catch(() => {});
+}
+
+function closeVideoPanel() {
+  const player = dom.videoPlayer;
+  if (!player.paused) player.pause();
+  window.clearTimeout(videoPanelTimer);
+  // Drop the stream so the game world keeps the whole decoder to itself.
+  videoPanelTimer = window.setTimeout(() => {
+    player.removeAttribute('src');
+    player.load();
+  }, 400);
+}
+
+dom.video.addEventListener('close', closeVideoPanel);
+
 function updatePrompt() {
   if (!started || anyDialogOpen()) {
     dom.prompt.hidden = true;
@@ -468,6 +518,9 @@ function updatePrompt() {
   if (benchSeated || controls.isNear(GARDEN_BENCH.x, GARDEN_BENCH.z, 2.5)) {
     promptTarget = { type: 'bench' };
     dom.promptLabel.textContent = benchSeated ? 'بلند شدن' : 'کنار هم بشینیم';
+  } else if (nearVideoScreen()) {
+    promptTarget = { type: 'video' };
+    dom.promptLabel.textContent = 'دیدن ویدیو بزرگ‌تر';
   } else if (nearFrame >= 0) {
     promptTarget = { type: 'frame', index: nearFrame };
     dom.promptLabel.textContent = `دیدن خاطره‌ی ${formatNumber(nearFrame + 1)}`;
@@ -488,6 +541,8 @@ function interact() {
     openMemory(promptTarget.index);
   } else if (promptTarget.type === 'envelope') {
     openEnvelope();
+  } else if (promptTarget.type === 'video') {
+    openVideo();
   }
 }
 dom.promptBtn.addEventListener('click', interact);
@@ -737,9 +792,48 @@ function onResize() {
   camera.aspect = w / h;
   camera.fov = w / h < 0.8 ? 66 : 55;
   camera.updateProjectionMatrix();
-  if (renderer) renderer.setSize(w, h, false);
+  if (renderer) renderer.setSize(w, h, false); // setSize keeps the current pixel ratio
 }
 window.addEventListener('resize', onResize);
+
+// ---------- adaptive resolution --------------------------------------------
+
+const QUALITY_STEPS = [1.5, 1.25, 1, 0.8, 0.65];
+let qualityStep = 0;
+let slowTime = 0;
+let fastTime = 0;
+
+// Watch the frame rate and trade pixels for smoothness. It only steps down when frames are
+// consistently slow (two seconds of them), and climbs back slowly once things are calm again.
+function adaptQuality(dt) {
+  if (dt <= 0) return;
+  qualityCooldown = Math.max(0, qualityCooldown - dt);
+  // A frame that took this long was a hitch (a tab switch, a decode), not a slow GPU.
+  if (dt > 0.25) return;
+  if (dt > 1 / 40) {
+    slowTime += dt;
+    fastTime = 0;
+  } else if (dt < 1 / 52) {
+    fastTime += dt;
+    slowTime = 0;
+  } else {
+    slowTime = 0;
+    fastTime = 0;
+  }
+  if (slowTime > 2 && qualityStep < QUALITY_STEPS.length - 1 && qualityCooldown === 0) {
+    qualityStep += 1;
+    qualityScale = QUALITY_STEPS[qualityStep];
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, qualityScale));
+    slowTime = 0;
+    qualityCooldown = 4; // give the new scale time to show up in the timings
+  } else if (fastTime > 8 && qualityStep > 0) {
+    qualityStep -= 1;
+    qualityScale = QUALITY_STEPS[qualityStep];
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, qualityScale));
+    fastTime = 0;
+    qualityCooldown = 4;
+  }
+}
 
 const clock = new THREE.Clock();
 // The castle entrance, see buildWorld (the front doors are centred on this z)
@@ -812,6 +906,7 @@ function frame() {
   }
   if (started) updatePrompt();
 
+  adaptQuality(dt);
   renderer.render(scene, camera);
 }
 

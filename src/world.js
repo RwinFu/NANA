@@ -8,7 +8,7 @@ import { advanceHallProgress } from './house-reactivity.js';
 import { outdoorNormal } from './outdoor-textures.js';
 import { roomFrameSlot, hallFrameSlot } from './room-frame-layout.js';
 import { createGardenGrass } from './garden-grass.js';
-import { createVideoPlayback } from './video-playback.js';
+import { createVideoPlayback, shouldPlayVideo } from './video-screen.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -386,7 +386,7 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
   return { update, get isOpen() { return open >= 0.8; } };
 }
 
-export function buildWorld(scene) {
+export function buildWorld(scene, camera) {
   const disposables = [];
   const track = (obj) => {
     disposables.push(obj);
@@ -1562,17 +1562,27 @@ export function buildWorld(scene) {
   roomVideo.playsInline = true;
   roomVideo.autoplay = true;
   roomVideo.preload = 'auto';
+  // iOS only treats a video as inline when it is also marked this way in markup, and it only
+  // decodes a video that is in the document: keep it attached, invisible, 1px in a corner.
+  // The clip has no sound track at all; muted is what lets a phone start it on its own.
   roomVideo.setAttribute('muted', '');
   roomVideo.setAttribute('playsinline', '');
   roomVideo.setAttribute('webkit-playsinline', '');
   roomVideo.setAttribute('aria-hidden', 'true');
   roomVideo.tabIndex = -1;
   roomVideo.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-2px;top:-2px;';
+  if (soloVideo.poster) roomVideo.poster = soloVideo.poster;
   document.body.appendChild(roomVideo);
   roomVideo.src = soloVideo.src;
-  const disposeRoomVideoPlayback = createVideoPlayback(roomVideo, document, window);
+  // The texture re-uploads only real video frames (three.js asks the browser for them), never
+  // the whole picture every render frame.
   const videoTex = track(new THREE.VideoTexture(roomVideo));
   videoTex.colorSpace = THREE.SRGBColorSpace;
+  videoTex.minFilter = THREE.LinearFilter;
+  videoTex.magFilter = THREE.LinearFilter;
+  videoTex.generateMipmaps = false;
+  const videoPlayback = createVideoPlayback(roomVideo, document, window);
+  const videoWorld = new THREE.Vector3();
   // The video fits inside a box of at most 2.8 m wide and 3.0 m high, keeping its own proportions
   const fitW = 2.8;
   const fitH = 3.0;
@@ -1586,7 +1596,16 @@ export function buildWorld(scene) {
   const screenFrame = new THREE.Mesh(unitBox, gold);
   screen.position.set(x0 + 0.12, videoY, cz); // in front of its frame
   screen.rotation.y = Math.PI / 2; // face into the room
-  roomGroup.add(screen, screenFrame);
+  // A still picture in front of the screen until the first video frame is ready, so the gold
+  // frame is never a black rectangle while the clip buffers.
+  const posterMesh = new THREE.Mesh(
+    track(new THREE.PlaneGeometry(1, 1)),
+    track(new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false }))
+  );
+  posterMesh.position.set(x0 + 0.13, videoY, cz);
+  posterMesh.rotation.y = Math.PI / 2;
+  posterMesh.visible = false;
+  roomGroup.add(screen, posterMesh, screenFrame);
   const sizeScreen = (aspect) => {
     if (aspect >= fitW / fitH) {
       screenW = fitW;
@@ -1596,6 +1615,7 @@ export function buildWorld(scene) {
       screenW = fitH * aspect;
     }
     screen.scale.set(screenW, screenH, 1);
+    posterMesh.scale.set(screenW, screenH, 1);
     screenFrame.position.set(x0 + 0.07, videoY, cz);
     screenFrame.scale.set(0.04, screenH + 0.3, screenW + 0.3);
   };
@@ -1603,6 +1623,21 @@ export function buildWorld(scene) {
   roomVideo.addEventListener('loadedmetadata', () => {
     sizeScreen(roomVideo.videoWidth / roomVideo.videoHeight || 16 / 9);
   });
+  const posterTexture = soloVideo.poster ? new THREE.TextureLoader().load(soloVideo.poster, (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    posterMesh.material.map = tex;
+    posterMesh.material.needsUpdate = true;
+    // Keep the screen's proportions until the clip reports its own
+    if (!roomVideo.videoWidth) sizeScreen(tex.image.width / tex.image.height);
+    if (roomVideo.readyState < 2) posterMesh.visible = true;
+  }) : null;
+  if (posterTexture) track(posterTexture);
+  // From the first decoded frame on, the video itself is what is on the screen.
+  roomVideo.addEventListener('loadeddata', () => { posterMesh.visible = false; }, { once: true });
+  // The controller starts the clip once it has a frame to show.
+  roomVideo.load();
+  scene.updateMatrixWorld(true);
+  screen.getWorldPosition(videoWorld);
 
   // Two small sconces beside the video frame
   const sconceMat = track(new THREE.MeshBasicMaterial({ color: '#ffd6ea' }));
@@ -1678,6 +1713,12 @@ export function buildWorld(scene) {
 
   function update(t, dt, highlightIndex, playerPosition = null, grassActors = []) {
     gardenGrass.update(t, dt, grassActors);
+    // The room's video: plays when the couple is near the screen and the camera can see it.
+    videoPlayback.sync(shouldPlayVideo({
+      distance: playerPosition ? playerPosition.distanceTo(videoWorld) : null,
+      cameraDistance: camera.position.distanceTo(videoWorld),
+      playing: videoPlayback.playing,
+    }));
     hallProgress = advanceHallProgress(hallProgress, playerPosition, LAYOUT.hallHalfWidth, LAYOUT.hallLength);
     castle.update(t);
     town.update(t);
@@ -1766,8 +1807,8 @@ export function buildWorld(scene) {
       frame.photo.material.dispose();
     });
     plaqueTex.dispose();
-    disposeRoomVideoPlayback();
-    roomVideo.pause();
+    videoPlayback.dispose();
+    posterMesh.material.map?.dispose();
     roomVideo.removeAttribute('src');
     roomVideo.load();
     roomVideo.remove();
@@ -1786,6 +1827,16 @@ export function buildWorld(scene) {
     stoneGlint,
     updateDoors(dt, px, pz) {
       doors.forEach((d) => d.update(dt, px, pz));
+    },
+    // The room's video screen, for the interact prompt and the big player
+    video: {
+      src: soloVideo.src,
+      screen,
+      // Where the couple has to be for the prompt to appear
+      get centre() { return videoWorld; },
+      isNear(x, z, radius) {
+        return Math.hypot(x - videoWorld.x, z - videoWorld.z) <= radius;
+      },
     },
     get frontDoorOpen() { return frontDoor.isOpen; },
   };

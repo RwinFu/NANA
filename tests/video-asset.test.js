@@ -1,67 +1,91 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync, statSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 
-const videoPath = new URL('../public/memories/solo-video.mp4', import.meta.url);
-const buffer = readFileSync(videoPath);
+// The room's clip is shipped as a web-safe, lightweight file. A phone-sized screen shows it
+// about 2.8 m wide, so a bigger file buys no visible detail, only stutter and slow starts.
+const clip = fileURLToPath(new URL('../public/memories/solo-video.mp4', import.meta.url));
+const poster = fileURLToPath(new URL('../public/memories/solo-video-poster.jpg', import.meta.url));
 
-function parseBoxes(data, start = 0, end = data.length) {
-  const boxes = [];
-  let position = start;
-  while (position < end) {
-    assert.ok(position + 8 <= end, 'box header must be complete');
-    let size = data.readUInt32BE(position);
-    const type = data.toString('ascii', position + 4, position + 8);
-    let headerSize = 8;
-    if (size === 1) {
-      assert.ok(position + 16 <= end, 'extended box header must be complete');
-      const extendedSize = data.readBigUInt64BE(position + 8);
-      assert.ok(extendedSize <= BigInt(Number.MAX_SAFE_INTEGER));
-      size = Number(extendedSize);
-      headerSize = 16;
-    } else if (size === 0) {
-      size = end - position;
-    }
-    assert.ok(size >= headerSize && position + size <= end, `valid ${type} box bounds`);
-    boxes.push({ type, start: position, size, headerSize });
-    position += size;
+// Minimal MP4 reader: find the boxes this test cares about.
+function boxes(buffer, start, end) {
+  const out = [];
+  let offset = start;
+  while (offset + 8 <= end) {
+    const size = buffer.readUInt32BE(offset);
+    const type = buffer.toString('latin1', offset + 4, offset + 8);
+    if (size < 8) break;
+    out.push({ type, start: offset, body: offset + 8, end: Math.min(offset + size, end) });
+    offset += size;
   }
-  return boxes;
+  return out;
+}
+function find(buffer, start, end, path) {
+  let from = start;
+  for (const type of path) {
+    const next = boxes(buffer, from, end).find((b) => b.type === type);
+    if (!next) return null;
+    from = next.body;
+    end = next.end;
+    if (type === path[path.length - 1]) return next;
+  }
+  return null;
 }
 
-function collectChunkOffsets(box, offsets) {
-  const payloadStart = box.start + box.headerSize;
-  const boxEnd = box.start + box.size;
-  if (box.type === 'stco' || box.type === 'co64') {
-    const count = buffer.readUInt32BE(payloadStart + 4);
-    const width = box.type === 'stco' ? 4 : 8;
-    assert.equal(payloadStart + 8 + count * width, boxEnd, `${box.type} entry table size`);
-    for (let i = 0; i < count; i += 1) {
-      const entry = payloadStart + 8 + i * width;
-      offsets.push(width === 4 ? buffer.readUInt32BE(entry) : Number(buffer.readBigUInt64BE(entry)));
-    }
-    return;
-  }
+test('the clip is light enough to start quickly on a phone', () => {
+  assert.ok(existsSync(clip), 'the video is in public/memories');
+  const bytes = statSync(clip).size;
+  assert.ok(bytes < 1.6 * 1024 * 1024, `clip is ${(bytes / 1024 / 1024).toFixed(2)} MB, expected under 1.6 MB`);
+});
 
-  if (['moov', 'trak', 'mdia', 'minf', 'stbl', 'edts', 'dinf', 'mvex'].includes(box.type)) {
-    for (const child of parseBoxes(buffer, payloadStart, boxEnd)) collectChunkOffsets(child, offsets);
-  }
+function readMovie(path) {
+  const buffer = readFileSync(path);
+  const moov = buffer.indexOf('moov');
+  const mdat = buffer.indexOf('mdat');
+  assert.ok(moov > 0 && mdat > 0, `${path} is an MP4`);
+  const moovBox = boxes(buffer, moov - 4, buffer.length)[0];
+  const tracks = boxes(buffer, moovBox.body, moovBox.end).filter((b) => b.type === 'trak');
+  const info = tracks.map((track) => {
+    const stbl = find(buffer, track.body, track.end, ['mdia', 'minf', 'stbl']);
+    const stsd = boxes(buffer, stbl.body, stbl.end).find((b) => b.type === 'stsd');
+    const entry = boxes(buffer, stsd.body + 8, stsd.end)[0];
+    return {
+      codec: entry.type,
+      width: entry.type === 'avc1' ? buffer.readUInt16BE(entry.body + 24) : 0,
+      height: entry.type === 'avc1' ? buffer.readUInt16BE(entry.body + 26) : 0,
+    };
+  });
+  return { faststart: moov < mdat, tracks: info };
 }
 
-test('memory video is fast-start optimized and sample offsets point into mdat', () => {
-  const topLevel = parseBoxes(buffer);
-  const ftyp = topLevel.find((box) => box.type === 'ftyp');
-  const moov = topLevel.find((box) => box.type === 'moov');
-  const mdat = topLevel.find((box) => box.type === 'mdat');
-  assert.ok(ftyp && moov && mdat, 'video must contain ftyp, moov and mdat boxes');
-  assert.ok(ftyp.start < moov.start && moov.start < mdat.start, 'moov must precede media data');
+test('the in-world clip is a light, silent H.264 file (a phone only autoplays muted video)', () => {
+  const { faststart, tracks } = readMovie(clip);
+  assert.ok(faststart, 'the index comes before the media, so playback starts before the download ends');
+  assert.deepEqual(tracks.map((t) => t.codec), ['avc1'], 'one H.264 video track and no audio');
+  const [{ width, height }] = tracks;
+  assert.ok(height >= width, 'keeps the portrait framing');
+  assert.ok(height <= 1280 && width <= 720, `frames are ${width}x${height}, expected at most 720x1280`);
+});
 
-  const chunkOffsets = [];
-  collectChunkOffsets(moov, chunkOffsets);
-  assert.ok(chunkOffsets.length > 0, 'video must contain sample chunk offsets');
-  const mediaStart = mdat.start + mdat.headerSize;
-  const mediaEnd = mdat.start + mdat.size;
-  for (const offset of chunkOffsets) {
-    assert.ok(offset >= mediaStart && offset < mediaEnd, `chunk offset ${offset} must point into mdat`);
-  }
+test('the wildcard: nothing in the game can play video sound', () => {
+  // The clip has no sound track, and neither the panel nor the wall screen may unmute it.
+  const main = readFileSync(fileURLToPath(new URL('../src/main.js', import.meta.url)), 'utf8');
+  const world = readFileSync(fileURLToPath(new URL('../src/world.js', import.meta.url)), 'utf8');
+  assert.ok(!/player\.muted\s*=\s*false/.test(main), 'the panel never unmutes the clip');
+  assert.ok(!/soundSrc/.test(main) && !/soundSrc/.test(world), 'no second, louder copy is wired in');
+  assert.ok(!existsSync(fileURLToPath(new URL('../public/memories/solo-video-full.mp4', import.meta.url))),
+    'the copy with sound is not shipped');
+
+  const { tracks } = readMovie(clip);
+  assert.ok(!tracks.some((t) => t.codec === 'mp4a'), 'the shipped clip has no audio track');
+});
+
+test('the poster frame ships next to the clip', () => {
+  assert.ok(existsSync(poster));
+  const bytes = statSync(poster).size;
+  assert.ok(bytes < 200 * 1024, `poster is ${(bytes / 1024).toFixed(0)} KB, expected under 200 KB`);
+  const head = readFileSync(poster).subarray(0, 2);
+  assert.deepEqual([...head], [0xff, 0xd8], 'a JPEG');
+
 });

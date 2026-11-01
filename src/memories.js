@@ -181,8 +181,13 @@ export const soloMemories = [
   { id: 'blue-jacket', title: 'کاپشن آبی', caption: 'با کاپشن آبی و گوشواره‌ی کوچیک؛ آرومی و قشنگی توی یک قاب.', chapter: 'آرامش آبی', image: memoryImage('solo-09.jpg'), frame: { name: 'لاجورد', color: '#2d4f8a', glow: '#9ec7ff' } },
 ];
 
-// The room's video, played on its screen
-export const soloVideo = { src: memoryImage('solo-video.mp4') };
+// The room's video, silent. The clip has no sound track at all: the gold frame in the photo
+// room shows it as a quiet picture, and the panel shows the same picture large.
+export const soloVideo = {
+  src: memoryImage('solo-video.mp4'),
+  // Shown until the first frame is decoded, so the frame is never a black rectangle
+  poster: memoryImage('solo-video-poster.jpg'),
+};
 
 // Every photo, in viewer order: the hall first, then the room
 export const allMemories = [...memories, ...soloMemories];

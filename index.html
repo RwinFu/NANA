@@ -134,6 +134,21 @@
         </div>
       </dialog>
 
+      <!-- The room's video, played large with its own sound -->
+      <dialog class="sheet video-sheet" id="video-dialog" aria-labelledby="video-title">
+        <button class="close" type="button" data-close aria-label="بستن">×</button>
+        <div class="video-media">
+          <figure class="memory-frame video-frame">
+            <video id="video-player" controls playsinline preload="metadata"></video>
+          </figure>
+        </div>
+        <div class="video-copy">
+          <p class="memory-meta"><span>ویدیوی اتاق</span><span class="meta-count">بی‌صدا</span></p>
+          <h2 id="video-title">همون ویدیویی که تو اتاقه</h2>
+          <p class="memory-caption">این‌جا بزرگ‌تر می‌بینی‌اش؛ برای دیدن دوباره، دکمه‌ی پخش را بزن.</p>
+        </div>
+      </dialog>
+
       <!-- Finale dialog -->
       <dialog class="sheet finale-sheet" id="finale-dialog" aria-labelledby="finale-title">
         <button class="close" type="button" data-close aria-label="بستن">×</button>
