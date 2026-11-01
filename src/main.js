@@ -22,8 +22,9 @@ import { createFairy } from './fairy.js';
 import { createGiftBox } from './gift-box.js';
 import { createNecklace } from './necklace.js';
 import {
-  GIFT_SECONDS, giftReady, giftBeat, necklacePose, GIFT_LINES, GIFT_AFTER,
+  GIFT_SECONDS, giftReady, giftBeat, necklacePose, NECK_POSE, GIFT_LINES, GIFT_AFTER,
 } from './gift.js';
+import { giftCamera, giftCameraBlend } from './gift-camera.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
 import { createRescueGame, showHowTo } from './rescue.js';
 import { createCats } from './cats.js';
@@ -185,6 +186,10 @@ let giftGiven = false;
 let giftAfterLine = false;
 let wasInsideCastle = false;
 const giftNeck = new THREE.Vector3();
+const giftCamFrame = { position: new THREE.Vector3(), look: new THREE.Vector3(), roll: 0, closeness: 0, shot: 'find' };
+const giftCamFrom = new THREE.Vector3();
+const giftCamLookFrom = new THREE.Vector3();
+const giftCamLook = new THREE.Vector3();
 const giftBoxAt = new THREE.Vector3();
 const giftHoldAt = new THREE.Vector3();
 let introSparkleLevel = 0;
@@ -278,9 +283,11 @@ if (renderer) {
   hero = createCouple(store.get().avatarColor);
   syncBouquet(); // hangs her bouquet on her free arm (empty until she buys a rose)
   scene.add(hero.root);
-  // The necklace hangs on her body from the moment it is given: it is added here, hidden, so that the
-  // scene only has to make it visible and it is already in the right place.
-  hero.root.add(necklace.worn);
+  // The necklace hangs on her *body*, not on her root: `dressSpace` is the group the choker is built in,
+  // which is what NECK's 1.68 is measured in (the body is scaled to 0.68, so it lands at chest height in
+  // the world). Parenting it to the root instead would leave it unscaled and half a metre above her throat.
+  // It still walks with her, because the body does.
+  hero.dressSpace.add(necklace.worn);
   // Start in the garden, not at the origin: the origin is the middle of the door, and the couple sank into it before the walk began
   hero.root.position.copy(LAYOUT.spawn);
   // A soft studio reflection for the characters' glossy parts (hair, eyes, gold, shoes)
@@ -706,20 +713,15 @@ function giftAnchors(outBox, outHold, outNeck) {
   const fz = Math.cos(yaw);
   outBox.set(p.x + fx * 1.35, 1.5, p.z + fz * 1.35);
   outHold.set(p.x + fx * 0.75, 2.05, p.z + fz * 0.75);
-  // where it settles: her own neck, in her body's frame (NECK in gift.js), converted to world
-  outNeck.set(0, NECK_Y, NECK_Z);
+  // where it settles: her own neck, in her body's frame (NECK_POSE in gift.js), converted to world
+  outNeck.set(0, NECK_POSE.y, NECK_POSE.z);
   hero.dressSpace.localToWorld(outNeck);
   return { boxAt: outBox, holdAt: outHold, neckAt: outNeck };
 }
 
-// Her neck, in her own body's frame. This is the same constant the gold choker is built at in
-// characters.js (y = 1.68), and the pendant hangs a little below it on the front of her throat.
-const NECK_Y = 1.68;
-const NECK_Z = 0.115;
-
 function updateGift(dt) {
   // The necklace's own shimmer runs for the rest of the game, once she is wearing it.
-  if (giftGiven && necklace) necklace.update(clock.elapsedTime, dt, 1);
+  if (giftGiven && necklace) necklace.update(clock.elapsedTime, dt, 1, null);
   if (!gift || !introFairy) return;
   gift.t += dt;
   const t = gift.t;
@@ -741,24 +743,28 @@ function updateGift(dt) {
   const anchors = giftAnchors(giftBoxAt, giftHoldAt, giftNeck);
   const pose = necklacePose(t, anchors);
   if (t < 9.8) {
-    // it is not on her yet: it lives in the world, in front of the couple
-    if (necklace.worn.parent) necklace.worn.parent.remove(necklace.worn);
+    // it is not on her yet: the *chain* lives in the world, in front of the couple. The `worn` mount
+    // stays on her body whether or not anything is in it, so it can never be left orphaned.
     if (necklace.group.parent !== scene) scene.add(necklace.group);
     necklace.group.position.set(pose.x, pose.y, pose.z);
     necklace.group.scale.setScalar(pose.scale);
     necklace.group.rotation.set(0.15, pose.spin, 0);
     necklace.group.visible = t >= 5.4;
   } else {
-    // it settles on her neck: from here on the necklace is a part of her body, so it moves with her
+    // it settles on her neck: from here on the necklace is a part of her body, so it moves with her.
+    // The chain is placed *exactly* where the flight aimed it (her neck, in her body's frame) with no
+    // rotation of its own: the motion it still has is the pendant's swing, which the necklace's own
+    // update eases into place.
+    if (necklace.worn.parent !== hero.dressSpace) hero.dressSpace.add(necklace.worn);
     if (necklace.group.parent !== necklace.worn) necklace.worn.add(necklace.group);
-    necklace.group.position.set(0, NECK_Y, NECK_Z);
+    necklace.group.position.set(0, NECK_POSE.y, NECK_POSE.z);
     necklace.group.scale.setScalar(pose.scale);
-    necklace.group.rotation.set(0, 0, pose.spin);
+    necklace.group.rotation.set(0, 0, 0);
     necklace.group.visible = true;
     necklace.worn.visible = true;
     gift.worn = true;
   }
-  necklace.update(t, dt, gift.worn ? 1 : 0.55);
+  necklace.update(t, dt, gift.worn ? 1 : 0.55, gift.worn ? null : pose.swing ?? null);
 
   // The garden answers at 'glow': the castle's own lights come up to full, then settle. They are left at
   // 1, which is the state they are in for the whole game anyway, so there is nothing to put back.
@@ -775,9 +781,10 @@ function finishGift() {
   giftGiven = true;
   gift = null;
   // the necklace stays exactly where it is: on her neck, forever
+  if (necklace.worn.parent !== hero.dressSpace) hero.dressSpace.add(necklace.worn);
   if (necklace.group.parent !== necklace.worn) {
     necklace.worn.add(necklace.group);
-    necklace.group.position.set(0, NECK_Y, NECK_Z);
+    necklace.group.position.set(0, NECK_POSE.y, NECK_POSE.z);
   }
   necklace.group.visible = true;
   necklace.worn.visible = true;
@@ -787,6 +794,54 @@ function finishGift() {
   toast(GIFT_AFTER, 6500);
   audio.fanfare();
   updatePrompt();
+}
+
+// The film's camera, blended over the walking camera. `giftCamFrom` is whatever the walking camera had
+// on the frame the film began, so the very first blend frame is the same view with no jump; the film's own
+// last pose is the walking camera's pose, so the way back has nothing to travel either.
+function placeGiftCamera(dt) {
+  if (!gift) return;
+  // The film does not cut in. It is composed in front of her while the walking camera is already looking
+  // at her, so the first frame is a small change of angle and not a jump across the garden: the handover
+  // is a turn of the head, and `giftCameraBlend` then brings the film's own framing up over 0.75 s.
+  const glide = 1 - Math.exp(-dt * 6.5);
+  const blend = giftCameraBlend(gift.t) * glide;
+  if (!gift.fromCaptured) {
+    // The pose the walking camera was at when the film began: the blend's starting point. Captured once
+    // and then left alone -- re-reading it every frame would make the blend chase its own output.
+    gift.fromCaptured = true;
+    giftCamFrom.copy(camera.position);
+    giftCamLookFrom.copy(giftCameraLookFrom());
+    giftCamLook.copy(giftCamLookFrom);
+  }
+  const frame = giftCamera(gift.t, { x: hero.root.position.x, z: hero.root.position.z, yaw: hero.root.rotation.y },
+    introFairy.returning ? introFairy.position : null,
+    gift.t >= 9.8 ? giftNeck : null,
+    giftCamFrame);
+  camera.position.lerpVectors(giftCamFrom, frame.position, blend);
+  giftCamLook.copy(giftCamLookFrom).lerp(frame.look, blend);
+  camera.lookAt(giftCamLook);
+  // the film's own whisper of roll, for the close shot
+  camera.rotateZ(frame.roll * blend);
+  // the soft aperture: a vignette while the film is tight on her, gone when it is wide
+  setGiftVignette(frame.closeness * blend);
+}
+
+// The look target the follow camera is using right now, so the film's blend starts from the same frame.
+const giftLookScratch = new THREE.Vector3();
+function giftCameraLookFrom() {
+  return controls?.focus || giftLookScratch.set(hero.root.position.x, 1.45, hero.root.position.z);
+}
+
+// A vignette drawn on the fx canvas, so the close shot has an aperture without a new render pass.
+let giftVignetteShown = false;
+function setGiftVignette(amount) {
+  const on = amount > 0.02;
+  if (on === giftVignetteShown && !on) return;
+  giftVignetteShown = on;
+  const el = document.getElementById('gift-vignette');
+  if (!el) return;
+  el.style.opacity = on ? String(Math.min(0.85, amount * 0.8)) : '0';
 }
 
 // The trigger, checked every frame while the game is on: inside the castle at least once, then out.
@@ -1203,7 +1258,10 @@ function frame() {
     // The letter's camera. While it is moving, or while the letter is open, the follow camera is not
     // asked for a view of its own: this is the one scene in the house that is watched, not walked
     // through. When the reader closes, the follow camera takes the view back with the same ease.
+    // The present's camera. While the film owns the view, the follow camera still updates underneath it
+    // (so its own easing never jumps when the film hands back) but the camera is placed by the film.
     if (!letterView || letterView.phase === 'out') controls.update(dt);
+    placeGiftCamera(dt);
     // The letter's own clock is behind the camera's: it only starts when onOpened fires, so the wax
     // breaks before the camera has finished arriving and the paper comes out under it, not after it.
     if (started && envelope && !envelope.isOpen && !envelope.isBusy) envelope.update(t, dt);

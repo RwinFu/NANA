@@ -2,12 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {
-  GIFT_SECONDS, GIFT_BEATS, GIFT_LINES, NECK, giftBeat, giftProgress, giftBeatProgress,
+  GIFT_SECONDS, GIFT_BEATS, GIFT_LINES, NECK, NECK_POSE, giftBeat, giftProgress, giftBeatProgress,
   giftReady, necklacePose,
 } from '../src/gift.js';
 import { createNecklace } from '../src/necklace.js';
 import { createGiftBox } from '../src/gift-box.js';
 import { createFairy } from '../src/fairy.js';
+import { createCouple } from '../src/characters.js';
 
 // The props are drawn on canvases; a stub is enough for the geometry to exist.
 function stubCanvas() {
@@ -115,9 +116,13 @@ test('the necklace is in the box, then in the air, then on her neck, then it sta
   assert.ok(Math.abs(landing.x - neckAt.x) < 0.001, 'it is at her neck');
   assert.ok(landing.scale === 1, 'full size');
 
+  // Settled: it rides her breathing now, so it is *at* her neck rather than frozen on it. The motion is
+  // a couple of millimetres, which is the point - a necklace glued in place looks glued on.
   const settled = necklacePose(GIFT_SECONDS + 5, { boxAt, holdAt, neckAt });
-  assert.deepEqual([settled.x, settled.y, settled.z], [neckAt.x, neckAt.y, neckAt.z]);
-  assert.equal(settled.spin, 0, 'and still');
+  assert.ok(Math.abs(settled.x - neckAt.x) < 1e-6);
+  assert.ok(Math.abs(settled.y - neckAt.y) < 0.004, 'within a breath of her neck');
+  assert.ok(Math.abs(settled.z - neckAt.z) < 0.004);
+  assert.ok(Math.abs(settled.spin) < 0.05, 'and almost still');
 });
 
 test('the necklace never jumps: every frame of the scene moves it a little', () => {
@@ -236,4 +241,92 @@ test('a second return never starts over the first', () => {
     fairy.update(3, 1 / 60, 1, true, camera);
     assert.equal(fairy.returning, true, 'the intro update does not cancel the return');
   });
+});
+
+// ---------- where it ends up ---------------------------------------------------
+//
+// The necklace is measured in her *body's* frame, the same frame the gold choker is built in, and that
+// body is scaled to 0.68. Getting this wrong is invisible in a still and obvious on screen: mounted on her
+// root instead, the necklace floats half a metre above her throat at the wrong size. So the test asks her
+// rig, not the source, where her throat is.
+
+test('the necklace sits on her own choker, in the world, at her size', () => {
+  const hero = withCanvas(() => createCouple('#ff758f'));
+  hero.root.position.set(0, 0, 10);
+  hero.root.rotation.y = Math.PI;
+  hero.animate(1 / 60, 0, false, false);
+  hero.root.updateMatrixWorld(true);
+
+  // the choker is the ring she already wears: find it by its place in her body
+  let choker = null;
+  hero.dressSpace.traverse((o) => {
+    if (o.isMesh && o.geometry?.type === 'TorusGeometry' && Math.abs(o.position.y - NECK.y) < 1e-6) choker = o;
+  });
+  assert.ok(choker, 'she wears a choker at NECK.y, which is the height the necklace is built for');
+  const chokerAt = new THREE.Vector3();
+  choker.getWorldPosition(chokerAt);
+  assert.ok(chokerAt.y < 1.3, `the choker is at her throat, not her root: world y ${chokerAt.y.toFixed(3)}`);
+
+  const necklace = withCanvas(() => createNecklace((o) => o));
+  hero.dressSpace.add(necklace.worn);
+  necklace.group.position.set(0, NECK_POSE.y, NECK_POSE.z);
+  hero.root.updateMatrixWorld(true);
+  const wornAt = new THREE.Vector3();
+  necklace.group.getWorldPosition(wornAt);
+  assert.ok(Math.abs(wornAt.y - chokerAt.y) < 0.005,
+    `it lands on the choker: ${(wornAt.y - chokerAt.y).toFixed(4)} m off`);
+  // the pendant hangs below the chain, on the front of her throat, not inside her neck
+  const box = new THREE.Box3().setFromObject(necklace.group);
+  assert.ok(box.min.y < chokerAt.y - 0.05, 'the pendant hangs below the chain');
+  assert.ok(box.max.y - box.min.y < 0.22, `and the whole thing is jewellery-sized: ${(box.max.y - box.min.y).toFixed(3)} m`);
+});
+
+test('the flight lands exactly where the necklace is mounted', () => {
+  const hero = withCanvas(() => createCouple('#ff758f'));
+  hero.root.position.set(-3, 0, 6);
+  hero.root.rotation.y = 0.8;
+  hero.animate(1 / 60, 0, false, false);
+  hero.root.updateMatrixWorld(true);
+  // the landing point main.js computes, in her body's frame, converted to the world...
+  const landing = new THREE.Vector3(0, NECK_POSE.y, NECK_POSE.z);
+  hero.dressSpace.localToWorld(landing);
+  // ...must be where the pose puts the necklace at the moment it becomes hers
+  const boxAt = new THREE.Vector3(landing.x, 1.5, landing.z + 1.35);
+  const holdAt = new THREE.Vector3(landing.x, 2.05, landing.z + 0.75);
+  for (const t of [9.8, 10.4, 11.0, 11.6, 12.2]) {
+    const pose = necklacePose(t, { boxAt, holdAt, neckAt: landing });
+    // the chain is hers from the first landing frame; only its breathing moves it (a millimetre or so)
+    assert.ok(Math.hypot(pose.x - landing.x, pose.z - landing.z) < 0.004, `no sideways drift at t=${t}`);
+    assert.ok(Math.abs(pose.y - landing.y) < 0.051, `and it is on her throat at t=${t}, not passing through it`);
+  }
+  // after it lands the chain does not move again: only the pendant is allowed to swing
+  const settled = necklacePose(11.7, { boxAt, holdAt, neckAt: landing });
+  assert.ok(Math.abs(settled.spin) < 0.05, 'the chain is still: a chain that spins is a hoop turning over');
+});
+
+test('the pendant swings out of her throat, never into it', () => {
+  const hero = withCanvas(() => createCouple('#ff758f'));
+  hero.root.position.set(0, 0, 10);
+  hero.animate(1 / 60, 0, false, false);
+  hero.root.updateMatrixWorld(true);
+  const necklace = withCanvas(() => createNecklace((o) => o));
+  hero.dressSpace.add(necklace.worn);
+  necklace.group.position.set(0, NECK_POSE.y, NECK_POSE.z);
+  necklace.worn.visible = true;
+
+  const neck = new THREE.Vector3(0, NECK_POSE.y, NECK_POSE.z);
+  hero.dressSpace.localToWorld(neck);
+  const heartAt = new THREE.Vector3();
+  let closest = Infinity;
+  // drive the landing's own swing, including its inward half, frame by frame
+  for (let i = 0; i < 60 * 3; i++) {
+    const t = 9.8 + i / 60;
+    const pose = necklacePose(t, { boxAt: neck, holdAt: neck, neckAt: neck });
+    necklace.update(t, 1 / 60, 1, pose.swing);
+    hero.root.updateMatrixWorld(true);
+    necklace.worn.updateMatrixWorld(true);
+    necklace.heart.getWorldPosition(heartAt);
+    closest = Math.min(closest, Math.abs(heartAt.z - neck.z));
+  }
+  assert.ok(closest > 0.05, `the pendant stays ${closest.toFixed(3)} m in front of her throat, so it cannot clip through`);
 });

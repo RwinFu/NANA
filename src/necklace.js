@@ -92,13 +92,19 @@ export function createNecklace(track = (o) => o) {
   const spark = new THREE.Mesh(track(new THREE.SphereGeometry(0.0055, 8, 6)), stoneLight);
   spark.position.set(-0.004, 0.008, 0.012);
   heart.add(spark);
-  heart.position.set(0.004, -0.062, NECK.chainRadius * 0.72);
+  // The pendant hangs from its own pivot, at the chain, so it can swing on the neck while the chain stays
+  // put. Rotating the whole necklace would spin the hoop round her throat, which is not what gold does.
+  const pendantPivot = new THREE.Group();
+  pendantPivot.name = 'necklace-pendant-pivot';
+  pendantPivot.position.set(0.004, -0.02, NECK.chainRadius * 0.9);
+  group.add(pendantPivot);
+  heart.position.set(0, -0.042, 0);
   heart.rotation.x = -0.12; // it lies against her throat instead of standing up off it
-  group.add(heart);
+  pendantPivot.add(heart);
 
   // A tiny gold hook where the pendant meets the chain
   const hook = new THREE.Mesh(track(new THREE.SphereGeometry(0.011, 8, 6)), goldLight);
-  hook.position.set(0.004, -0.02, NECK.chainRadius * 0.95);
+  hook.position.copy(pendantPivot.position);
   group.add(hook);
 
   // ---- the hand-off ---------------------------------------------------------
@@ -114,12 +120,19 @@ export function createNecklace(track = (o) => o) {
 
   // A slow shimmer on the gold and the stone. Called every frame once it is on her neck; it never
   // allocates and never changes the geometry, so a necklace the rest of the game wears is free.
-  function update(t, dt, wornLevel = 1) {
+  // `swing` is the pendant's own rotation in radians (0 is at rest). The scene drives it while the
+  // necklace is being put on; afterwards a settled necklace only breathes.
+  function update(t, dt, wornLevel = 1, swing = null) {
     gold.emissiveIntensity = 0.12 + wornLevel * (0.1 + Math.sin(t * 1.7) * 0.05);
     stone.emissiveIntensity = 0.5 + wornLevel * (0.25 + Math.sin(t * 2.3 + 1) * 0.15);
     stoneLight.color.setRGB(1, 0.83 + Math.sin(t * 3.1) * 0.05, 0.89);
     glitter = sparkBase * wornLevel;
     spark.scale.setScalar(1 + glitter * Math.abs(Math.sin(t * 2.7)) * 0.9);
+    // The pendant swings out from her throat and back, and a settled one only sways a hair with her
+    // breathing. The inward half of the swing is heavily damped: a pendant can lift off a neck, but it
+    // cannot pass through one, and the pivot is only a few centimetres from her skin.
+    const target = swing === null ? Math.sin(t * 1.15) * 0.02 : (swing > 0 ? swing : swing * 0.25);
+    pendantPivot.rotation.x += (target - pendantPivot.rotation.x) * Math.min(1, dt * 18);
   }
 
   // Counts: a test uses these to make sure the necklace is jewellery and not a wire hoop.

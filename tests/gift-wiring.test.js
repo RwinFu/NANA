@@ -40,12 +40,20 @@ test('the fairy carries the box, and the box is what the necklace rises from', (
 
 test('the necklace ends up on her body, and stays there', () => {
   assert.match(main, /necklace = createNecklace\(/, 'the necklace is built once');
-  assert.match(main, /hero\.root\.add\(necklace\.worn\)/, 'it is a child of the couple, so it moves with her');
+  // Its frame matters: NECK_POSE is measured in her *body* (the frame the gold choker is built in, which
+  // is scaled 0.68), so mounting it on the root would leave it unscaled and half a metre too high.
+  assert.match(main, /hero\.dressSpace\.add\(necklace\.worn\)/, 'it is a child of her body, so it moves with her');
+  assert.doesNotMatch(main, /hero\.root\.add\(necklace\.worn\)/, 'and not of her root, which is 1/0.68 too big');
+  assert.match(main, /outNeck\.set\(0, NECK_POSE\.y, NECK_POSE\.z\);\n  hero\.dressSpace\.localToWorld\(outNeck\);/,
+    'the flight lands in the same frame it is mounted in');
+  assert.doesNotMatch(main, /NECK_Y|NECK_Z/, 'one neck constant, so the flight and the mount cannot drift apart');
   // while it is in the air it is in the scene; once it settles it is moved back onto her, permanently
   assert.match(main, /if \(necklace\.group\.parent !== necklace\.worn\) necklace\.worn\.add\(necklace\.group\);/);
+  assert.match(main, /if \(necklace\.worn\.parent !== hero\.dressSpace\) hero\.dressSpace\.add\(necklace\.worn\);/,
+    'the mount is re-checked, so it can never be left orphaned mid-scene');
   assert.match(main, /necklace\.worn\.visible = true;/, 'and it is made visible, not left hidden');
   // the shimmer must keep running after the scene: this is the line that proves it does
-  assert.match(main, /if \(giftGiven && necklace\) necklace\.update\(clock\.elapsedTime, dt, 1\);/);
+  assert.match(main, /if \(giftGiven && necklace\) necklace\.update\(clock\.elapsedTime, dt, 1, null\);/);
 });
 
 test('the couple face the fairy while she presents, as they do for the letter', () => {
@@ -61,4 +69,35 @@ test('the scene does not add a light to the garden', () => {
     assert.doesNotMatch(source, /new THREE\.PointLight|new THREE\.SpotLight|new THREE\.DirectionalLight/,
       'no new lights in the gift');
   }
+});
+
+test('the film owns the camera while it runs, and hands it back untouched', () => {
+  assert.match(main, /import \{ giftCamera, giftCameraBlend \} from '\/src\/gift-camera\.js'|import \{ giftCamera, giftCameraBlend \} from '\.\/gift-camera\.js'/,
+    'the film camera is the one in gift-camera.js');
+  assert.match(main, /\n    placeGiftCamera\(dt\);/, 'it is driven from the frame loop');
+  // it must run after the walking camera has moved, or the blend starts from last frame's pose
+  // the walking camera is placed by controls.update(...), which has a guard on it; the film must come
+  // after that line, or its blend would start from last frame's pose
+  const loopAt = main.search(/controls\.update\(dt\)/);
+  const placeAt = main.search(/^\s+placeGiftCamera\(dt\);$/m);
+  assert.ok(loopAt > 0 && placeAt > loopAt, 'and after the walking camera, not before');
+  // the pose it blends *from* is captured once, so the blend cannot chase itself
+  assert.match(main, /if \(!gift\.fromCaptured\) \{/, 'the starting pose is captured once...');
+  assert.match(main, /gift\.fromCaptured = true;/, '...and marked as captured, so the blend cannot chase itself');
+  // the diorama vignette is a gradient in the DOM, not a light in the garden
+  assert.match(main, /setGiftVignette\(/, 'the vignette is driven by the film');
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  assert.match(html, /id="gift-vignette"/, 'and it exists in the page');
+  const css = readFileSync(new URL('../src/style.css', import.meta.url), 'utf8');
+  assert.match(css, /\.gift-vignette\s*\{/, 'with a rule of its own');
+  // below the dialogs and the curtain: this is scenery, not UI
+  assert.match(css, /\.gift-vignette[\s\S]{0,400}z-index:\s*\d/, 'and a place in the stack');
+});
+test('the film does not cut in from the far side of the garden', () => {
+  // the follow camera is 4.3 m behind her; the film's first frame is composed in front of her. A straight
+  // lerp between the two at a fixed 0.75 s would put a three-metre step in the first frames, so the blend
+  // is eased exponentially against the frame time: the first frame is a turn of the head.
+  assert.match(main, /const glide = 1 - Math\.exp\(-dt \* 6\.5\);/);
+  assert.match(main, /const blend = giftCameraBlend\(gift\.t\) \* glide;/);
+  assert.match(main, /shot: 'find' \}/, 'the frame buffer it fills is allocated once, not per frame');
 });

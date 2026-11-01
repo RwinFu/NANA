@@ -62,6 +62,10 @@ export function giftReady({ wasInside, isOutside, alreadyGiven, sceneActive }) {
 // that, on the front of her throat. The chain's own centre is the choker's height. main.js holds the same
 // two numbers as NECK_Y / NECK_Z for placing the group; tests/gift.test.js keeps them in step.
 export const NECK = { y: 1.68, pendantY: 1.53, z: 0.13, chainRadius: 0.128 };
+// Where the whole necklace goes when she wears it: the chain's centre, in her *body's* frame (the frame
+// the gold choker is built in, characters.js y = 1.68). One number, used by the flight's landing point and
+// by the code that mounts it, so the two cannot disagree.
+export const NECK_POSE = { y: NECK.y, z: 0.115 };
 
 // The three poses the necklace passes through, as a function of the scene's time:
 //   in the box   (before 'lift')   — small, still, hidden inside the lid
@@ -72,7 +76,7 @@ export const NECK = { y: 1.68, pendantY: 1.53, z: 0.13, chainRadius: 0.128 };
 export function necklacePose(t, { boxAt, neckAt, holdAt }) {
   const p = giftProgress(t);
   const inAir = giftBeatProgress(t);
-  const at = { x: 0, y: 0, z: 0, scale: 1, spin: 0 };
+  const at = { x: 0, y: 0, z: 0, scale: 1, spin: 0, swing: 0 };
   if (t < 5.4) {
     // still inside the box: a glint of gold in the dark, so the box reads as "something is in here"
     at.x = boxAt.x;
@@ -104,22 +108,29 @@ export function necklacePose(t, { boxAt, neckAt, holdAt }) {
     return at;
   }
   if (t < 11.6) {
-    // on her neck: the last centimetre is eased, and the pendant swings to rest
+    // Landing on her neck. The chain arrives from above, settles, and the *pendant* is the thing that
+    // moves after that: it swings forward and back twice, smaller each time, and stops. Sitting the chain
+    // and swinging the pendant is what makes it read as weight rather than as a sprite finding a socket.
     const k = Math.min(1, (t - 9.8) / 1.8);
     const e = k * k * (3 - 2 * k);
     at.x = neckAt.x;
     at.y = neckAt.y + (1 - e) * 0.05;
     at.z = neckAt.z;
     at.scale = 1;
-    at.spin = (1 - e) * Math.sin(t * 6) * 0.25;
+    // a damped swing, in radians, on the pendant's own axis
+    const damp = Math.exp(-k * 3.4);
+    at.spin = Math.sin(k * 9.2) * 0.48 * damp;
+    at.swing = at.spin;
     return at;
   }
-  // settled: nothing moves but a slow shimmer, applied by the necklace itself
+  // Settled. It is hers now, so it moves the way a necklace moves on someone standing still: a breath in
+  // the chain, and the pendant finding its rest.
   at.x = neckAt.x;
-  at.y = neckAt.y;
-  at.z = neckAt.z;
+  at.y = neckAt.y + Math.sin(t * 1.35) * 0.0018;
+  at.z = neckAt.z + Math.sin(t * 1.1 + 0.6) * 0.0012;
   at.scale = 1;
-  at.spin = 0;
+  at.spin = Math.sin(t * 1.15) * 0.02;
+  at.swing = at.spin;
   void inAir;
   void p;
   return at;
