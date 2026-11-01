@@ -87,4 +87,5 @@ test('the poster frame ships next to the clip', () => {
   assert.ok(bytes < 200 * 1024, `poster is ${(bytes / 1024).toFixed(0)} KB, expected under 200 KB`);
   const head = readFileSync(poster).subarray(0, 2);
   assert.deepEqual([...head], [0xff, 0xd8], 'a JPEG');
+
 });

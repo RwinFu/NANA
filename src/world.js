@@ -1556,18 +1556,24 @@ export function buildWorld(scene, camera) {
 
   // The video frame at the end of the corridor: a little bigger than the photos. It keeps the video's proportions.
   const roomVideo = document.createElement('video');
-  roomVideo.src = soloVideo.src;
   roomVideo.loop = true;
   roomVideo.muted = true;
+  roomVideo.defaultMuted = true;
   roomVideo.playsInline = true;
+  roomVideo.autoplay = true;
   roomVideo.preload = 'auto';
-  // iOS only treats a video as inline when it is also marked this way in markup.
-  // The clip's own sound is never heard here: this screen is a silent picture, and a muted
-  // video is the only kind a phone will start on its own.
+  // iOS only treats a video as inline when it is also marked this way in markup, and it only
+  // decodes a video that is in the document: keep it attached, invisible, 1px in a corner.
+  // The clip has no sound track at all; muted is what lets a phone start it on its own.
+  roomVideo.setAttribute('muted', '');
   roomVideo.setAttribute('playsinline', '');
   roomVideo.setAttribute('webkit-playsinline', '');
-  roomVideo.setAttribute('muted', '');
+  roomVideo.setAttribute('aria-hidden', 'true');
+  roomVideo.tabIndex = -1;
+  roomVideo.style.cssText = 'position:fixed;width:1px;height:1px;opacity:0;pointer-events:none;left:-2px;top:-2px;';
   if (soloVideo.poster) roomVideo.poster = soloVideo.poster;
+  document.body.appendChild(roomVideo);
+  roomVideo.src = soloVideo.src;
   // The texture re-uploads only real video frames (three.js asks the browser for them), never
   // the whole picture every render frame.
   const videoTex = track(new THREE.VideoTexture(roomVideo));
@@ -1575,7 +1581,7 @@ export function buildWorld(scene, camera) {
   videoTex.minFilter = THREE.LinearFilter;
   videoTex.magFilter = THREE.LinearFilter;
   videoTex.generateMipmaps = false;
-  const videoPlayback = createVideoPlayback(roomVideo);
+  const videoPlayback = createVideoPlayback(roomVideo, document, window);
   const videoWorld = new THREE.Vector3();
   // The video fits inside a box of at most 2.8 m wide and 3.0 m high, keeping its own proportions
   const fitW = 2.8;
@@ -1626,12 +1632,9 @@ export function buildWorld(scene, camera) {
     if (roomVideo.readyState < 2) posterMesh.visible = true;
   }) : null;
   if (posterTexture) track(posterTexture);
-  // Play once a frame is decoded; from then on the video itself is what is on the screen.
-  const firstFrameReady = () => {
-    posterMesh.visible = false;
-    videoPlayback.sync(true);
-  };
-  roomVideo.addEventListener('loadeddata', firstFrameReady, { once: true });
+  // From the first decoded frame on, the video itself is what is on the screen.
+  roomVideo.addEventListener('loadeddata', () => { posterMesh.visible = false; }, { once: true });
+  // The controller starts the clip once it has a frame to show.
   roomVideo.load();
   scene.updateMatrixWorld(true);
   screen.getWorldPosition(videoWorld);
@@ -1808,6 +1811,7 @@ export function buildWorld(scene, camera) {
     posterMesh.material.map?.dispose();
     roomVideo.removeAttribute('src');
     roomVideo.load();
+    roomVideo.remove();
   }
 
   return {
