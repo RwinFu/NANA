@@ -1024,6 +1024,9 @@ function frame() {
     // asked for a view of its own: this is the one scene in the house that is watched, not walked
     // through. When the reader closes, the follow camera takes the view back with the same ease.
     if (!letterView || letterView.phase === 'out') controls.update(dt);
+    // The letter's own clock is behind the camera's: it only starts when onOpened fires, so the wax
+    // breaks before the camera has finished arriving and the paper comes out under it, not after it.
+    if (started && envelope && !envelope.isOpen && !envelope.isBusy) envelope.update(t, dt);
     if (letterView) {
       const v = letterView;
       v.elapsed += dt;
@@ -1078,16 +1081,18 @@ function frame() {
 
   if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
   updateBouquetPose(dt);
-  // The couple stands still while the letter is being opened and read.
+  // The couple stands still while the letter is being opened and read, and so do the effects that
+  // follow their feet: they follow the couple's movement, not the camera's.
   const frozen = !!letterView && letterView.phase !== 'out';
-  hero.animate(dt, t, started && controls.moving && !frozen, controls.airborne);
+  const walking = started && controls.moving && !frozen;
+  hero.animate(dt, t, walking, controls.airborne);
   cats?.update(dt, t, hero, started, benchSeated, { intro: introPlaying, doorOpen: world.frontDoorOpen });
   syncCoupleUi();
-  trail?.update(dt, hero.root.position, started && controls.moving, camera);
-  houseSparkles?.update(dt, hero.root.position, started && controls.moving);
-  world?.rugGlint?.update(dt, t, hero.root.position, started && controls.moving);
-  world?.stoneGlint?.update(dt, t, hero.root.position, started && controls.moving);
-  footprints?.update(dt, hero, started && controls.moving);
+  trail?.update(dt, hero.root.position, walking, camera);
+  houseSparkles?.update(dt, hero.root.position, walking);
+  world?.rugGlint?.update(dt, t, hero.root.position, walking);
+  world?.stoneGlint?.update(dt, t, hero.root.position, walking);
+  footprints?.update(dt, hero, walking);
   envelope.update(t, dt);
   grassActors.length = 0;
   if (started) {
