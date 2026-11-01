@@ -586,12 +586,6 @@ export function createCouple(dressColor) {
   // ----- hand holding and dances -----
   let sitting = false;
   let sitAmount = 0;
-  // Being carried by a ride: the couple are lifted off the ground, seated, and set down again. This is
-  // a separate amount from `sitting` (the garden bench) so a ride's lift cannot confuse the bench, and
-  // so the way down can ease longer than the way up.
-  let carryAmount = 0;
-  let carryTarget = 0;
-  let carryUp = 0; // seconds of the lift, so the way up and the way down can differ
   let holding = false; // the player asked him to hold her hand
   let holdAmount = 0; // eased: 0 hand down, 1 hands joined
   let danceId = -1; // -1 no dance, otherwise an index into DANCE_NAMES
@@ -677,9 +671,7 @@ export function createCouple(dressColor) {
     const yaw = root.rotation.y;
     // Holding hands brings him in closer
     const side = THREE.MathUtils.lerp(FOLLOW_SIDE, 0.75, holdAmount);
-    // On a ride he sits beside her at the same height, so the carry tightens the gap rather than
-    // keeping his standing distance.
-    const back = FOLLOW_BACK * (1 - holdAmount) * (1 - sitAmount) * (1 - 0.55 * carryUp);
+    const back = FOLLOW_BACK * (1 - holdAmount) * (1 - sitAmount);
     if (!rootReady) {
       prevRoot.copy(rootPos);
       boyWorld.copy(rootPos).add(offset.clone().applyAxisAngle(up, yaw));
@@ -714,13 +706,6 @@ export function createCouple(dressColor) {
     const air = airAmount;
 
     sitAmount += ((sitting ? 1 : 0) - sitAmount) * (1 - Math.exp(-dt * 4));
-    // the ride carry: up faster than down, so stepping off is a gentle set-down rather than a drop
-    const carryRate = carryTarget > carryAmount ? 2.6 : 1.8;
-    carryAmount += (carryTarget - carryAmount) * (1 - Math.exp(-dt * carryRate));
-    if (Math.abs(carryTarget - carryAmount) < 0.0015) carryAmount = carryTarget;
-    carryUp = carryAmount;
-    // the whole couple rises with the ride; a slow bob makes the ride feel alive under them
-    const rideBob = carryAmount * (Math.sin(t * 2.1) * 0.02);
     // Walking ends a dance; a dance holds hands
     if (moving) danceId = -1;
     const dancing = danceId >= 0;
@@ -762,8 +747,7 @@ export function createCouple(dressColor) {
 
     // Princess: body bobs twice per stride and sways; her feet step under the skirt
     bodice.scale.y = 1 + 0.012 * Math.sin(t * 1.9) * idle;
-    body.position.y = Math.abs(s) * 0.04 * amount * walk + Math.sin(t * 1.6) * 0.01 * idle + bounce
-      - sitAmount * 0.09 - carryUp * 0.07 + rideBob * 0.4;
+    body.position.y = Math.abs(s) * 0.04 * amount * walk + Math.sin(t * 1.6) * 0.01 * idle + bounce - sitAmount * 0.09;
     // Fold only the skirt at its waist; the upper body keeps its natural proportions.
     skirtPose.scale.y = 1 - 0.72 * sitAmount;
     skirtPose.scale.z = 1 + 0.15 * sitAmount;
@@ -799,18 +783,10 @@ export function createCouple(dressColor) {
       const fi = fd + i * Math.PI;
       hip.rotation.x = Math.sin(fw) * 0.5 * amount * walk + Math.sin(fi) * m.legAmp * d - 0.6 * air;
       shins[i].rotation.x = 0.85 * Math.max(0, Math.cos(fw)) * amount * walk + 2 * m.legAmp * Math.max(0, Math.cos(fi)) * d + 1.0 * air;
-      // On a bench she sits upright; on a ride the knees come together and the feet tuck back, which is
-      // what a carousel horse or a wheel gondola actually asks of you.
-      const seatKnee = THREE.MathUtils.lerp(Math.PI * 0.48, Math.PI * 0.62, carryUp);
-      hip.rotation.x = THREE.MathUtils.lerp(hip.rotation.x, -seatKnee, Math.max(sitAmount, carryUp));
-      shins[i].rotation.x = THREE.MathUtils.lerp(shins[i].rotation.x, seatKnee, Math.max(sitAmount, carryUp));
-      if (carryUp > 0.01) {
-        // knees together, so she sits side-saddle rather than straddling
-        hip.rotation.z = THREE.MathUtils.lerp(hip.rotation.z, (i === 0 ? 1 : -1) * 0.12 * carryUp, 0.5);
-      }
+      hip.rotation.x = THREE.MathUtils.lerp(hip.rotation.x, -Math.PI * 0.48, sitAmount);
+      shins[i].rotation.x = THREE.MathUtils.lerp(shins[i].rotation.x, Math.PI * 0.48, sitAmount);
     });
-    boyBody.position.y = Math.abs(s) * 0.035 * amount * walk + Math.sin(t * 1.4 + 1) * 0.01 * idle + bounce
-      - 0.06 * sitAmount - 0.05 * carryUp + rideBob * 0.4;
+    boyBody.position.y = Math.abs(s) * 0.035 * amount * walk + Math.sin(t * 1.4 + 1) * 0.01 * idle + bounce - 0.06 * sitAmount;
     boyBody.rotation.z = s * 0.025 * amount * walk + m.roll * d;
     const wave = waveAmount;
     freeArm.rotation.x = -s * 0.5 * amount * (1 - wave) * walk;
@@ -878,18 +854,12 @@ export function createCouple(dressColor) {
     if (value) { danceId = -1; spinAngle = 0; }
   }
 
-  // Set down on a ride, or lifted off it. `value` is a target: 1 on the ride, 0 back on the ground.
-  function setCarried(value) {
-    carryTarget = value ? 1 : 0;
-    if (value) { danceId = -1; spinAngle = 0; }
-  }
-
   function setFlowerPose(amount) {
     flowerPose = Math.min(1, Math.max(0, amount));
   }
 
   return {
-    root, animate, setSitting, setCarried, setDress, setEnvironment, measure, feet, stride: () => phase, toggleHolding, isHolding, nextDance, danceName,
+    root, animate, setSitting, setDress, setEnvironment, measure, feet, stride: () => phase, toggleHolding, isHolding, nextDance, danceName,
     // for the flower shop: her free arm, the group a bought rose hangs from, and the pose it needs
     flowerArm: arms[1],
     bouquetGroup: handBouquet,

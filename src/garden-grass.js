@@ -2,11 +2,7 @@ import * as THREE from 'three';
 
 // Kept independent of navigation: these are visual tufts, never colliders.
 // The two trees by the lane are at x = -20.8 (see world.js), so keep their tufts off the stones.
-// The three trees that used to stand east of the lawn (15,10), (16,20) and (20,1) came out when the
-// funfair opened its lane east of the door: the path east runs at z = 3 and the fair's apron starts
-// at x = 13.5, so a tree at (15,10) or (20,1) would have stood on the fair's own ground. Nothing
-// else about the garden changed.
-const TREES = [[-11, 3], [-20.8, 24.2], [-6, 22], [-17, 18], [-12, 22], [11, 4], [9, 15], [12, 24], [-20.8, 20.4]];
+const TREES = [[-11, 3], [-20.8, 24.2], [-6, 22], [-17, 18], [-12, 22], [11, 4], [15, 10], [9, 15], [16, 20], [12, 24], [-20.8, 20.4], [20, 1]];
 const LAMPS = [[-9, 3], [9, 3], [-9, 14], [9, 14]];
 const TUFT_COUNT = 1000;
 const FLOWER_COUNT = 54;
