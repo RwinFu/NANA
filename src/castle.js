@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { castleStone } from './palette.js';
 import { stoneNormal, giltNormal, leadedGlass } from './architecture.js';
 import { stoneMaterial, tileMaterial, boxUV, cylinderUV, coneUV } from './castle-stone.js';
 import { LAYOUT } from './world.js';
@@ -100,11 +101,11 @@ function makeRoseWindowTexture() {
 export function buildCastle(scene, track) {
   // The stone carries its map in metres (see castle-stone.js), so a tower and a wall show the same
   // size blocks. The tiled roofs reuse the town's roof map, tinted.
-  const stone = track(stoneMaterial({ color: '#f2e7db', tone: 178, seed: 71, rows: 7, normal: 0.5 }));
+  const stone = track(stoneMaterial({ color: castleStone.wall, tone: 222, seed: 71, rows: 7, normal: 0.5 }));
   const stoneLight = track(new THREE.MeshStandardMaterial({ color: '#fff8f1', roughness: 0.7, normalMap: stoneNormal(2, 1), normalScale: new THREE.Vector2(0.45, 0.45) }));
-  const stoneDark = track(stoneMaterial({ color: '#c9bcb1', tone: 150, seed: 77, rows: 5, normal: 0.65 }));
-  const roof = track(tileMaterial({ color: '#e98fb1', tone: 124, seed: 81, roughness: 0.5 }));
-  const roofDeep = track(tileMaterial({ color: '#b5557a', tone: 108, seed: 85, roughness: 0.55 }));
+  const stoneDark = track(stoneMaterial({ color: castleStone.plinth, tone: 194, seed: 77, rows: 5, normal: 0.65 }));
+  const roof = track(tileMaterial({ color: '#e98fb1', tone: 168, seed: 81, roughness: 0.5 }));
+  const roofDeep = track(tileMaterial({ color: '#b5557a', tone: 152, seed: 85, roughness: 0.55 }));
   const gold = track(new THREE.MeshStandardMaterial({ color: '#f5c96a', metalness: 0.7, roughness: 0.3, normalMap: giltNormal(4, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
   const flagMat = track(new THREE.MeshStandardMaterial({ color: '#ff8fab', roughness: 0.6, side: THREE.DoubleSide }));
   // The cute layer: candy stripes, blossom, and a warmer gold for the ornaments

@@ -1,6 +1,10 @@
 import * as THREE from 'three';
 import { stoneCanvas, roofCanvas, cobbleCanvas, plasterCanvas, windowPaneCanvas, toTexture } from './town-art.js';
 import {
+  townWalls, townRoofs, townStone, townStoneLight, townTimber, townDoor, townPots, townLeaves,
+  laneKerb, laneLowWall,
+} from './palette.js';
+import {
   STREET, STREET_HALF_WIDTH, TOWN_WALL_Z, TOWN_WALL_LEN, TOWN_WALL_HEIGHT, GATE_HALF_WIDTH,
   PLAZA, GATE, CLOCK_TOWER, TOWN_HOUSES,
   clockHandAngles, isWindowLit, WINDOW_UPDATE_MS, WINDOWS_PER_UPDATE,
@@ -88,22 +92,28 @@ export function buildTown(scene, track) {
   };
 
   // Cut stone and tiles, drawn once and shared: a whole street of buildings, four textures.
-  const stoneMap = track(toTexture(stoneCanvas({ seed: 11, tone: 168 }), 2, 2));
-  const stoneMapTall = track(toTexture(stoneCanvas({ seed: 12, tone: 172 }), 1, 3));
-  const roofMap = track(toTexture(roofCanvas({ seed: 21, tone: 150 }), 3, 2));
+  const stoneMap = track(toTexture(stoneCanvas({ seed: 11, tone: 212 }), 2, 2));
+  const stoneMapTall = track(toTexture(stoneCanvas({ seed: 12, tone: 216 }), 1, 3));
+  const roofMap = track(toTexture(roofCanvas({ seed: 21, tone: 194 }), 3, 2));
   // One plaster map per house tone: mottled limewash, so a near wall is a surface, not a colour.
-  const plasterMaps = ['#4e4152', '#574a5c', '#463a4d', '#5c4f57'].map((c, i) =>
-    track(toTexture(plasterCanvas({ seed: 41 + i, tone: 150 }), 2, 2))
+  //
+  // These were '#4e4152' … '#5c4f57' — a near-black plum. Under a moon that only reaches one side
+  // of the street, every lane-facing wall came out as a black slab, and the whole town looked like
+  // a set painted over. A town at night can still be a storybook town: pastel limewash, a warm
+  // brown for the timbers, and the lamps do the rest.
+  const HOUSE_TONES = townWalls;
+  const plasterMaps = HOUSE_TONES.map((c, i) =>
+    track(toTexture(plasterCanvas({ seed: 41 + i, tone: 232 }), 2, 2))
   );
   // The glazed windows on the lane side are real panes with their own canvases, so a lit window
   // throws a warm rectangle instead of a painted dot. One lit and one dark texture are enough.
   const paneLitTex = track(toTexture(windowPaneCanvas({ seed: 7, lit: true }), 1, 1));
   const paneDarkTex = track(toTexture(windowPaneCanvas({ seed: 7, lit: false }), 1, 1));
-  const stoneMats = ['#59505f', '#645a6a', '#4f4656', '#6b6168', '#5b5350'].map((c) =>
+  const stoneMats = townStone.map((c) =>
     track(new THREE.MeshStandardMaterial({ color: c, roughness: 0.78, map: stoneMap, bumpMap: stoneMap, bumpScale: 0.06 }))
   );
-  const stoneLight = track(new THREE.MeshStandardMaterial({ color: '#7d7488', roughness: 0.8, map: stoneMapTall, bumpMap: stoneMapTall, bumpScale: 0.05 }));
-  const roofMats = ['#93476a', '#743d63', '#a05574'].map((c) =>
+  const stoneLight = track(new THREE.MeshStandardMaterial({ color: townStoneLight, roughness: 0.8, map: stoneMapTall, bumpMap: stoneMapTall, bumpScale: 0.05 }));
+  const roofMats = townRoofs.map((c) =>
     track(new THREE.MeshStandardMaterial({ color: c, roughness: 0.62, map: roofMap, bumpMap: roofMap, bumpScale: 0.04 }))
   );
   const gold = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.7, roughness: 0.35 }));
@@ -141,7 +151,7 @@ export function buildTown(scene, track) {
     const house = makeWindowTexture(Math.floor(rand() * 1e6));
     house.tex.repeat.set(Math.max(1, w / 6), Math.max(1, h / 6));
     track(house.tex);
-    const wallTone = pick(['#4e4152', '#574a5c', '#463a4d', '#5c4f57']);
+    const wallTone = pick(HOUSE_TONES);
     const plaster = plasterMaps[Math.floor(rand() * plasterMaps.length)];
     const wallMat = track(
       new THREE.MeshStandardMaterial({
@@ -179,7 +189,7 @@ export function buildTown(scene, track) {
       const faceX = x + toLane * (w / 2 + 0.03);
 
       // Half-timbering: dark beams across the wall between the floors
-      const timberMat = track(new THREE.MeshStandardMaterial({ color: '#33262f', roughness: 0.85 }));
+      const timberMat = track(new THREE.MeshStandardMaterial({ color: townTimber, roughness: 0.85 }));
       const beamH = 0.22;
       const floors = Math.max(1, Math.floor((h - 1.2) / 2.4));
       for (let f = 1; f <= floors; f += 1) {
@@ -225,7 +235,7 @@ export function buildTown(scene, track) {
       }
 
       // A door with a step and a lantern over it, on the lane side
-      const doorMat = track(new THREE.MeshStandardMaterial({ color: '#5a2f3a', roughness: 0.7 }));
+      const doorMat = track(new THREE.MeshStandardMaterial({ color: townDoor, roughness: 0.7 }));
       const door = new THREE.Mesh(track(new THREE.BoxGeometry(0.14, 2.1, 1.05)), doorMat);
       door.position.set(faceX + toLane * 0.02, 1.05, wallZ + (rand() < 0.5 ? -1 : 1) * (d / 4));
       scene.add(door);
@@ -436,14 +446,14 @@ export function buildTown(scene, track) {
     lane.position.set(STREET.x, 0.06, (STREET.z0 + STREET.z1) / 2);
     scene.add(lane);
     // kerb stones give the lane an edge instead of a painted stripe
-    const kerbMat = track(new THREE.MeshStandardMaterial({ color: '#6a6172', map: stoneMap, bumpMap: stoneMap, bumpScale: 0.04, roughness: 0.82 }));
+    const kerbMat = track(new THREE.MeshStandardMaterial({ color: laneKerb, map: stoneMap, bumpMap: stoneMap, bumpScale: 0.04, roughness: 0.82 }));
     [-1, 1].forEach((side) => {
       const kerb = new THREE.Mesh(track(new THREE.BoxGeometry(0.3, 0.22, length)), kerbMat);
       kerb.position.set(STREET.x + side * (STREET_HALF_WIDTH + 0.15), 0.11, (STREET.z0 + STREET.z1) / 2);
       scene.add(kerb);
     });
     // the square in front of the gate
-    const plazaMap = track(toTexture(cobbleCanvas({ seed: 31, tone: 124 }), 5, 5));
+    const plazaMap = track(toTexture(cobbleCanvas({ seed: 31, tone: 168 }), 5, 5));
     const plaza = new THREE.Mesh(
       track(new THREE.CircleGeometry(PLAZA.r, 40)),
       track(new THREE.MeshStandardMaterial({ color: '#cfc6dc', map: plazaMap, bumpMap: plazaMap, bumpScale: 0.05, roughness: 0.6 }))
@@ -468,9 +478,9 @@ export function buildTown(scene, track) {
   // A knee-high wall with a pot on every pier: it gives the lane a foreground line, so the houses
   // behind it read as houses instead of one long wall.
   {
-    const lowWallMat = track(new THREE.MeshStandardMaterial({ color: '#5b5262', map: stoneMap, bumpMap: stoneMap, bumpScale: 0.05, roughness: 0.85 }));
-    const potMat = track(new THREE.MeshStandardMaterial({ color: '#7a4b3c', roughness: 0.9 }));
-    const leafMat2 = track(new THREE.MeshStandardMaterial({ color: '#38624c', roughness: 0.95, flatShading: true }));
+    const lowWallMat = track(new THREE.MeshStandardMaterial({ color: laneLowWall, map: stoneMap, bumpMap: stoneMap, bumpScale: 0.05, roughness: 0.85 }));
+    const potMat = track(new THREE.MeshStandardMaterial({ color: townPots, roughness: 0.9 }));
+    const leafMat2 = track(new THREE.MeshStandardMaterial({ color: townLeaves, roughness: 0.95, flatShading: true }));
     const seg = 2.4;
     [-1, 1].forEach((side) => {
       const x = STREET.x + side * (STREET_HALF_WIDTH + 0.85);

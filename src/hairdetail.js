@@ -87,7 +87,8 @@ export function addBoyHair(head, hairMat, lightMat, headR) {
       if (ring.back && Math.abs(A) < Math.PI / 2) continue;
       if (ring.theta > 1.1 && inFront) continue; // nothing on the forehead below the hairline
       const theta = ring.theta + (j2 - 0.5) * 0.08;
-      const rr = headR + 0.012 + j2 * 0.006;
+      // sunk into the cap: a coil lying on the scalp, not a ring hovering over it
+      const rr = headR + 0.002 + j2 * 0.004;
       const p = sphPoint(rr, theta, A);
       p.y += 0.03;
       const n = p.clone().normalize();
@@ -96,7 +97,9 @@ export function addBoyHair(head, hairMat, lightMat, headR) {
       curl.quaternion.setFromUnitVectors(Z, n);
       curl.rotateZ(j2 * Math.PI * 2);
       curl.rotateX(0.5);
-      curl.scale.setScalar(0.85 + 0.3 * j1);
+      // flattened along the scalp's normal, so it is a coil pressed into the hair, not a hoop
+      const size = 0.82 + 0.26 * j1;
+      curl.scale.set(size, size, size * 0.4);
       head.add(curl);
     }
   });
