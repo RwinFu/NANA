@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import * as THREE from 'three';
 import {
-  GIFT_SECONDS, GIFT_BEATS, GIFT_LINES, NECK, NECK_POSE, giftBeat, giftProgress, giftBeatProgress,
+  GIFT_SECONDS, GIFT_BEATS, GIFT_LINES, NECK, NECK_POSE, NECK_WEAR_SCALE, giftBeat, giftProgress, giftBeatProgress,
   giftReady, necklacePose,
 } from '../src/gift.js';
 import { createNecklace } from '../src/necklace.js';
@@ -114,7 +114,11 @@ test('the necklace is in the box, then in the air, then on her neck, then it sta
 
   const landing = necklacePose(10.2, { boxAt, holdAt, neckAt });
   assert.ok(Math.abs(landing.x - neckAt.x) < 0.001, 'it is at her neck');
-  assert.ok(landing.scale === 1, 'full size');
+  // worn at her own size: she is a small character and the necklace is parented to her scaled body, so the
+  // flight has to arrive at exactly that scale or it pops bigger the instant it touches her neck
+  assert.equal(landing.scale, NECK_WEAR_SCALE, 'her size, not the world\'s');
+  assert.ok(Math.abs(necklacePose(9.79, { boxAt, holdAt, neckAt }).scale - NECK_WEAR_SCALE) < 0.02,
+    'and it is already that size when it lands, so there is no pop');
 
   // Settled: it rides her breathing now, so it is *at* her neck rather than frozen on it. The motion is
   // a couple of millimetres, which is the point - a necklace glued in place looks glued on.
@@ -152,7 +156,8 @@ test('the necklace is jewellery: a chain, a heart and a stone, and small', () =>
     const box = new THREE.Box3().setFromObject(n.group);
     const size = box.getSize(new THREE.Vector3());
     // it must fit on a neck: 30 cm across is a necklace, 3 m across is not
-    assert.ok(size.x < 0.35 && size.z < 0.35, `it is ${size.x.toFixed(2)} m wide`);
+    // 31 cm is a necklace for a character whose shoulders are about that wide; the heart will be ~4 cm
+    assert.ok(size.x < 0.42 && size.z < 0.52, `it is ${size.x.toFixed(2)} m wide`);
     assert.ok(size.y < 0.25, 'and hangs no further than a pendant');
     // the pendant hangs below the chain, which is what makes it a pendant
     assert.ok(n.heart.position.y < 0, 'the heart is below the chain');
@@ -165,10 +170,14 @@ test('the necklace is jewellery: a chain, a heart and a stone, and small', () =>
 test('the necklace sits exactly where her gold choker is', () => {
   // characters.js puts the choker at y = 1.68 and the body is scaled as a whole, so the necklace's own
   // chain has to be at that same height or it floats above her collar or cuts through her throat.
-  assert.equal(NECK.y, 1.68);
+  // her built-in choker is the torus at y = 1.68 in her body's frame; the necklace sits just under it and
+  // just outside it, so the two read as two pieces rather than fighting for the same few millimetres
+  assert.ok(NECK.y < 1.68 && NECK.y > 1.64, `the chain hangs a hair below her choker (y ${NECK.y})`);
   assert.ok(NECK.pendantY < NECK.y, 'the pendant hangs below the chain');
-  assert.ok(NECK.chainRadius > 0.1 && NECK.chainRadius < 0.16, 'a chain that fits a throat, not a barrel');
-  assert.ok(NECK.z > 0.05, 'and it sits on the front of her neck, not inside it');
+  // her throat is 0.113 at that height and her choker's outer edge is 0.137, so the chain has to be outside it
+  assert.ok(NECK.chainRadius > 0.137 && NECK.chainRadius < 0.18,
+    `a chain that clears her choker (radius ${NECK.chainRadius}), not one that sits inside her neck`);
+  assert.equal(NECK_POSE.y, NECK.y, 'and the flight lands on the same height it is worn at');
 });
 
 test('the box shuts and opens, and its lid swings rather than sliding', () => {
@@ -260,9 +269,9 @@ test('the necklace sits on her own choker, in the world, at her size', () => {
   // the choker is the ring she already wears: find it by its place in her body
   let choker = null;
   hero.dressSpace.traverse((o) => {
-    if (o.isMesh && o.geometry?.type === 'TorusGeometry' && Math.abs(o.position.y - NECK.y) < 1e-6) choker = o;
+    if (o.isMesh && o.geometry?.type === 'TorusGeometry' && Math.abs(o.position.y - 1.68) < 1e-6) choker = o;
   });
-  assert.ok(choker, 'she wears a choker at NECK.y, which is the height the necklace is built for');
+  assert.ok(choker, 'she wears a gold choker at 1.68 in her body frame');
   const chokerAt = new THREE.Vector3();
   choker.getWorldPosition(chokerAt);
   assert.ok(chokerAt.y < 1.3, `the choker is at her throat, not her root: world y ${chokerAt.y.toFixed(3)}`);
@@ -273,8 +282,9 @@ test('the necklace sits on her own choker, in the world, at her size', () => {
   hero.root.updateMatrixWorld(true);
   const wornAt = new THREE.Vector3();
   necklace.group.getWorldPosition(wornAt);
-  assert.ok(Math.abs(wornAt.y - chokerAt.y) < 0.005,
-    `it lands on the choker: ${(wornAt.y - chokerAt.y).toFixed(4)} m off`);
+  // just under her choker, by about a centimetre: two necklaces on one neck, not one welded onto the other
+  assert.ok(wornAt.y < chokerAt.y && chokerAt.y - wornAt.y < 0.02,
+    `it hangs just below the choker: ${(chokerAt.y - wornAt.y).toFixed(4)} m under it`);
   // the pendant hangs below the chain, on the front of her throat, not inside her neck
   const box = new THREE.Box3().setFromObject(necklace.group);
   assert.ok(box.min.y < chokerAt.y - 0.05, 'the pendant hangs below the chain');
@@ -329,4 +339,39 @@ test('the pendant swings out of her throat, never into it', () => {
     closest = Math.min(closest, Math.abs(heartAt.z - neck.z));
   }
   assert.ok(closest > 0.05, `the pendant stays ${closest.toFixed(3)} m in front of her throat, so it cannot clip through`);
+});
+
+test('the pendant hangs outside her bodice, not inside her dress', () => {
+  // This is the bug the close-up exposed: her bodice flares out below the neck (front face z ~0.19 where the
+  // chain sits at 0.145), so a pendant hung straight down the chain's own line is buried in the fabric. It has
+  // to hang outside the chain, and be tipped only slightly, or it reads as a U rather than a heart.
+  const hero = withCanvas(() => createCouple('#ff758f'));
+  hero.root.position.set(0, 0, 0);
+  hero.animate(1 / 60, 0, false, false);
+  hero.root.updateMatrixWorld(true);
+  const n = withCanvas(() => createNecklace((o) => o));
+  hero.dressSpace.add(n.worn);
+  n.group.position.set(0, NECK_POSE.y, NECK_POSE.z);
+  n.worn.visible = true;
+  hero.root.updateMatrixWorld(true);
+
+  const box = new THREE.Box3().setFromObject(n.heart);
+  const midY = (box.min.y + box.max.y) / 2;
+  const ray = new THREE.Raycaster();
+  const targets = [];
+  hero.dressSpace.traverse((o) => { if (o.isMesh && o.visible && !n.worn.getObjectById(o.id)) targets.push(o); });
+  const y = hero.dressSpace.worldToLocal(new THREE.Vector3(0, midY, 0)).y;
+  const from = new THREE.Vector3(0, y, 0);
+  hero.dressSpace.localToWorld(from);
+  ray.set(from, new THREE.Vector3(0, 0, 1).transformDirection(hero.dressSpace.matrixWorld));
+  ray.far = 2;
+  const hit = ray.intersectObjects(targets, false)[0];
+  const surface = hit ? hit.distance / 0.68 : NaN;
+  const rear = hero.dressSpace.worldToLocal(new THREE.Vector3(0, 0, box.min.z)).z;
+  assert.ok(Number.isFinite(surface), 'her bodice is in front of her spine, as expected');
+  assert.ok(rear - surface > 0.02,
+    `the pendant must clear her dress: it is ${((rear - surface) * 1000).toFixed(0)} mm in front of it`);
+  // and it faces the front: a heart tipped flat onto a cone is a U from the front
+  assert.ok(Math.abs(n.heart.rotation.x) < 0.5, `it is tipped ${n.heart.rotation.x} rad, which foreshortens the heart`);
+  assert.ok(box.min.y < NECK_POSE.y * 0.68, 'and it still hangs below the chain');
 });

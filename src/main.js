@@ -190,6 +190,14 @@ const giftCamFrame = { position: new THREE.Vector3(), look: new THREE.Vector3(),
 const giftCamFrom = new THREE.Vector3();
 const giftCamLookFrom = new THREE.Vector3();
 const giftCamLook = new THREE.Vector3();
+// The walking camera's own pose for this frame, { x, y, z, focusY }, recorded straight after controls.update.
+const giftWalkPose = { x: 0, y: 0, z: 0, focusY: 1.7 };
+function recordWalkPose() {
+  giftWalkPose.x = camera.position.x;
+  giftWalkPose.y = camera.position.y;
+  giftWalkPose.z = camera.position.z;
+  giftWalkPose.focusY = controls.focus.y;
+}
 const giftBoxAt = new THREE.Vector3();
 const giftHoldAt = new THREE.Vector3();
 let introSparkleLevel = 0;
@@ -801,11 +809,7 @@ function finishGift() {
 // last pose is the walking camera's pose, so the way back has nothing to travel either.
 function placeGiftCamera(dt) {
   if (!gift) return;
-  // The film does not cut in. It is composed in front of her while the walking camera is already looking
-  // at her, so the first frame is a small change of angle and not a jump across the garden: the handover
-  // is a turn of the head, and `giftCameraBlend` then brings the film's own framing up over 0.75 s.
-  const glide = 1 - Math.exp(-dt * 6.5);
-  const blend = giftCameraBlend(gift.t) * glide;
+  const blend = giftCameraBlend(gift.t);
   if (!gift.fromCaptured) {
     // The pose the walking camera was at when the film began: the blend's starting point. Captured once
     // and then left alone -- re-reading it every frame would make the blend chase its own output.
@@ -814,10 +818,22 @@ function placeGiftCamera(dt) {
     giftCamLookFrom.copy(giftCameraLookFrom());
     giftCamLook.copy(giftCamLookFrom);
   }
-  const frame = giftCamera(gift.t, { x: hero.root.position.x, z: hero.root.position.z, yaw: hero.root.rotation.y },
-    introFairy.returning ? introFairy.position : null,
-    gift.t >= 9.8 ? giftNeck : null,
-    giftCamFrame);
+  // The film is framed against her real throat and against the *walking* camera it takes over from and hands
+  // back to, both measured this frame. That camera's pose has to be the one the walk put there before the film
+  // touched it: `giftWalkPose` is copied from it right after controls.update, never from the film's own
+  // output, which would feed the film back into itself.
+  const frame = giftCamera(gift.t, {
+    x: hero.root.position.x,
+    z: hero.root.position.z,
+    yaw: hero.root.rotation.y,
+    neckY: giftNeckY(),
+    focusY: giftWalkPose.focusY,
+    follow: giftWalkPose,
+  },
+  introFairy.returning ? introFairy.position : null,
+  gift.t >= 9.8 ? giftNeck : null,
+  giftCamFrame);
+  if (blend <= 0) return; // the walking camera has the view back: do not write over it
   camera.position.lerpVectors(giftCamFrom, frame.position, blend);
   giftCamLook.copy(giftCamLookFrom).lerp(frame.look, blend);
   camera.lookAt(giftCamLook);
@@ -825,6 +841,14 @@ function placeGiftCamera(dt) {
   camera.rotateZ(frame.roll * blend);
   // the soft aperture: a vignette while the film is tight on her, gone when it is wide
   setGiftVignette(frame.closeness * blend);
+}
+
+// Where her throat is in the world, this frame, straight off her own body.
+const giftNeckWorld = new THREE.Vector3();
+function giftNeckY() {
+  giftNeckWorld.set(0, NECK_POSE.y, 0);
+  hero.dressSpace.localToWorld(giftNeckWorld);
+  return giftNeckWorld.y;
 }
 
 // The look target the follow camera is using right now, so the film's blend starts from the same frame.
@@ -1261,6 +1285,7 @@ function frame() {
     // The present's camera. While the film owns the view, the follow camera still updates underneath it
     // (so its own easing never jumps when the film hands back) but the camera is placed by the film.
     if (!letterView || letterView.phase === 'out') controls.update(dt);
+    if (gift) recordWalkPose();
     placeGiftCamera(dt);
     // The letter's own clock is behind the camera's: it only starts when onOpened fires, so the wax
     // breaks before the camera has finished arriving and the paper comes out under it, not after it.

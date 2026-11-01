@@ -35,7 +35,9 @@ export function createNecklace(track = (o) => o) {
   // ---- the chain ------------------------------------------------------------
   // A ring of small links: one torus would look like a wire hoop, so the chain is a thin torus for its
   // body plus a row of tiny beads, which is what makes it catch the light as it turns.
-  const chain = new THREE.Mesh(track(new THREE.TorusGeometry(NECK.chainRadius, 0.0075, 8, 48)), gold);
+  // A little thicker than jewellery-scale, because at the size these characters are drawn a true-scale chain
+  // is a hairline that reads as a drawing artefact rather than as gold.
+  const chain = new THREE.Mesh(track(new THREE.TorusGeometry(NECK.chainRadius, 0.0098, 10, 64)), gold);
   chain.rotation.x = Math.PI / 2;
   group.add(chain);
   const beadGeo = track(new THREE.SphereGeometry(0.0105, 8, 6));
@@ -65,29 +67,41 @@ export function createNecklace(track = (o) => o) {
   heart.name = 'necklace-heart';
   // the pendant hangs from a short length of chain, on the front of her throat
   const drop = new THREE.Mesh(track(new THREE.CylinderGeometry(0.005, 0.005, 0.05, 6)), gold);
-  drop.position.set(0, -0.028, 0);
+  drop.position.set(0, 0.036, -0.004);
   heart.add(drop);
 
   const heartShape = new THREE.Shape();
   {
-    // a heart in a 1 x 1 box, point down, written as one smooth curve
-    const s = 0.052;
+    // A proper heart in a 1 x 1 box, point down: two lobes over a notch, then down to the point. (The first
+    // version's control points flattened the lobes into a blob, which is what it looked like on her chest.)
+    const s = 0.062;
     heartShape.moveTo(0, -0.5 * s);
-    heartShape.bezierCurveTo(-0.55 * s, -0.05 * s, -0.5 * s, 0.45 * s, 0, 0.32 * s);
-    heartShape.bezierCurveTo(0.5 * s, 0.45 * s, 0.55 * s, -0.05 * s, 0, -0.5 * s);
+    heartShape.bezierCurveTo(-0.42 * s, -0.22 * s, -0.62 * s, 0.22 * s, -0.30 * s, 0.34 * s);
+    heartShape.bezierCurveTo(-0.12 * s, 0.42 * s, 0, 0.24 * s, 0, 0.16 * s); // the notch
+    heartShape.bezierCurveTo(0, 0.24 * s, 0.12 * s, 0.42 * s, 0.30 * s, 0.34 * s);
+    heartShape.bezierCurveTo(0.62 * s, 0.22 * s, 0.42 * s, -0.22 * s, 0, -0.5 * s);
   }
-  const outlinePts = heartShape.getPoints(48);
-  const outline = new THREE.BufferGeometry().setFromPoints(outlinePts.map((p) => new THREE.Vector3(p.x, p.y, 0)));
-  heart.add(new THREE.Line(outline, track(new THREE.LineBasicMaterial({ color: '#ffe0a6', transparent: true, opacity: 0.95 }))));
-  // the outline again, as a real tube, so it has thickness at arm's length
+  // A *solid* gold heart, not just its outline: at this size an openwork pendant is a few pixels wide and
+  // reads as a smudge. It is extruded thin with a bevel, so it catches a highlight along its edge.
   {
-    const curve = new THREE.CatmullRomCurve3(outlinePts.map((p) => new THREE.Vector3(p.x, p.y, 0)), true);
-    heart.add(new THREE.Mesh(track(new THREE.TubeGeometry(curve, 56, 0.0055, 6, true)), gold));
+    const plate = new THREE.ExtrudeGeometry(heartShape, {
+      depth: 0.012, bevelEnabled: true, bevelThickness: 0.004, bevelSize: 0.004, bevelSegments: 2, curveSegments: 13,
+    });
+    plate.center();
+    const solid = new THREE.Mesh(track(plate), gold);
+    solid.name = 'necklace-heart-plate';
+    heart.add(solid);
   }
-  // the stone, a small faceted drop inside the heart
-  const gem = new THREE.Mesh(track(new THREE.OctahedronGeometry(0.017, 1)), stone);
+  // a raised rim around it, so the edge glints
+  {
+    const outlinePts = heartShape.getPoints(40);
+    const curve = new THREE.CatmullRomCurve3(outlinePts.map((p) => new THREE.Vector3(p.x, p.y, 0.008)), true);
+    heart.add(new THREE.Mesh(track(new THREE.TubeGeometry(curve, 48, 0.005, 6, true)), goldLight));
+  }
+  // the stone, a faceted drop set into the middle of the gold
+  const gem = new THREE.Mesh(track(new THREE.OctahedronGeometry(0.019, 1)), stone);
   gem.name = 'necklace-stone';
-  gem.position.set(0, 0.002, 0);
+  gem.position.set(0, 0.004, 0.012);
   heart.add(gem);
   const spark = new THREE.Mesh(track(new THREE.SphereGeometry(0.0055, 8, 6)), stoneLight);
   spark.position.set(-0.004, 0.008, 0.012);
@@ -96,10 +110,20 @@ export function createNecklace(track = (o) => o) {
   // put. Rotating the whole necklace would spin the hoop round her throat, which is not what gold does.
   const pendantPivot = new THREE.Group();
   pendantPivot.name = 'necklace-pendant-pivot';
-  pendantPivot.position.set(0.004, -0.02, NECK.chainRadius * 0.9);
+  // The pendant hangs from the *front* of the ring, not from its centre: hung from the middle it drops
+  // straight into her bodice.
+  pendantPivot.position.set(0, -0.012, NECK.chainRadius * 0.94);
   group.add(pendantPivot);
-  heart.position.set(0, -0.042, 0);
-  heart.rotation.x = -0.12; // it lies against her throat instead of standing up off it
+  // It hangs down the *front*: her bodice surface is at z ~= 0.21 here, so the pendant is offset forward of
+  // the chain's own ring and tipped to lie on the fabric. Hung straight down from the ring it ended up
+  // inside her throat, which is exactly what it looked like.
+  // It hangs *in front of the chain*, and only slightly tipped. Her bodice flares out below the neck -- its
+  // front face is at z ~0.19 while the chain sits at 0.145 -- so a pendant hung down the chain's own line is
+  // always inside the fabric. Hanging it outside the chain (which is how the gold actually lies on a neck) and
+  // tipping it only ~20 degrees keeps the heart's face toward the camera, so it reads as a heart and not as a
+  // foreshortened U.
+  heart.position.set(0, -0.105, 0.185);
+  heart.rotation.x = -0.34;
   pendantPivot.add(heart);
 
   // A tiny gold hook where the pendant meets the chain

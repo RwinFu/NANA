@@ -93,11 +93,14 @@ test('the film owns the camera while it runs, and hands it back untouched', () =
   // below the dialogs and the curtain: this is scenery, not UI
   assert.match(css, /\.gift-vignette[\s\S]{0,400}z-index:\s*\d/, 'and a place in the stack');
 });
-test('the film does not cut in from the far side of the garden', () => {
-  // the follow camera is 4.3 m behind her; the film's first frame is composed in front of her. A straight
-  // lerp between the two at a fixed 0.75 s would put a three-metre step in the first frames, so the blend
-  // is eased exponentially against the frame time: the first frame is a turn of the head.
-  assert.match(main, /const glide = 1 - Math\.exp\(-dt \* 6\.5\);/);
-  assert.match(main, /const blend = giftCameraBlend\(gift\.t\) \* glide;/);
-  assert.match(main, /shot: 'find' \}/, 'the frame buffer it fills is allocated once, not per frame');
+test('the film opens on the walking camera, not on a flight to the other side of her', () => {
+  // It reads the walking camera's pose straight after controls.update, so the first frame of the film and the
+  // last frame of the walking camera are the same view; and it reads it *before* it writes its own output,
+  // or the film would feed itself back through its own follow pose.
+  assert.match(main, /if \(gift\) recordWalkPose\(\);/, 'the walking pose is recorded each frame');
+  const walkAt = main.search(/if \(gift\) recordWalkPose\(\);/);
+  const placeAt = main.search(/^\s+placeGiftCamera\(dt\);$/m);
+  assert.ok(walkAt > 0 && placeAt > walkAt, 'and recorded before the film is placed');
+  assert.match(main, /follow: giftWalkPose/, 'the film is handed that pose, not its own last frame');
+  assert.match(main, /if \(blend <= 0\) return;/, 'and once it has handed back it stops writing to the camera');
 });

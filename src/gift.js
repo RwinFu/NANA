@@ -61,11 +61,18 @@ export function giftReady({ wasInside, isOutside, alreadyGiven, sceneActive }) {
 // y = 1.68 and the body is scaled as a whole (see characters.js), so the pendant hangs a little under
 // that, on the front of her throat. The chain's own centre is the choker's height. main.js holds the same
 // two numbers as NECK_Y / NECK_Z for placing the group; tests/gift.test.js keeps them in step.
-export const NECK = { y: 1.68, pendantY: 1.53, z: 0.13, chainRadius: 0.128 };
+// Measured off her rig, not guessed. Her neck is a short cone: radius 0.113 at y 1.68 (which is exactly where
+// her built-in gold choker sits, outer edge 0.137) and already 0.21 by y 1.66, where the bodice and its pearl
+// collar begin. So the necklace has to be *just* outside the choker and a hair below it, and the pendant has
+// to hang forward of the bodice's front face (z ~0.21) or it ends up inside her dress.
+export const NECK = { y: 1.666, pendantY: 1.53, z: 0.15, chainRadius: 0.145 };
 // Where the whole necklace goes when she wears it: the chain's centre, in her *body's* frame (the frame
 // the gold choker is built in, characters.js y = 1.68). One number, used by the flight's landing point and
 // by the code that mounts it, so the two cannot disagree.
-export const NECK_POSE = { y: NECK.y, z: 0.115 };
+export const NECK_POSE = { y: NECK.y, z: 0.0 };
+// She wears the necklace at her own size: it is parented to her body, which is scaled by this. The flight has
+// to shrink to exactly this before it lands, or the necklace pops 32% bigger the instant it touches her neck.
+export const NECK_WEAR_SCALE = 0.68;
 
 // The three poses the necklace passes through, as a function of the scene's time:
 //   in the box   (before 'lift')   — small, still, hidden inside the lid
@@ -103,7 +110,7 @@ export function necklacePose(t, { boxAt, neckAt, holdAt }) {
     at.x += (neckAt.x - holdAt.x) * n;
     at.y += (neckAt.y - holdAt.y) * n;
     at.z += (neckAt.z - holdAt.z) * n;
-    at.scale = Math.min(1, 0.15 + k * 2.4);
+    at.scale = Math.min(NECK_WEAR_SCALE, 0.15 + k * 2.4);
     at.spin = t * 2.4;
     return at;
   }
@@ -116,7 +123,7 @@ export function necklacePose(t, { boxAt, neckAt, holdAt }) {
     at.x = neckAt.x;
     at.y = neckAt.y + (1 - e) * 0.05;
     at.z = neckAt.z;
-    at.scale = 1;
+    at.scale = NECK_WEAR_SCALE;
     // a damped swing, in radians, on the pendant's own axis
     const damp = Math.exp(-k * 3.4);
     at.spin = Math.sin(k * 9.2) * 0.48 * damp;
@@ -128,7 +135,7 @@ export function necklacePose(t, { boxAt, neckAt, holdAt }) {
   at.x = neckAt.x;
   at.y = neckAt.y + Math.sin(t * 1.35) * 0.0018;
   at.z = neckAt.z + Math.sin(t * 1.1 + 0.6) * 0.0012;
-  at.scale = 1;
+  at.scale = NECK_WEAR_SCALE;
   at.spin = Math.sin(t * 1.15) * 0.02;
   at.swing = at.spin;
   void inAir;

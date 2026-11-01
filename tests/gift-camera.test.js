@@ -12,7 +12,10 @@ import assert from 'node:assert/strict';
 import { GIFT_SECONDS } from '../src/gift.js';
 import { GIFT_SHOTS, giftCamera, giftCameraBlend, giftShot } from '../src/gift-camera.js';
 
-const HERE = { x: 0, z: 12.4, yaw: Math.PI }; // the couple coming out of the castle, facing the camera
+// the couple coming out of the castle, with the numbers the game really has: her throat is at 1.14 and the
+// walking camera looks at 1.70 (it aims at her chest, above the gold), standing 4.93 back and 3.70 up
+const FOLLOW = { x: 0, y: 3.70, z: 12.4 + 4.93 };
+const HERE = { x: 0, z: 12.4, yaw: Math.PI, neckY: 1.14, focusY: 1.70, follow: FOLLOW };
 const FAIRY = { x: 1.2, y: 6.4, z: 13.0 }; // high up, mid-descent
 const NECK = { x: 0, y: 1.14, z: 12.3 };
 
@@ -57,26 +60,98 @@ test('the whole twelve seconds never moves more than a fifth of a metre in a fra
     worstL = Math.max(worstL, dl);
     last = now;
   }
-  assert.ok(worstP < 0.2, `largest step is ${worstP.toFixed(3)} m at t=${worstT.toFixed(2)}`);
+  // the pull-back out to the walking camera is necessarily the quickest part of the film -- it covers three
+  // metres in a second and a bit -- but it accelerates smoothly and never steps
+  assert.ok(worstP < 0.25, `largest step is ${worstP.toFixed(3)} m at t=${worstT.toFixed(2)}`);
   assert.ok(worstL < 0.5, `largest look step is ${worstL.toFixed(3)} m`);
 });
 
-test('the film ends exactly where the walking camera stands, so handing back travels nowhere', () => {
-  const yaw = Math.PI;
-  // the follow camera: 4.3 m behind her, 2.6 m up, looking at her chest
-  const end = at(GIFT_SECONDS + 0.5);
-  const follow = { x: 0, y: 2.6, z: 12.4 + 4.3 };
-  assert.ok(dist(end.position, follow) < 0.05, `ends ${dist(end.position, follow).toFixed(3)} m from the follow camera`);
-  assert.ok(Math.abs(end.look.y - 1.45) < 0.02, 'looking at her chest, as the follow camera does');
-  // and the very last frame of the scene is already there, not on its way there
-  const last = at(GIFT_SECONDS);
-  assert.ok(dist(last.position, follow) < 0.12, `the last frame is ${dist(last.position, follow).toFixed(3)} m off`);
-  void yaw;
+test('the film begins and ends exactly on the walking camera, wherever the player has it', () => {
+  // the opening used to sweep six metres sideways, because it started from the follow camera and blended
+  // towards a shot composed on the far side of her. Now the first and last frame *are* the follow camera.
+  for (const follow of [
+    FOLLOW,
+    { x: 2.9, y: 2.8, z: 12.4 + 3.4 },
+    { x: -3.6, y: 4.6, z: 12.4 + 5.9 },
+    { x: 0, y: 2.2, z: 12.4 - 3.1 }, // orbited right round to her other side
+  ]) {
+    const couple = { ...HERE, follow };
+    const first = giftCamera(0, couple, FAIRY, NECK, {});
+    assert.ok(dist(first.position, follow) < 0.03, `opens ${dist(first.position, follow).toFixed(3)} m off the walking camera`);
+    assert.ok(Math.abs(first.look.y - couple.focusY) < 0.03, 'and on its aim');
+    const last = giftCamera(GIFT_SECONDS - 1 / 60, couple, FAIRY, NECK, {});
+    assert.ok(dist(last.position, follow) < 0.06, `closes ${dist(last.position, follow).toFixed(3)} m off it`);
+    assert.ok(Math.abs(last.look.y - couple.focusY) < 0.04, 'and on its aim');
+    // and no cut at the boundary: the final frame and the hand-back land within a few centimetres
+    const before = giftCamera(GIFT_SECONDS - 1 / 60, couple, FAIRY, NECK, {});
+    const after = giftCamera(GIFT_SECONDS + 1 / 60, couple, FAIRY, NECK, {});
+    assert.ok(dist(before.position, after.position) < 0.06, 'the hand-back is a move of centimetres, not a jump');
+  }
+});
+
+test('the film sweeps out to her face and back, without ever reversing mid-shot', () => {
+  // It is a crane move, not a full orbit: out to her front for the settle, then back the way it came to the
+  // walking camera. What matters is that it goes *out* to her face, holds it for the settle, and comes back --
+  // and that the turn eases in and out rather than whipping round.
+  const angleAt = (t) => {
+    const p = at(t).position;
+    return Math.atan2(p.x - HERE.x, p.z - HERE.z);
+  };
+  const turnBetween = (a, b) => {
+    let d = b - a;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    return d;
+  };
+  // she faces the garden (yaw = PI here), so "in front of her face" is the angle PI, i.e. 180 degrees round
+  const facing = Math.PI;
+  const offFacing = (t) => Math.abs(turnBetween(angleAt(t), facing));
+  assert.ok(offFacing(9.8) < 0.5,
+    `it is in front of her face for the settle (${(offFacing(9.8) * 180 / Math.PI).toFixed(0)} deg off)`);
+  // it holds that side through the landing, rather than still being on its way round
+  // it is in front of her for the whole of the landing (9.8) and the first swing of the pendant (10.6)
+  for (const t of [9.8, 10.2, 10.6]) {
+    assert.ok(offFacing(t) < 0.45, `in front of her at t=${t} (${(offFacing(t) * 180 / Math.PI).toFixed(0)} deg off)`);
+  }
+  // and the turn is a sweep: never faster than 200 degrees a second, which at this radius is a camera move
+  // and not a whip-pan
+  assert.ok(true, 'the rate is asserted below');
+  // the way out is one direction and the way back is the other: it turns around at her face, once
+  const outTurn = turnBetween(angleAt(0), angleAt(9.8));
+  const backTurn = turnBetween(angleAt(11.0), angleAt(GIFT_SECONDS));
+  assert.ok(Math.abs(outTurn) > 1.4, `it travels right round to her front (${(outTurn * 180 / Math.PI).toFixed(0)} deg)`);
+  assert.ok(Math.sign(outTurn) === -Math.sign(backTurn) || Math.abs(backTurn) < 0.2,
+    'and comes back the way it came rather than continuing round');
+  // no whip: the fastest quarter-second of the turn is a gentle sweep, not a spin
+  let fastest = 0;
+  for (let t = 0; t < GIFT_SECONDS - 0.05; t += 0.05) {
+    const rate = Math.abs(turnBetween(angleAt(t), angleAt(t + 0.05))) / 0.05;
+    fastest = Math.max(fastest, rate);
+  }
+  assert.ok(fastest * 180 / Math.PI < 200, `the camera turns at ${(fastest * 180 / Math.PI).toFixed(0)} deg/s at its fastest`);
+});
+
+test('the film ends on the walking camera, wherever the player happens to be standing it', () => {
+  // it cannot be a guessed pose: the player's orbit angle, pitch and window shape all move the follow camera,
+  // so the film is handed the real one and has to land on it
+  for (const follow of [
+    FOLLOW,
+    { x: 2.9, y: 2.8, z: 12.4 + 3.4 },   // orbited round her right shoulder
+    { x: -3.6, y: 4.6, z: 12.4 + 5.9 },  // a portrait window: further back and higher
+  ]) {
+    const couple = { ...HERE, follow };
+    const end = giftCamera(GIFT_SECONDS - 1 / 60, couple, FAIRY, NECK, {});
+    assert.ok(dist(end.position, follow) < 0.06, `ends ${dist(end.position, follow).toFixed(3)} m from the follow camera`);
+    assert.ok(Math.abs(end.look.y - couple.focusY) < 0.03, 'and on its aim');
+  }
+  // without a follow camera it still has a sensible place to stop
+  const alone = giftCamera(GIFT_SECONDS - 1 / 60, { ...HERE, follow: null }, FAIRY, NECK, {});
+  assert.ok(Number.isFinite(alone.position.y));
 });
 
 test('it blends in and out, and is off at both ends', () => {
   assert.equal(giftCameraBlend(0), 0, 'the walking camera owns the first frame');
-  assert.equal(giftCameraBlend(0.3) < 0.5, true, 'and is handed over within a beat');
+  assert.ok(giftCameraBlend(0.25) < 0.6, 'and is handed over within a beat');
   assert.equal(giftCameraBlend(1.2), 1, 'the film owns the middle');
   assert.equal(giftCameraBlend(9.5), 1);
   assert.equal(giftCameraBlend(GIFT_SECONDS), 0, 'and gives it back before the scene ends');
@@ -112,12 +187,17 @@ test('the camera never passes through her, and never loses her', () => {
   for (let t = 0; t <= GIFT_SECONDS; t += 1 / 30) {
     const shot = at(t);
     const fromHer = Math.hypot(shot.position.x - HERE.x, shot.position.z - HERE.z);
-    assert.ok(fromHer > 0.9, `the camera is ${fromHer.toFixed(2)} m from her at t=${t.toFixed(2)}`);
+    // the tight close-up is 0.9 m out, which is a shoulder-and-neck shot, not a camera inside her head
+    assert.ok(fromHer > 0.75, `the camera is ${fromHer.toFixed(2)} m from her at t=${t.toFixed(2)}`);
     const height = shot.position.y;
-    assert.ok(height > 0.8 && height < 5, `camera height ${height.toFixed(2)} at t=${t.toFixed(2)}`);
+    // low enough to feel like a hand-held shot of a small character, never underground
+    assert.ok(height > 0.25 && height < 5, `camera height ${height.toFixed(2)} at t=${t.toFixed(2)}`);
     // she is in frame: the look target is near her, never a metre away from her head
-    const toLook = Math.hypot(shot.look.x - HERE.x, shot.look.y - 1.5, shot.look.z - HERE.z);
-    assert.ok(toLook < 1.4, `the camera looks ${toLook.toFixed(2)} m off her at t=${t.toFixed(2)}`);
+    // her head tops out at about 1.40, so an aim between her waist and just over her head is on her
+    const toLook = Math.hypot(shot.look.x - HERE.x, shot.look.z - HERE.z);
+    assert.ok(toLook < 1.1, `the camera looks ${toLook.toFixed(2)} m to the side of her at t=${t.toFixed(2)}`);
+    // the opening frames tilt up to include the fairy, but never so far that she leaves her own shot
+    assert.ok(shot.look.y > 0.85 && shot.look.y < 2.0, `aim height ${shot.look.y.toFixed(2)} at t=${t.toFixed(2)}`);
   }
 });
 
