@@ -7,6 +7,7 @@ import './style.css';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { allMemories, defaults, letterParagraphs, soloVideo } from './memories.js';
+import { RIDE_INFO, rideInReach, rideCameraPath, rideLine, FAIR_ARRIVAL, FAIR_HINT } from './fair-rides.js';
 import { createStore, formatNumber } from './state.js';
 import { buildWorld, LAYOUT } from './world.js';
 import { createCouple } from './characters.js';
@@ -529,6 +530,17 @@ function tapFrame(ndc) {
       return;
     }
   }
+  if (world.fair && !ride) {
+    const id = nearRide();
+    if (id) {
+      // a tap on the ride itself, from where the couple stand, is a yes
+      const hits = raycaster.intersectObject(world.fair.group, true);
+      if (hits.length && hits[0].distance < 14) {
+        startRide(id);
+        return;
+      }
+    }
+  }
   if (world.flowers && nearFlowerShop()) {
     const shopHits = raycaster.intersectObject(world.flowers.shop.group, true);
     if (shopHits.length && shopHits[0].distance < world.flowers.radius + 2.5) {
@@ -639,6 +651,71 @@ function checkTownWalk() {
   }, 9000);
 }
 
+// ---------- the funfair east of the castle --------------------------------
+
+// The couple stand at the foot of a ride and the camera is handed to it; the ride's own speed picks up
+// while they are on it, and comes back down when they are off. Nothing here locks input for longer than
+// the turn, and Escape, the walk keys or any dialog all get the camera back.
+let ride = null; // { id, t, duration }
+let ridesTaken = 0;
+let rideCookie = 0;
+let fairSeen = false;
+
+function nearRide() {
+  if (!world?.fair || !controls || ride) return null;
+  return rideInReach(controls.position.x, controls.position.z);
+}
+
+function startRide(id) {
+  if (!world?.fair || !controls || ride || !RIDE_INFO[id]) return;
+  const info = RIDE_INFO[id];
+  const from = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
+  const path = rideCameraPath(id, from);
+  // The couple are actually carried: the ride hands over its own seat every frame, and they are lifted
+  // onto it and set down from it. The seat is read from the world, so a wheel carries them up and back
+  // down, and the horse turns with the carousel.
+  const seat = (progress, out) => (world.fair.seatPosition ? world.fair.seatPosition(id, out, progress) : null);
+  world.fair.takeRide(id);
+  controls.startRide(path, info.seconds, seat);
+  ride = { id, t: 0, duration: info.seconds };
+  hero.setSitting(false);
+  hero.setCarried(true);
+  audio.chime(info.freq);
+  dom.prompt.hidden = true;
+}
+
+function finishRide() {
+  if (!ride) return;
+  const { id } = ride;
+  ride = null;
+  controls.endRide();
+  hero.setCarried(false);
+  world.fair.leaveRide();
+  ridesTaken += 1;
+  toast(rideLine(id, ridesTaken), 4200);
+  world.burstHearts(new THREE.Vector3(world.fair.asks[id].x, 1.5, world.fair.asks[id].z), 4);
+  audio.chime(RIDE_INFO[id].freq * 1.25);
+  updatePrompt();
+}
+
+function updateRide(dt) {
+  if (!ride) return;
+  ride.t += dt;
+  // A turn is a short film. It ends by itself, or the moment anyone asks to walk: the walk keys are
+  // read by the controls, which report back that a turn was interrupted rather than swallowing the press.
+  if (ride.t >= ride.duration || controls.rideCancelled || anyDialogOpen() || letterView) finishRide();
+}
+
+// The fair is announced once, the first time the couple walk onto its ground.
+function checkFairArrival() {
+  if (!world?.fair || !controls || fairSeen) return;
+  if (!world.fair.isNear(controls.position.x, controls.position.z, 16)) return;
+  fairSeen = true;
+  toast(FAIR_ARRIVAL, 6000);
+  window.setTimeout(() => { if (!anyDialogOpen()) toast(FAIR_HINT, 5200); }, 6200);
+  audio.chime(783.99);
+}
+
 // ---------- the flower shop at the end of the walk ------------------------
 
 function nearFlowerShop() {
@@ -692,10 +769,21 @@ function updatePrompt() {
     dom.prompt.hidden = true;
     return;
   }
+  // On a ride the prompt becomes the way off it, so a phone always has an exit that is not a timer.
+  if (ride) {
+    promptTarget = { type: 'disembark' };
+    dom.promptLabel.textContent = 'پیاده شدن';
+    dom.prompt.hidden = false;
+    return;
+  }
   nearFrame = nearestFrame();
   if (benchSeated || controls.isNear(GARDEN_BENCH.x, GARDEN_BENCH.z, 2.5)) {
     promptTarget = { type: 'bench' };
     dom.promptLabel.textContent = benchSeated ? 'بلند شدن' : 'کنار هم بشینیم';
+  } else if (nearRide()) {
+    const id = nearRide();
+    promptTarget = { type: 'ride', id };
+    dom.promptLabel.textContent = RIDE_INFO[id].invite;
   } else if (nearFlowerShop()) {
     promptTarget = { type: 'flowers' };
     const left = world.flowers.shop.remaining;
@@ -729,6 +817,10 @@ function interact() {
     openVideo();
   } else if (promptTarget.type === 'flowers') {
     buyFlower();
+  } else if (promptTarget.type === 'ride') {
+    startRide(promptTarget.id);
+  } else if (promptTarget.type === 'disembark') {
+    finishRide();
   }
 }
 dom.promptBtn.addEventListener('click', interact);
@@ -748,6 +840,9 @@ window.addEventListener('keydown', (event) => {
     cycleDance();
   } else if (event.code === 'KeyH') {
     openDialog(dom.help);
+  } else if (event.code === 'Escape' && ride) {
+    event.preventDefault();
+    finishRide();
   }
 });
 
@@ -1109,8 +1204,10 @@ function frame() {
   // The couple stands still while the letter is being opened and read, and so do the effects that
   // follow their feet: they follow the couple's movement, not the camera's.
   const frozen = !!letterView && letterView.phase !== 'out';
-  const walking = started && controls.moving && !frozen;
-  hero.animate(dt, t, walking, controls.airborne);
+  // On a ride they are carried, not walking: the walk cycle must be off, or their legs keep stepping
+  // while they sit, which is the single most obvious way a "riding" animation can look broken.
+  const walking = started && controls.moving && !frozen && !ride;
+  hero.animate(dt, t, walking, controls.airborne && !ride);
   cats?.update(dt, t, hero, started, benchSeated, { intro: introPlaying, doorOpen: world.frontDoorOpen });
   syncCoupleUi();
   trail?.update(dt, hero.root.position, walking, camera);
@@ -1138,8 +1235,10 @@ function frame() {
     }
     lastDoorZ = hz;
   }
+  if (started) updateRide(dt);
   if (started) updatePrompt();
   if (started) checkTownWalk();
+  if (started) checkFairArrival();
 
   adaptQuality(dt);
   renderer.render(scene, camera);

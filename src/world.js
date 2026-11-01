@@ -7,6 +7,7 @@ import { stoneMaterial, boxUV } from './castle-stone.js';
 import { createRugGlint, createStoneGlint } from './rugglint.js';
 import { stoneNormal, doorNormal, giltNormal, ribbonNormal, heartGlass } from './architecture.js';
 import { buildTown } from './town.js';
+import { buildFair } from './fair.js';
 import { advanceHallProgress } from './house-reactivity.js';
 import { outdoorNormal } from './outdoor-textures.js';
 import { roomFrameSlot, hallFrameSlot } from './room-frame-layout.js';
@@ -1139,10 +1140,12 @@ export function buildWorld(scene, camera) {
   const leafBlossom = new THREE.MeshStandardMaterial({ color: '#e7a0b8', roughness: 0.9, flatShading: true });
   // The lane to town leaves the garden at x = -19, so the two west trees move out of its way and
   // stand as its gateway instead.
+  // The three trees that stood east of the lawn came out when the fair's lane opened: the path east
+  // runs on z = 3 and the fair's own ground starts at x = 13.5, so (11,4), (15,10) and (20,1) would
+  // have stood on the way to the fair. Everything else about the garden is unchanged.
   const treeSpots = [
     [-11, 3], [-20.8, 24.2], [-6, 22], [-17, 18], [-12, 22],
-    [11, 4], [15, 10], [9, 15], [16, 20], [12, 24],
-    [-20.8, 20.4], [20, 1],
+    [9, 15], [12, 24], [-20.8, 20.4],
   ];
   // Alternate whole trees, in path order on each side rather than array order.
   const pinkTreeIndices = new Set();
@@ -1289,6 +1292,8 @@ export function buildWorld(scene, camera) {
   // at the end of the walk without ever standing in it. Built here because here is where the town's
   // ground and its walls are made, and it needs to sit on that square, not float over the grass.
   const flowerShop = buildFlowerShop(scene, track);
+  // The funfair east of the castle, at the end of the lane that leaves the garden by its east side.
+  const fair = buildFair(scene, track);
 
   // Hanging lanterns in the hall
   const lanternCount = 64;
@@ -1833,6 +1838,7 @@ export function buildWorld(scene, camera) {
     castle.update(t, dt);
     town.update(t, dt); // the clock and the town's windows keep their own, slow time
     flowerShop.update(t); // the awning, the lantern and the shopkeeper
+    fair.update(dt); // the wheel, the carousel, the boats and every lamp in the fair
     clouds.forEach(({ cloud, x, phase }) => { cloud.position.x = x + Math.sin(t * 0.025 + phase) * 2; });
     // Slow, subtle movement shared across the garden canopy and chandeliers.
     swayingLeaves.forEach(({ leaf, phase, baseX }) => {
@@ -1962,6 +1968,23 @@ export function buildWorld(scene, camera) {
       radius: flowerShop.radius,
       isNear(x, z) {
         return Math.hypot(x - flowerShop.buyAt.x, z - flowerShop.buyAt.z) <= flowerShop.radius;
+      },
+    },
+    // The funfair east of the castle: where to stand for each ride, and its own ground
+    fair: {
+      asks: fair.asks,
+      // the ride's own seat, in world space, for carrying the couple on it
+      takeRide: (id) => fair.takeRide(id),
+      leaveRide: () => fair.leaveRide(),
+      get riding() { return fair.riding; },
+      seatPosition: (id, out, progress) => fair.seatPosition(id, out, progress),
+      group: fair.group,
+      rides: fair.rides,
+      zone: fair.zone,
+      centre: fair.centre,
+      gate: fair.gate,
+      isNear(x, z, radius) {
+        return Math.hypot(x - fair.centre.x, z - fair.centre.z) <= radius;
       },
     },
     // The walk to town ends here: the gate's doorstep, and what the town's clock says

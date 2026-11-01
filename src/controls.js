@@ -5,6 +5,7 @@ import { FOUNTAIN, GARDEN_BENCH } from './decor.js';
 import { inLane, inPlaza, STREET, PLAZA, TOWN_HOUSES, GATE, TOWN_WALL_Z, GATE_HALF_WIDTH, TOWN_WALL_HEIGHT } from './town-night.js';
 import { behindCastleBlocked } from './walk-rules.js';
 import { SHOP, stallCorners } from './flower-shop.js';
+import { isFairGround, isFairSolid } from './fair-rules.js';
 
 const PLAYER_RADIUS = 0.3;
 // The boy walks beside the princess, so the hall walls keep this extra distance
@@ -87,9 +88,14 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   if (inBox && y >= R.height - margin && y < R.height + 0.3) return true;
   // The lane to town and the square in front of its gate are outside the garden's own limits
   const onLane = inLane(x, z, margin) || inPlaza(x, z, margin);
+  // The funfair east of the castle: its lane and its own ground are open, so the garden's east limit
+  // (and the "nothing behind the castle" rule below) must yield to them. Its fence, rides and booths
+  // are solid in their own right.
+  const onFair = isFairGround(x, z, margin);
+  if (onFair && isFairSolid(x, y, z, margin)) return true;
   // Garden limits
-  if (!onLane && Math.abs(x) > LAYOUT.gardenHalfWidth) return true;
-  if (!onLane && z > LAYOUT.gardenDepth) return true;
+  if (!onLane && !onFair && Math.abs(x) > LAYOUT.gardenHalfWidth) return true;
+  if (!onLane && !onFair && z > LAYOUT.gardenDepth) return true;
   // Past the castle, only the lane and the square are open ground: the castle's own service yards
   // behind the facade are not. This has to stay *under* the roof (the wall's own top is 7 m, the
   // vault's crown 10.3 m): when it reached up to 12 m, the camera could not rise above the castle
@@ -98,7 +104,7 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   // It also has to leave the hall alone: the zone starts at z = -1, a step past the doorway, so an
   // exception for the hall is what keeps the front door usable. See src/walk-rules.js.
   const throughFrontDoor = Math.abs(x) < hall + 0.2 && z > -len - margin;
-  if (behindCastleBlocked({ z, y, onLane, inHall: throughFrontDoor, inRoom: inBox })) return true;
+  if (behindCastleBlocked({ z, y, onLane: onLane || onFair, inHall: throughFrontDoor, inRoom: inBox })) return true;
   // A couple of metres either side of the lane are a soft shoulder, nothing more
   if (onLane && y < 2) {
     // ... and the houses that frame it are solid
@@ -306,13 +312,93 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
     }
   }
 
+  // ---------- riding: the camera is handed to the ride -------------------------
+  // While a ride is on, the couple stand at the foot of it and the camera arcs around the ride. The
+  // walk keys are ignored, so nobody walks off mid-turn, and the camera is placed here rather than by
+  // the follow rig: it lerps in and out through the same placeCamera easing, so there is no cut.
+  let ride = null; // { path, t, duration }
+  // The ride's share of the camera: 0 is the follow rig, 1 is the ride. It eases in when a turn starts
+  // and back out when it ends, so neither the cut into the ride nor the return to walking snaps. The
+  // last frame of the arc is kept so the fade out has something to ease from.
+  let rideShare = 0;
+  const ridePos = new THREE.Vector3();
+  const rideLook = new THREE.Vector3();
+
+  // `seat` answers "where are we sitting right now?" from the ride's progress. The couple are carried
+  // there: their ground position is eased onto the seat's own, and the seat's height is what lifts them
+  // off the grass, so a wheel carries them up and a slide carries them down without any special case.
+  function startRide(path, seconds, seat = null) {
+    ride = { path, t: 0, duration: Math.max(0.2, seconds), seat, boarded: false, boardTime: 0 };
+    rideCancelled = false;
+    rideStand.set(pos.x, 0, pos.z);
+    keys.clear();
+    joystick.x = joystick.y = 0;
+  }
+  function endRide() {
+    if (ride) {
+      // set down where they stepped in, so nobody is left in mid-air or inside a ride
+      pos.x = rideStand.x;
+      pos.z = rideStand.z;
+      jumpY = 0;
+      jumpVy = 0;
+    }
+    ride = null;
+    rideCancelled = false;
+    camDist = distance;
+  }
+  const rideStand = new THREE.Vector3();
+  const seatPoint = new THREE.Vector3();
+
+  // Where the couple are, on the ride.
+  //
+  // Two phases, because they are two different motions:
+  //   * boarding — a short step from where they stand onto the seat, eased, so nobody teleports;
+  //   * riding   — from then on they are *fixed* to the seat. A gondola or a horse moves every frame,
+  //                and easing toward a moving point is exactly how a character ends up trailing behind
+  //                the thing they are supposedly sitting on.
+  function carryToSeat(dt) {
+    if (!ride || !ride.seat) return;
+    const seat = ride.seat(rideProgress(), seatPoint, rideProgress());
+    if (!seat) return;
+    if (ride.boarded) {
+      pos.x = seat.x;
+      pos.z = seat.z;
+      jumpY = Math.max(0, seat.y);
+    } else {
+      const k = Math.min(1, dt * 8);
+      pos.x += (seat.x - pos.x) * k;
+      pos.z += (seat.z - pos.z) * k;
+      jumpY += (Math.max(0, seat.y) - jumpY) * Math.min(1, dt * 5);
+      // Close enough to be seated, or long enough trying: from now on, they ride. The time-out matters
+      // for a ride that leaves the ground immediately (the helter-skelter's stair): its seat rises
+      // faster than anyone could be eased onto it, and without this the couple would trail the stair.
+      ride.boardTime += dt;
+      const close = Math.hypot(seat.x - pos.x, seat.z - pos.z) < 0.25 && Math.abs(seat.y - jumpY) < 0.3;
+      if (close || ride.boardTime > 0.55) ride.boarded = true;
+    }
+    jumpVy = 0;
+    jumpBuf = 0;
+  }
+  function rideProgress() {
+    return ride ? Math.min(1, ride.t / ride.duration) : 0;
+  }
+
+  let rideCancelled = false;
   function update(dt) {
-    const [ix, iy] = isBlocked() || benchSeated ? [0, 0] : computeMoveInput();
+    if (ride) ride.t += dt;
+    // A pressed walk key during a ride is not swallowed: it means "let me walk", so the turn is flagged
+    // as interrupted and the caller ends it on the same frame.
+    if (ride && !isBlocked() && !benchSeated) {
+      const [rx, ry] = computeMoveInput();
+      if (Math.hypot(rx, ry) > 0.05) rideCancelled = true;
+    }
+    const [ix, iy] = isBlocked() || benchSeated || ride ? [0, 0] : computeMoveInput();
     if (benchSeated) {
       pos.lerp(benchSeat, 1 - Math.exp(-dt * 5));
       heading = lerpAngle(heading, Math.PI, 1 - Math.exp(-dt * 5));
     }
-    updateJump(dt);
+    if (ride) carryToSeat(dt);
+    else updateJump(dt);
 
     // Camera-relative directions on the ground plane
     camera.getWorldDirection(forward);
@@ -331,6 +417,10 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
       heading = lerpAngle(heading, targetHeading, Math.min(1, dt * 12));
     }
 
+    if (ride) {
+      // facing out from the ride's centre, so they look over the fence rather than at the hub
+      if (ride.path && ride.path.face) heading = lerpAngle(heading, ride.path.face, Math.min(1, dt * 2));
+    }
     player.position.set(pos.x, jumpY, pos.z);
     playerModel.rotation.y = heading;
 
@@ -350,6 +440,41 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
     distance += (targetDistance - distance) * Math.min(1, dt * 8);
     lookAt.lerp(new THREE.Vector3(pos.x, 1.5 + jumpY * 0.35, pos.z), Math.min(1, dt * 10));
     placeCamera(dt);
+    // the ride's share eases in and out; below a hair it is the follow camera, untouched
+    const wanted = ride ? 1 : 0;
+    rideShare += (wanted - rideShare) * Math.min(1, dt * (ride ? 5 : 4));
+    if (Math.abs(wanted - rideShare) < 0.002) rideShare = wanted;
+    if (rideShare > 0.002) placeRideCamera();
+  }
+
+  // The ride's own camera: an arc from where the camera was when the turn began to the ride's own
+  // viewpoint, mixed over the follow camera by `rideShare`. While the share eases back to zero after a
+  // turn, the arc's last frame is what it eases from, so leaving a ride is as smooth as entering it.
+  function placeRideCamera() {
+    if (ride) {
+      const k = rideProgress();
+      const e = k * k * (3 - 2 * k);
+      const { path } = ride;
+      ridePos.set(
+        path.from.x + (path.to.x - path.from.x) * e,
+        path.from.y + (path.to.y - path.from.y) * e,
+        path.from.z + (path.to.z - path.from.z) * e,
+      );
+      // The camera watches the ride, but the look target rises with the couple: when the wheel takes
+      // them up, the camera lifts its gaze instead of staring at the hub.
+      const seatY = jumpY;
+      rideLook.set(
+        path.lookFrom.x + (path.lookTo.x - path.lookFrom.x) * e,
+        (path.lookFrom.y + (path.lookTo.y - path.lookFrom.y) * e) * 0.55 + seatY * 0.6 + 0.9,
+        path.lookFrom.z + (path.lookTo.z - path.lookFrom.z) * e,
+      );
+    }
+    camera.position.lerp(ridePos, rideShare);
+    // the look target eases the same way, from the follow rig's own target to the ride's
+    const tx = lookAt.x + (rideLook.x - lookAt.x) * rideShare;
+    const ty = (lookAt.y + 0.2) + (rideLook.y - lookAt.y - 0.2) * rideShare;
+    const tz = lookAt.z + (rideLook.z - lookAt.z) * rideShare;
+    camera.lookAt(tx, ty, tz);
   }
 
   const MIN_CAM_DISTANCE = 1.0;
@@ -427,6 +552,21 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
       return new THREE.Vector3(lookAt.x, lookAt.y + 0.2, lookAt.z);
     },
     setJoystick,
+    // Riding a fairground ride: the camera is handed over until `endRide` is called.
+    startRide,
+    endRide,
+    get riding() {
+      return !!ride;
+    },
+    get rideSeatY() {
+      return jumpY;
+    },
+    get rideProgress() {
+      return rideProgress();
+    },
+    get rideCancelled() {
+      return rideCancelled;
+    },
     setBenchSeated(value) {
       benchSeated = value;
       keys.clear();
