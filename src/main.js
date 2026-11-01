@@ -402,7 +402,11 @@ function openLetter({ fromScreen = false } = {}) {
 // onto it: the same eased hand-off the intro uses, so the opening is a scene rather than something
 // happening three metres away. The envelope itself never touches the camera.
 function watchLetter() {
-  if (!started || letterView || !envelope) return;
+  if (!started || !envelope) return;
+  // stop the walk: the stick is held outside the game loop, so it has to be let go of explicitly
+  controls?.setJoystick(0, 0, false);
+  // already coming in, or watching: nothing to do. On the way out, come back.
+  if (letterView && letterView.phase !== 'out') return;
   const place = envelope.focus(window.innerWidth / Math.max(1, window.innerHeight));
   letterView = {
     phase: 'in',
@@ -712,6 +716,7 @@ dom.promptBtn.addEventListener('click', interact);
 
 window.addEventListener('keydown', (event) => {
   if (!started || anyDialogOpen()) return;
+  if (letterView) return; // the letter has the camera: walk keys wait until it has let go
   if (event.target instanceof HTMLElement && event.target.closest('input, textarea, select')) return;
   if (event.code === 'KeyE') {
     event.preventDefault();
