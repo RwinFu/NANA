@@ -1,9 +1,12 @@
+// FIRST: the photos (see preload-photos.js). Kept above the fonts and the stylesheet so the requests
+// go out before anything else in the page is worked on.
+import './preload-photos.js';
 import '@fontsource-variable/vazirmatn';
 import '@fontsource/lalezar/400.css';
 import './style.css';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { allMemories, defaults, letterParagraphs } from './memories.js';
+import { allMemories, defaults, letterParagraphs, soloVideo } from './memories.js';
 import { createStore, formatNumber } from './state.js';
 import { buildWorld, LAYOUT } from './world.js';
 import { createCouple } from './characters.js';
@@ -150,6 +153,7 @@ const camera = new THREE.PerspectiveCamera(
 );
 let world = null;
 let hero = null;
+let photoTick = 0; // seconds since the clip's trigger was last checked
 let cats = null;
 let decor = null;
 let trail = null;
@@ -186,9 +190,23 @@ let introT0 = 0;
 let starting = false; // the curtain is falling before the tour starts
 const introLook = new THREE.Vector3(); // where the intro camera looks, for the hand-off
 
+// Work that has to happen but not before the first frame: a chain of idle callbacks, so the browser
+// runs it when nothing is drawing rather than in the middle of the start-up.
+function scheduleWarmUp(job, delay = 1200) {
+  const run = () => {
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(() => job(), { timeout: 4000 });
+    else setTimeout(job, 0);
+  };
+  setTimeout(run, delay);
+}
+
 function beginRescue() {
   rescueActive = true;
   dom.intro.hidden = true;
+  // The cats are built in the background of the gate rather than at start-up: their fur is two maps
+  // drawn on the CPU, and nothing on screen needs them until the tour begins. Built inside the rescue
+  // canvas' first idle moment, so they cannot cost the game a frame.
+  scheduleWarmUp(() => cats?.warm());
   rescue = createRescueGame({
     onDone: finishRescue,
     autoStart: true,
@@ -253,6 +271,14 @@ if (renderer) {
     fromName: store.get().fromName,
     toName: store.get().toName,
     paragraph: letterParagraphs[1],
+    audio,
+    // each beat fires its own burst of light where the envelope is, so the opening is not silent
+    onBeat: (beat) => {
+      // a small spill of light at the seal as it gives, and a fuller one as the flap comes up
+      const sx = window.innerWidth / 2;
+      if (beat === 'break') fx.burst(sx, window.innerHeight * 0.47, '#ffd2c4', 6);
+      if (beat === 'flap') fx.burst(sx, window.innerHeight * 0.44, '#ffe0b0', 22);
+    },
   });
 
   controls = createControls({
@@ -366,22 +392,67 @@ function fillLetter(state) {
 }
 fillLetter(store.get());
 
-function openLetter() {
+// A camera move of its own, laid over the follow camera while the envelope opens or is being read.
+let letterView = null;
+
+// The reader opens in the same cream, the same border and the same font as the paper in 3D (see
+// style.css), and it grows in from where the sheet sits in the hall rather than sliding up from the
+// bottom of the screen, so the letter does not jump from a prop to a web page.
+function openLetter({ fromScreen = false } = {}) {
   audio.chime(523.25);
-  openDialog(dom.letter);
+  const dialog = dom.letter;
+  dialog.dataset.fromPaper = fromScreen ? 'yes' : 'no';
+  openDialog(dialog);
+  if (fromScreen) {
+    // The reader is over a sheet that is still in front of the camera; a quick lift into place, then
+    // out of the way of the text.
+    dialog.animate?.(
+      [
+        { transform: 'translateY(7vh) scale(0.5)', opacity: 0 },
+        { transform: 'none', opacity: 1 },
+      ],
+      { duration: 460, easing: 'cubic-bezier(0.2, 0.7, 0.2, 1)' }
+    );
+  }
+}
+
+// Bring the camera to the letter. The envelope offers a pose (`focus`) and this eases the real camera
+// onto it: the same eased hand-off the intro uses, so the opening is a scene rather than something
+// happening three metres away. The envelope itself never touches the camera.
+function watchLetter() {
+  if (!started || !envelope) return;
+  // stop the walk: the stick is held outside the game loop, so it has to be let go of explicitly
+  controls?.setJoystick(0, 0, false);
+  // already coming in, or watching: nothing to do. On the way out, come back.
+  if (letterView && letterView.phase !== 'out') return;
+  const place = envelope.focus(window.innerWidth / Math.max(1, window.innerHeight));
+  letterView = {
+    phase: 'in',
+    fromPos: camera.position.clone(),
+    fromLook: controls ? controls.focus.clone() : place.look.clone(),
+    toPos: place.from,
+    toLook: place.look,
+    seen: false, // has the reader been open yet?
+    elapsed: 0,
+    // the envelope's own opening takes 2.3 s, so the move is over before there is something to read
+    duration: 1.7,
+  };
 }
 
 function openEnvelope() {
   if (!envelope) return;
   if (envelope.isOpen) {
-    openLetter();
+    // already opened once: come back to the letter and read it again
+    watchLetter();
+    openLetter({ fromScreen: true });
     return;
   }
   if (envelope.isBusy) return;
+  watchLetter();
   envelope.open(() => {
-    fx.burst(window.innerWidth / 2, window.innerHeight * 0.4, '#ffd98a', 36);
+    fx.burst(window.innerWidth / 2, window.innerHeight * 0.44, '#ffd98a', 30);
     decor?.celebrate();
-    openLetter();
+    openLetter({ fromScreen: true });
   });
 }
 
@@ -516,11 +587,14 @@ function nearVideoScreen() {
 }
 
 let videoPanelTimer = 0;
+const VIDEO_SRC = soloVideo.src;
 function openVideo() {
   if (!world) return;
   window.clearTimeout(videoPanelTimer); // the panel may be reopening while it unloads
   const player = dom.videoPlayer;
-  if (player.getAttribute('src') !== world.video.src) player.src = world.video.src;
+  // The clip lives in this element (index.html) and downloads with the page, so opening the panel is
+  // an instant play rather than the start of a 1 MB download. Only set it if something cleared it.
+  if (!player.getAttribute('src')) player.src = VIDEO_SRC;
   player.currentTime = 0;
   openDialog(dom.video);
   // The clip has no sound track: it stays muted so it can start on its own, on any phone.
@@ -533,11 +607,9 @@ function closeVideoPanel() {
   const player = dom.videoPlayer;
   if (!player.paused) player.pause();
   window.clearTimeout(videoPanelTimer);
-  // Drop the stream so the game world keeps the whole decoder to itself.
-  videoPanelTimer = window.setTimeout(() => {
-    player.removeAttribute('src');
-    player.load();
-  }, 400);
+  // The stream is kept, not dropped: it is already downloaded and dropping it means the next tap has
+  // to fetch 1 MB again. Only one of the two copies is ever playing, so the decoder is not doubled.
+  videoPanelTimer = 0;
 }
 
 dom.video.addEventListener('close', closeVideoPanel);
@@ -616,7 +688,7 @@ function buyFlower() {
 }
 
 function updatePrompt() {
-  if (!started || anyDialogOpen()) {
+  if (!started || anyDialogOpen() || letterView) {
     dom.prompt.hidden = true;
     return;
   }
@@ -663,6 +735,7 @@ dom.promptBtn.addEventListener('click', interact);
 
 window.addEventListener('keydown', (event) => {
   if (!started || anyDialogOpen()) return;
+  if (letterView) return; // the letter has the camera: walk keys wait until it has let go
   if (event.target instanceof HTMLElement && event.target.closest('input, textarea, select')) return;
   if (event.code === 'KeyE') {
     event.preventDefault();
@@ -966,8 +1039,43 @@ function frame() {
   if (rescueActive) return; // the rescue game is on screen
 
   if (started) {
-    controls.update(dt);
-    if (transition) {
+    // The letter's camera. While it is moving, or while the letter is open, the follow camera is not
+    // asked for a view of its own: this is the one scene in the house that is watched, not walked
+    // through. When the reader closes, the follow camera takes the view back with the same ease.
+    if (!letterView || letterView.phase === 'out') controls.update(dt);
+    // The letter's own clock is behind the camera's: it only starts when onOpened fires, so the wax
+    // breaks before the camera has finished arriving and the paper comes out under it, not after it.
+    if (started && envelope && !envelope.isOpen && !envelope.isBusy) envelope.update(t, dt);
+    if (letterView) {
+      const v = letterView;
+      v.elapsed += dt;
+      const k = Math.min(1, v.elapsed / v.duration);
+      const e = k * k * (3 - 2 * k);
+      if (v.phase === 'in') {
+        camera.position.lerpVectors(v.fromPos, v.toPos, e);
+        camera.lookAt(new THREE.Vector3().lerpVectors(v.fromLook, v.toLook, e));
+        if (k >= 1) { v.phase = 'hold'; v.elapsed = 0; }
+      } else if (v.phase === 'hold') {
+        // Hold the pose we arrived at and wait for the reader to close. The reader only opens at the end
+        // of the opening, which is after the camera has arrived, so "the dialog is not open yet" is not
+        // the same as "the reader has been closed": the camera must wait until it has seen it open.
+        camera.position.copy(v.toPos);
+        camera.lookAt(v.toLook);
+        if (dom.letter.open) v.seen = true;
+        else if (v.seen) {
+          v.phase = 'out';
+          v.elapsed = 0;
+          v.fromPos = camera.position.clone();
+          v.fromLook = v.toLook.clone();
+        }
+      } else {
+        // 'out': controls.update has just placed the follow camera, so ease from the held pose to it
+        camera.position.lerpVectors(v.fromPos, camera.position.clone(), e);
+        camera.lookAt(new THREE.Vector3().lerpVectors(v.fromLook, controls.focus, e));
+        if (k >= 1) letterView = null;
+      }
+    }
+    if (transition && !letterView) {
       transition.elapsed += dt;
       const k = Math.min(1, transition.elapsed / transition.duration);
       const e = k * k * (3 - 2 * k);
@@ -991,15 +1099,25 @@ function frame() {
   if (started) updateSparkles(t, dt, 1);
 
   if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
+  // The photos are all downloading already; the room's clip waits until the couple is near its screen.
+  photoTick += dt;
+  if (started && photoTick > 0.5) {
+    photoTick = 0;
+    world.photos.near({ x: hero.root.position.x, z: hero.root.position.z });
+  }
   updateBouquetPose(dt);
-  hero.animate(dt, t, started && controls.moving, controls.airborne);
+  // The couple stands still while the letter is being opened and read, and so do the effects that
+  // follow their feet: they follow the couple's movement, not the camera's.
+  const frozen = !!letterView && letterView.phase !== 'out';
+  const walking = started && controls.moving && !frozen;
+  hero.animate(dt, t, walking, controls.airborne);
   cats?.update(dt, t, hero, started, benchSeated, { intro: introPlaying, doorOpen: world.frontDoorOpen });
   syncCoupleUi();
-  trail?.update(dt, hero.root.position, started && controls.moving, camera);
-  houseSparkles?.update(dt, hero.root.position, started && controls.moving);
-  world?.rugGlint?.update(dt, t, hero.root.position, started && controls.moving);
-  world?.stoneGlint?.update(dt, t, hero.root.position, started && controls.moving);
-  footprints?.update(dt, hero, started && controls.moving);
+  trail?.update(dt, hero.root.position, walking, camera);
+  houseSparkles?.update(dt, hero.root.position, walking);
+  world?.rugGlint?.update(dt, t, hero.root.position, walking);
+  world?.stoneGlint?.update(dt, t, hero.root.position, walking);
+  footprints?.update(dt, hero, walking);
   envelope.update(t, dt);
   grassActors.length = 0;
   if (started) {

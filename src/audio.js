@@ -61,6 +61,39 @@ export function createAudio() {
     return song;
   }
 
+  // One second of white noise, made once and reused by every paper and wax sound.
+  let noise = null;
+  function noiseBuffer() {
+    if (noise) return noise;
+    const frames = Math.floor(ctx.sampleRate);
+    noise = ctx.createBuffer(1, frames, ctx.sampleRate);
+    const data = noise.getChannelData(0);
+    let seed = 1;
+    for (let i = 0; i < frames; i += 1) {
+      // a tiny xorshift, so the same sound every visit rather than Math.random's hiss
+      seed ^= seed << 13; seed ^= seed >>> 17; seed ^= seed << 5;
+      data[i] = ((seed >>> 0) / 4294967296) * 2 - 1;
+    }
+    return noise;
+  }
+
+  // A short burst of filtered noise: the body of every non-tonal effect here.
+  function noiseBurst(when, duration, freq, volume, q = 1) {
+    const src = ctx.createBufferSource();
+    src.buffer = noiseBuffer();
+    const band = ctx.createBiquadFilter();
+    band.type = 'bandpass';
+    band.frequency.setValueAtTime(freq, when);
+    band.Q.value = q;
+    const gain = ctx.createGain();
+    gain.gain.setValueAtTime(0.0001, when);
+    gain.gain.exponentialRampToValueAtTime(volume, when + duration * 0.2);
+    gain.gain.exponentialRampToValueAtTime(0.0001, when + duration);
+    src.connect(band); band.connect(gain); gain.connect(sfx);
+    src.start(when, 0, duration + 0.02);
+    src.stop(when + duration + 0.04);
+  }
+
   function tone(freq, when, duration, volume, dest) {
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -205,6 +238,58 @@ export function createAudio() {
       gain.connect(sfx);
       osc.start(t);
       osc.stop(t + 0.1);
+    },
+    // The four sounds of opening a sealed letter. All noise-shaped rather than tonal: wax and paper
+    // are not notes. They are kept here, next to the other effects, so the envelope only says *when*.
+    waxCrack() {
+      const context = ensureContext();
+      if (!context) return;
+      if (context.state === 'suspended') context.resume();
+      const t = context.currentTime;
+      // a short, dry crackle: filtered noise with a fast decay
+      for (let i = 0; i < 3; i += 1) {
+        noiseBurst(t + i * 0.045, 0.05, 2600 - i * 500, 0.06, 0.6);
+      }
+    },
+    waxSnap() {
+      const context = ensureContext();
+      if (!context) return;
+      if (context.state === 'suspended') context.resume();
+      const t = context.currentTime;
+      // the break itself: a lower, rounder knock with a little body under it
+      noiseBurst(t, 0.09, 900, 0.11, 1.4);
+      tone(196, t, 0.12, 0.07, sfx);
+      tone(146.83, t + 0.02, 0.16, 0.05, sfx);
+    },
+    flap() {
+      const context = ensureContext();
+      if (!context) return;
+      if (context.state === 'suspended') context.resume();
+      const t = context.currentTime;
+      // paper being turned: a soft swish that opens upward
+      const src = context.createBufferSource();
+      src.buffer = noiseBuffer();
+      const band = context.createBiquadFilter();
+      band.type = 'bandpass';
+      band.frequency.setValueAtTime(700, t);
+      band.frequency.exponentialRampToValueAtTime(2400, t + 0.22);
+      band.Q.value = 0.9;
+      const gain = context.createGain();
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(0.09, t + 0.05);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.3);
+      src.connect(band); band.connect(gain); gain.connect(sfx);
+      src.start(t); src.stop(t + 0.34);
+    },
+    paper() {
+      const context = ensureContext();
+      if (!context) return;
+      if (context.state === 'suspended') context.resume();
+      const t = context.currentTime;
+      // the sheet sliding out: a longer, quieter rustle with the folds in it
+      for (let i = 0; i < 4; i += 1) {
+        noiseBurst(t + i * 0.075, 0.075, 1800 + (i % 2) * 900, 0.035, 0.9);
+      }
     },
     fanfare() {
       const context = ensureContext();

@@ -16,6 +16,7 @@ import { createVideoPlayback, shouldPlayVideo } from './video-screen.js';
 import { skyLight, horizonColor } from './night-light.js';
 import { castleStone, hallInterior } from './palette.js';
 import { masonryMap, masonryBump } from './castle-stone.js';
+import { photoImage, startPhotos } from './photo-cache.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -1424,7 +1425,8 @@ export function buildWorld(scene, camera) {
         maxH,
         // world-space point the player walks toward, and where the wall is
         center: group.position.clone(),
-        loaded: false,
+        loaded: false, // the photo has decoded and is on the frame
+        requested: false, // its download has been started
       };
     });
   }
@@ -1506,20 +1508,29 @@ export function buildWorld(scene, camera) {
     frame.photo.material.needsUpdate = true;
   }
 
-  // Load all photos; each frame updates itself as soon as its image is ready.
-  const loader = new THREE.TextureLoader();
-  frames.forEach((frame) => {
-    loader.load(
-      frame.memory.image,
-      (tex) => {
-        tex.colorSpace = THREE.SRGBColorSpace;
-        tex.anisotropy = 4;
-        applyPhoto(frame, tex);
-      },
-      undefined,
-      () => fallbackPhoto(frame)
-    );
-  });
+  // Every photo is asked for on the page's first line (see photo-cache.js and main.js), so all of them
+  // are already on the wire before this function runs; the frames attach them as they land. A frame
+  // shows the "در حال بارگذاری" card it was born with until its own photo has decoded, so the hall and
+  // the room fill in wherever the download has got to and nothing empty is ever on screen.
+  function loadPhotos(list) {
+    list.forEach((frame) => {
+      if (frame.loaded || frame.requested) return;
+      frame.requested = true;
+      photoImage(frame.memory.image).then(
+        (image) => {
+          const tex = new THREE.Texture(image);
+          tex.colorSpace = THREE.SRGBColorSpace;
+          tex.anisotropy = 4;
+          tex.needsUpdate = true;
+          applyPhoto(frame, tex);
+        },
+        () => fallbackPhoto(frame)
+      );
+    });
+  }
+  // Both walls are loaded together and as soon as the frames exist: the room's pictures are as important
+  // as the hall's, and they are already downloading.
+  loadPhotos(frames);
 
   // The photo room, a corridor inside the castle: plum velvet walls, gold trim, a chandelier,
   // nine photos along the walls, and the video in a gold frame at the far end.
@@ -1630,7 +1641,14 @@ export function buildWorld(scene, camera) {
   roomVideo.muted = true;
   roomVideo.defaultMuted = true;
   roomVideo.playsInline = true;
-  roomVideo.autoplay = true;
+  // Not autoplay: the clip is started by the loop when the couple comes near the screen. An autoplaying
+  // video is a live decoder for the whole game, including the two minutes of the gate, for a screen
+  // nobody is looking at yet.
+  roomVideo.autoplay = false;
+  // But it is downloaded from the first moment: the clip is 1.08 MB, it is the only film in the house,
+  // and waiting until the couple reached its screen meant the poster (or a black rectangle) was what
+  // they saw for the first seconds. `auto` fetches it through the page's start-up; the gate is two
+  // minutes long, which is more than enough on any connection.
   roomVideo.preload = 'auto';
   // iOS only treats a video as inline when it is also marked this way in markup, and it only
   // decodes a video that is in the document: keep it attached, invisible, 1px in a corner.
@@ -1693,19 +1711,41 @@ export function buildWorld(scene, camera) {
   roomVideo.addEventListener('loadedmetadata', () => {
     sizeScreen(roomVideo.videoWidth / roomVideo.videoHeight || 16 / 9);
   });
-  const posterTexture = soloVideo.poster ? new THREE.TextureLoader().load(soloVideo.poster, (tex) => {
-    tex.colorSpace = THREE.SRGBColorSpace;
-    posterMesh.material.map = tex;
-    posterMesh.material.needsUpdate = true;
-    // Keep the screen's proportions until the clip reports its own
-    if (!roomVideo.videoWidth) sizeScreen(tex.image.width / tex.image.height);
-    if (roomVideo.readyState < 2) posterMesh.visible = true;
-  }) : null;
-  if (posterTexture) track(posterTexture);
+  // The poster is a photo like the others, so it comes through the same cache (and is already on its
+  // way from the first line of the page). It is 61 KB; the screen is never blank without it.
+  const posterTexture = soloVideo.poster ? new THREE.Texture() : null;
+  if (soloVideo.poster) {
+    track(posterTexture);
+    photoImage(soloVideo.poster).then(
+      (image) => {
+        posterTexture.image = image;
+        posterTexture.colorSpace = THREE.SRGBColorSpace;
+        posterTexture.needsUpdate = true;
+        posterMesh.material.map = posterTexture;
+        posterMesh.material.needsUpdate = true;
+        // Keep the screen's proportions until the clip reports its own
+        if (!roomVideo.videoWidth) sizeScreen(image.width / image.height);
+        if (roomVideo.readyState < 2) posterMesh.visible = true;
+      },
+      () => {}
+    );
+  }
   // From the first decoded frame on, the video itself is what is on the screen.
   roomVideo.addEventListener('loadeddata', () => { posterMesh.visible = false; }, { once: true });
-  // The controller starts the clip once it has a frame to show.
-  roomVideo.load();
+  // The clip is asked for as soon as the world exists, so it has the whole gate to arrive; it starts
+  // *playing* when the couple comes near the screen (videoPlayback.sync) and the poster is what is on
+  // the screen until the first frame has decoded.
+  let roomVideoStarted = false;
+  function startRoomVideo() {
+    if (roomVideoStarted) return false;
+    roomVideoStarted = true;
+    // the download is asked for here; the poster is on the screen until the first frame has decoded
+    videoPlayback.arm();
+    roomVideo.load();
+    return true;
+  }
+  // asked for now, not when the couple reaches the screen: the clip gets the whole gate to arrive
+  startRoomVideo();
   scene.updateMatrixWorld(true);
   screen.getWorldPosition(videoWorld);
 
@@ -1887,6 +1927,10 @@ export function buildWorld(scene, camera) {
 
   return {
     frames,
+    // Every photo is already downloading, and so is the clip.
+    photos: {
+      get videoStarted() { return roomVideoStarted; },
+    },
     castle,
     setDedication,
     burstHearts,
@@ -1899,9 +1943,10 @@ export function buildWorld(scene, camera) {
     updateDoors(dt, px, pz) {
       doors.forEach((d) => d.update(dt, px, pz));
     },
-    // The room's video screen, for the interact prompt and the big player
+    // The room's video screen, for the interact prompt and the big player. The big panel plays the clip
+    // in its own <video> element (index.html), which is already downloading, so tapping the screen does
+    // not start a download and the wall screen does not have to be decoded twice.
     video: {
-      src: soloVideo.src,
       screen,
       // Where the couple has to be for the prompt to appear
       get centre() { return videoWorld; },

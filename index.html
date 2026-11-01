@@ -4,6 +4,38 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
     <meta name="theme-color" content="#0b0c1c" />
+    <!-- The photos are the visit, so the browser is told about every one of them before it has parsed
+         the app: they download alongside the JavaScript instead of after it. (main.js asks for the same
+         URLs; the preload and the request share one download.) -->
+    <link rel="preload" as="image" href="./memories/memory-01.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-02.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-03.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-04.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-05.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-06.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-07.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-08.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-09.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-10.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-11.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-12.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-13.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-14.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-15.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-16.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-17.jpg" />
+    <link rel="preload" as="image" href="./memories/memory-18.jpg" />
+    <link rel="preload" as="image" href="./memories/solo-01.jpg" />
+    <link rel="preload" as="image" href="./memories/solo-02.jpg" />
+    <link rel="preload" as="image" href="./memories/solo-03.jpg" />
+    <link rel="preload" as="image" href="./memories/solo-04.jpg" />
+    <link rel="preload" as="image" href="./memories/solo-05.jpg" />
+    <link rel="preload" as="image" href="./memories/solo-06.jpg" />
+    <link rel="preload" as="image" href="./memories/solo-07.jpg" />
+    <link rel="preload" as="image" href="./memories/solo-08.jpg" />
+    <link rel="preload" as="image" href="./memories/solo-09.jpg" />
+    <link rel="preload" as="image" href="./memories/solo-video.mp4" />
+    <link rel="preload" as="image" href="./memories/solo-video-poster.jpg" />
     <meta name="description" content="یک خانه‌ی سه‌بعدی پر از خاطره برای اولین سالگرد عشقمون." />
     <title>خانه‌ی ما · اولین سالگرد</title>
   </head>
@@ -139,7 +171,9 @@
         <button class="close" type="button" data-close aria-label="بستن">×</button>
         <div class="video-media">
           <figure class="memory-frame video-frame">
-            <video id="video-player" controls playsinline preload="metadata"></video>
+            <!-- The same clip as the wall screen. It is fetched with the page (the gate is the cover) so a tap on
+             the screen plays at once instead of starting a 1 MB download. Silent, as always. -->
+            <video id="video-player" controls playsinline preload="auto" muted></video>
           </figure>
         </div>
         <div class="video-copy">

@@ -25,12 +25,15 @@ function rng(seed) {
   };
 }
 
-// Strands are drawn again one tile away on each side, so the edges match when the texture repeats
-function drawStrand(g, x, y, len, bend, width) {
+// Strands are drawn again one tile away on each side, so the edges match when the texture repeats.
+// All the strands of one length and width share a single path and a single stroke — 1600 strokes per
+// tile used to be 14 400 canvas calls for the fur alone.
+function drawStrandPath(g, strands) {
   g.beginPath();
-  g.moveTo(x, y);
-  g.quadraticCurveTo(x + bend * 0.5, y + len * 0.5, x + bend, y + len);
-  g.lineWidth = width;
+  for (const { x, y, len, bend } of strands) {
+    g.moveTo(x, y);
+    g.quadraticCurveTo(x + bend * 0.5, y + len * 0.5, x + bend, y + len);
+  }
   g.stroke();
 }
 
@@ -42,6 +45,8 @@ function heightCanvas(r) {
   g.fillStyle = '#3a3a3a';
   g.fillRect(0, 0, SIZE, SIZE);
   g.lineCap = 'round';
+  // Strands are batched by (brightness, width): same picture, a fraction of the drawing calls.
+  const batches = new Map();
   for (let i = 0; i < 1600; i += 1) {
     const x = r() * SIZE;
     const y = r() * SIZE;
@@ -49,45 +54,60 @@ function heightCanvas(r) {
     const bend = (r() - 0.5) * 4;
     const width = 1.1 + r() * 1.3;
     const lum = Math.round(85 + r() * 170);
-    g.strokeStyle = `rgb(${lum},${lum},${lum})`;
+    const key = `${lum}:${width.toFixed(1)}`;
+    if (!batches.has(key)) batches.set(key, { lum, width, strands: [] });
+    const strands = batches.get(key).strands;
     for (const dx of [-SIZE, 0, SIZE]) {
       for (const dy of [-SIZE, 0, SIZE]) {
-        drawStrand(g, x + dx, y + dy, len, bend, width);
+        strands.push({ x: x + dx, y: y + dy, len, bend });
       }
     }
+  }
+  for (const { lum, width, strands } of batches.values()) {
+    g.strokeStyle = `rgb(${lum},${lum},${lum})`;
+    g.lineWidth = width;
+    drawStrandPath(g, strands);
   }
   return c;
 }
 
-// Sobel filter: the slope of the height field becomes a surface normal (OpenGL convention, +Y up)
+// Sobel filter: the slope of the height field becomes a surface normal (OpenGL convention, +Y up).
+//
+// This is one of the most expensive things in the start-up: every stone, bark, velvet and fur surface
+// asks for one, and each is 65 536 pixels. Two changes make it quicker without touching what it
+// produces: the neighbours are read by index (the old version called a modulo closure four times per
+// pixel) and the length uses Math.sqrt instead of the three-argument Math.hypot, which is variadic and
+// guarded against overflow. tests/fur-normal.test.js compares this with the original, pixel for pixel.
 export function normalCanvas(heightC, strength) {
   const src = heightC.getContext('2d').getImageData(0, 0, SIZE, SIZE).data;
   const h = new Float32Array(SIZE * SIZE);
   for (let i = 0; i < h.length; i += 1) h[i] = src[i * 4] / 255;
-  const at = (x, y) => h[((y + SIZE) % SIZE) * SIZE + ((x + SIZE) % SIZE)];
 
   const c = document.createElement('canvas');
   c.width = SIZE;
   c.height = SIZE;
   const g = c.getContext('2d');
   const out = g.createImageData(SIZE, SIZE);
+  const px = out.data;
+
   for (let y = 0; y < SIZE; y += 1) {
+    const up = (y === 0 ? SIZE - 1 : y - 1) * SIZE;
+    const row = y * SIZE;
+    const down = (y === SIZE - 1 ? 0 : y + 1) * SIZE;
     for (let x = 0; x < SIZE; x += 1) {
-      const dX = at(x + 1, y) - at(x - 1, y);
+      const xr = x === SIZE - 1 ? 0 : x + 1;
+      const xl = x === 0 ? SIZE - 1 : x - 1;
+      const dX = h[row + xr] - h[row + xl];
       // image rows run down while the texture's V runs up (flipY), so the Y slope is flipped
-      const dY = at(x, y + 1) - at(x, y - 1);
-      let nx = -dX * strength;
-      let ny = dY * strength;
-      let nz = 1;
-      const len = Math.hypot(nx, ny, nz);
-      nx /= len;
-      ny /= len;
-      nz /= len;
-      const k = (y * SIZE + x) * 4;
-      out.data[k] = Math.round((nx * 0.5 + 0.5) * 255);
-      out.data[k + 1] = Math.round((ny * 0.5 + 0.5) * 255);
-      out.data[k + 2] = Math.round((nz * 0.5 + 0.5) * 255);
-      out.data[k + 3] = 255;
+      const dY = h[down + x] - h[up + x];
+      const nx = -dX * strength;
+      const ny = dY * strength;
+      const len = Math.sqrt(nx * nx + ny * ny + 1);
+      const k = (row + x) * 4;
+      px[k] = Math.round(((nx / len) * 0.5 + 0.5) * 255);
+      px[k + 1] = Math.round(((ny / len) * 0.5 + 0.5) * 255);
+      px[k + 2] = Math.round(((1 / len) * 0.5 + 0.5) * 255);
+      px[k + 3] = 255;
     }
   }
   g.putImageData(out, 0, 0);

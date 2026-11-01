@@ -85,7 +85,7 @@ test('a screen the camera cannot see is left paused, and unknown distances play'
 test('nothing starts before a frame is decoded, then it starts once', async () => {
   const video = fakeVideo({ readyState: 0 });
   const doc = Object.assign(eventTarget(), { hidden: false });
-  createVideoPlayback(video, doc, fakeTimers());
+  createVideoPlayback(video, doc, fakeTimers()).arm();
   assert.equal(video.playCalls, 0, 'no data to play yet');
   video.readyState = 2;
   video.dispatch('loadeddata');
@@ -97,6 +97,7 @@ test('sync() does not call play() again on every frame', async () => {
   const video = fakeVideo({ readyState: 2 });
   const doc = Object.assign(eventTarget(), { hidden: false });
   const player = createVideoPlayback(video, doc, fakeTimers());
+  player.arm();
   for (let frame = 0; frame < 120; frame += 1) player.sync(true);
   await settle();
   assert.equal(video.playCalls, 1);
@@ -110,6 +111,7 @@ test('walking away pauses once, and coming back plays once more', async () => {
   const video = fakeVideo({ readyState: 2 });
   const doc = Object.assign(eventTarget(), { hidden: false });
   const player = createVideoPlayback(video, doc, fakeTimers());
+  player.arm();
   player.sync(true);
   await settle();
   assert.equal(video.paused, false);
@@ -129,7 +131,7 @@ test('a refused play() is retried a limited number of times, with a gap', async 
   const video = fakeVideo({ readyState: 2, refuse: 99 });
   const doc = Object.assign(eventTarget(), { hidden: false });
   const timers = fakeTimers();
-  createVideoPlayback(video, doc, timers);
+  createVideoPlayback(video, doc, timers).arm();
   await settle();
   await settle();
   assert.equal(video.playCalls, 1);
@@ -152,7 +154,7 @@ test('a retry that succeeds starts the clip', async () => {
   const video = fakeVideo({ readyState: 2, refuse: 1 });
   const doc = Object.assign(eventTarget(), { hidden: false });
   const timers = fakeTimers();
-  createVideoPlayback(video, doc, timers);
+  createVideoPlayback(video, doc, timers).arm();
   await settle();
   await settle();
   assert.equal(video.paused, true, 'the first attempt was refused');
@@ -165,7 +167,7 @@ test('a retry that succeeds starts the clip', async () => {
 test('a hidden tab pauses the clip and coming back resumes it', async () => {
   const video = fakeVideo({ readyState: 0 });
   const doc = Object.assign(eventTarget(), { hidden: false });
-  createVideoPlayback(video, doc, fakeTimers());
+  createVideoPlayback(video, doc, fakeTimers()).arm();
   video.readyState = 2;
   video.dispatch('loadeddata');
   await settle();
@@ -185,6 +187,7 @@ test('a pause nobody asked for resumes by itself, until the screen is not wanted
   const video = fakeVideo({ readyState: 2 });
   const doc = Object.assign(eventTarget(), { hidden: false });
   const player = createVideoPlayback(video, doc, fakeTimers());
+  player.arm();
   await settle();
   const started = video.playCalls;
 
@@ -202,6 +205,7 @@ test('dispose() stops the video and drops every listener', async () => {
   const video = fakeVideo({ readyState: 2 });
   const doc = Object.assign(eventTarget(), { hidden: false });
   const player = createVideoPlayback(video, doc, fakeTimers());
+  player.arm();
   await settle();
   assert.equal(video.paused, false);
 
@@ -216,4 +220,29 @@ test('dispose() stops the video and drops every listener', async () => {
   video.dispatch('canplay');
   await settle();
   assert.equal(video.playCalls, calls, 'no play after dispose');
+});
+
+// The clip is 1.08 MB and 1080p: a video that is decoding is a real cost every frame, and it used to
+// be decoding from the first frame of the game — through the whole gate (two minutes of the rescue
+// game) — for a screen nobody had walked up to yet. It is now armed when the couple first comes near
+// the screen, which is also when its download is allowed to start.
+test('the clip does not start until the world arms it', async () => {
+  const video = fakeVideo({ readyState: 4 });
+  const doc = eventTarget();
+  doc.hidden = false;
+  const player = createVideoPlayback(video, doc, fakeTimers());
+  // not armed: even with data decoded, nothing plays and nothing is asked for
+  video.dispatch('loadeddata');
+  await settle();
+  assert.equal(video.playCalls, 0, 'an un-armed screen must not start');
+  assert.equal(player.armed, false);
+  // and sync() alone does not arm it: the download has not been asked for
+  player.sync(true);
+  assert.equal(video.playCalls, 0);
+
+  assert.equal(player.arm(), true, 'arming the screen reports that it was the first time');
+  await settle();
+  assert.equal(video.playCalls, 1);
+  assert.equal(video.paused, false);
+  assert.equal(player.arm(), false, 'arming twice does nothing');
 });
