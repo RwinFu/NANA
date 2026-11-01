@@ -8,6 +8,7 @@ import { advanceHallProgress } from './house-reactivity.js';
 import { outdoorNormal } from './outdoor-textures.js';
 import { roomFrameSlot, hallFrameSlot } from './room-frame-layout.js';
 import { createGardenGrass } from './garden-grass.js';
+import { createVideoPlayback, shouldPlayVideo } from './video-screen.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -385,7 +386,7 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
   return { update, get isOpen() { return open >= 0.8; } };
 }
 
-export function buildWorld(scene) {
+export function buildWorld(scene, camera) {
   const disposables = [];
   const track = (obj) => {
     disposables.push(obj);
@@ -1560,8 +1561,22 @@ export function buildWorld(scene) {
   roomVideo.muted = true;
   roomVideo.playsInline = true;
   roomVideo.preload = 'auto';
+  // iOS only treats a video as inline when it is also marked this way in markup.
+  // The clip's own sound is never heard here: this screen is a silent picture, and a muted
+  // video is the only kind a phone will start on its own.
+  roomVideo.setAttribute('playsinline', '');
+  roomVideo.setAttribute('webkit-playsinline', '');
+  roomVideo.setAttribute('muted', '');
+  if (soloVideo.poster) roomVideo.poster = soloVideo.poster;
+  // The texture re-uploads only real video frames (three.js asks the browser for them), never
+  // the whole picture every render frame.
   const videoTex = track(new THREE.VideoTexture(roomVideo));
   videoTex.colorSpace = THREE.SRGBColorSpace;
+  videoTex.minFilter = THREE.LinearFilter;
+  videoTex.magFilter = THREE.LinearFilter;
+  videoTex.generateMipmaps = false;
+  const videoPlayback = createVideoPlayback(roomVideo);
+  const videoWorld = new THREE.Vector3();
   // The video fits inside a box of at most 2.8 m wide and 3.0 m high, keeping its own proportions
   const fitW = 2.8;
   const fitH = 3.0;
@@ -1575,7 +1590,16 @@ export function buildWorld(scene) {
   const screenFrame = new THREE.Mesh(unitBox, gold);
   screen.position.set(x0 + 0.12, videoY, cz); // in front of its frame
   screen.rotation.y = Math.PI / 2; // face into the room
-  roomGroup.add(screen, screenFrame);
+  // A still picture in front of the screen until the first video frame is ready, so the gold
+  // frame is never a black rectangle while the clip buffers.
+  const posterMesh = new THREE.Mesh(
+    track(new THREE.PlaneGeometry(1, 1)),
+    track(new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false }))
+  );
+  posterMesh.position.set(x0 + 0.13, videoY, cz);
+  posterMesh.rotation.y = Math.PI / 2;
+  posterMesh.visible = false;
+  roomGroup.add(screen, posterMesh, screenFrame);
   const sizeScreen = (aspect) => {
     if (aspect >= fitW / fitH) {
       screenW = fitW;
@@ -1585,6 +1609,7 @@ export function buildWorld(scene) {
       screenW = fitH * aspect;
     }
     screen.scale.set(screenW, screenH, 1);
+    posterMesh.scale.set(screenW, screenH, 1);
     screenFrame.position.set(x0 + 0.07, videoY, cz);
     screenFrame.scale.set(0.04, screenH + 0.3, screenW + 0.3);
   };
@@ -1592,7 +1617,73 @@ export function buildWorld(scene) {
   roomVideo.addEventListener('loadedmetadata', () => {
     sizeScreen(roomVideo.videoWidth / roomVideo.videoHeight || 16 / 9);
   });
-  roomVideo.play().catch(() => {});
+  const posterTexture = soloVideo.poster ? new THREE.TextureLoader().load(soloVideo.poster, (tex) => {
+    tex.colorSpace = THREE.SRGBColorSpace;
+    posterMesh.material.map = tex;
+    posterMesh.material.needsUpdate = true;
+    // Keep the screen's proportions until the clip reports its own
+    if (!roomVideo.videoWidth) sizeScreen(tex.image.width / tex.image.height);
+    if (roomVideo.readyState < 2) posterMesh.visible = true;
+  }) : null;
+  if (posterTexture) track(posterTexture);
+  // Play once a frame is decoded; from then on the video itself is what is on the screen.
+  const firstFrameReady = () => {
+    posterMesh.visible = false;
+    videoPlayback.sync(true);
+  };
+  roomVideo.addEventListener('loadeddata', firstFrameReady, { once: true });
+  roomVideo.load();
+  scene.updateMatrixWorld(true);
+  screen.getWorldPosition(videoWorld);
+
+  // A small badge under the screen: this picture is silent, the sound is on the big panel.
+  const badgeTex = canvasTexture(512, 128, (ctx, w, h) => {
+    ctx.clearRect(0, 0, w, h);
+    ctx.fillStyle = 'rgba(30, 16, 28, 0.72)';
+    const r = h / 2;
+    ctx.beginPath();
+    ctx.moveTo(r, 0);
+    ctx.lineTo(w - r, 0);
+    ctx.arc(w - r, r, r, -Math.PI / 2, Math.PI / 2);
+    ctx.lineTo(r, h);
+    ctx.arc(r, r, r, Math.PI / 2, -Math.PI / 2);
+    ctx.closePath();
+    ctx.fill();
+    // speaker, with a little cross for "muted"
+    ctx.fillStyle = '#ffe9b0';
+    ctx.beginPath();
+    ctx.moveTo(52, 46);
+    ctx.lineTo(72, 46);
+    ctx.lineTo(96, 28);
+    ctx.lineTo(96, 100);
+    ctx.lineTo(72, 82);
+    ctx.lineTo(52, 82);
+    ctx.closePath();
+    ctx.fill();
+    ctx.strokeStyle = '#ffe9b0';
+    ctx.lineWidth = 6;
+    ctx.beginPath();
+    ctx.moveTo(116, 46);
+    ctx.lineTo(146, 82);
+    ctx.moveTo(146, 46);
+    ctx.lineTo(116, 82);
+    ctx.stroke();
+    ctx.fillStyle = '#fff6e6';
+    ctx.font = `600 44px ${FONT}`;
+    ctx.textAlign = 'right';
+    ctx.textBaseline = 'middle';
+    ctx.direction = 'rtl';
+    ctx.fillText('صدا: از نزدیک ببین', w - 30, h / 2 + 2);
+  });
+  badgeTex.colorSpace = THREE.SRGBColorSpace;
+  track(badgeTex);
+  const badge = new THREE.Mesh(
+    track(new THREE.PlaneGeometry(1.5, 0.375)),
+    track(new THREE.MeshBasicMaterial({ map: badgeTex, transparent: true, toneMapped: false }))
+  );
+  badge.position.set(x0 + 0.13, videoY - fitH / 2 - 0.42, cz);
+  badge.rotation.y = Math.PI / 2;
+  roomGroup.add(badge);
 
   // Two small sconces beside the video frame
   const sconceMat = track(new THREE.MeshBasicMaterial({ color: '#ffd6ea' }));
@@ -1668,6 +1759,12 @@ export function buildWorld(scene) {
 
   function update(t, dt, highlightIndex, playerPosition = null, grassActors = []) {
     gardenGrass.update(t, dt, grassActors);
+    // The room's video: plays when the couple is near the screen and the camera can see it.
+    videoPlayback.sync(shouldPlayVideo({
+      distance: playerPosition ? playerPosition.distanceTo(videoWorld) : null,
+      cameraDistance: camera.position.distanceTo(videoWorld),
+      playing: videoPlayback.playing,
+    }));
     hallProgress = advanceHallProgress(hallProgress, playerPosition, LAYOUT.hallHalfWidth, LAYOUT.hallLength);
     castle.update(t);
     town.update(t);
@@ -1756,7 +1853,8 @@ export function buildWorld(scene) {
       frame.photo.material.dispose();
     });
     plaqueTex.dispose();
-    roomVideo.pause();
+    videoPlayback.dispose();
+    posterMesh.material.map?.dispose();
     roomVideo.removeAttribute('src');
     roomVideo.load();
   }
@@ -1774,6 +1872,17 @@ export function buildWorld(scene) {
     stoneGlint,
     updateDoors(dt, px, pz) {
       doors.forEach((d) => d.update(dt, px, pz));
+    },
+    // The room's video screen, for the interact prompt and the big player
+    video: {
+      src: soloVideo.soundSrc, // the copy with sound, for the panel
+      silentSrc: soloVideo.src,
+      screen,
+      // Where the couple has to be for the prompt to appear
+      get centre() { return videoWorld; },
+      isNear(x, z, radius) {
+        return Math.hypot(x - videoWorld.x, z - videoWorld.z) <= radius;
+      },
     },
     get frontDoorOpen() { return frontDoor.isOpen; },
   };
