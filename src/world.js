@@ -1690,7 +1690,7 @@ export function buildWorld(scene, camera) {
       playing: videoPlayback.playing,
     }));
     hallProgress = advanceHallProgress(hallProgress, playerPosition, LAYOUT.hallHalfWidth, LAYOUT.hallLength);
-    castle.update(t);
+    castle.update(t, dt);
     town.update(t, dt); // the clock and the town's windows keep their own, slow time
     clouds.forEach(({ cloud, x, phase }) => { cloud.position.x = x + Math.sin(t * 0.025 + phase) * 2; });
     // Slow, subtle movement shared across the garden canopy and chandeliers.
