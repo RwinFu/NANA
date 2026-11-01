@@ -293,6 +293,9 @@ export function createCouple(dressColor) {
   choker.rotation.x = Math.PI / 2;
   part(new THREE.Mesh(new THREE.SphereGeometry(0.024, 10, 8), pinkGemMatBody), body, 0, 1.56, 0.22);
 
+  // How far her flower arm is swung out from her side (0 = the normal walk, 1 = holding a bouquet).
+  // Set from the game when she buys roses; see flowerArmPose() in src/flower-shop.js.
+  let flowerPose = 0;
   const arms = [];
   [-1, 1].forEach((side) => {
     const pivot = new THREE.Group();
@@ -316,12 +319,21 @@ export function createCouple(dressColor) {
   handL.position.set(0, -0.5, 0.03);
   arms[0].add(handL);
 
-  // A rose in her other hand
+  // What she carries in her free hand. It starts as a single rose (her own), and the flower shop
+  // fills it up: `handBouquet` is the group a bought rose is added to. See src/flower-shop.js.
+  const handBouquet = new THREE.Group();
+  handBouquet.position.set(0.06, -0.5, 0.06);
+  // Tilted out to her side, not in: a positive z rotation would lay the blooms against her bodice
+  // Tilted up and FORWARD (a positive x rotation brings the blooms round to her front; negative
+  // lays them along her back) and out to her side (negative z). With a shallower tilt the stem of
+  // her own rose grazed the waist of her dress.
+  handBouquet.rotation.set(0.42, 0, -0.36);
+  arms[1].add(handBouquet);
   const rose = new THREE.Group();
   part(new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), physMat({ color: '#c81e3c', roughness: 0.3, clearcoat: 0.6, clearcoatRoughness: 0.2 })), rose, 0, 0.05, 0);
   part(new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.35, 6), physMat({ color: '#2f7a4a' })), rose, 0, -0.14, 0);
-  rose.position.set(0.02, -0.66, 0.12);
-  arms[1].add(rose);
+  rose.position.set(0, 0.36, 0);
+  handBouquet.add(rose);
 
   const head = part(new THREE.Mesh(new THREE.SphereGeometry(0.22, 40, 28), skinMat), body, 0, 2.0, 0);
   // Hair covers the crown and the back of the head, so the face stays visible
@@ -702,7 +714,12 @@ export function createCouple(dressColor) {
     // Her arm on his side: hangs by default, reaches for his hand when holding, and takes the dance pose
     arms[0].rotation.x = Math.sin(phase) * 0.04 * amount * walk + armX * d;
     arms[0].rotation.z = THREE.MathUtils.lerp(THREE.MathUtils.lerp(-0.12, -0.6, holdAmount), armZ, d) - 0.35 * air;
-    arms[1].rotation.x = -s * 0.35 * amount * walk + 0.15 * idle - 0.15 * d * Math.sin(fd);
+    arms[1].rotation.x = -s * 0.35 * amount * walk * (1 - 0.6 * flowerPose) + 0.15 * idle - 0.15 * d * Math.sin(fd) + 0.1 * flowerPose;
+    // With flowers in her hand the arm swings out and forward instead of brushing the skirt.
+    // This arm sits at +x, so a positive z rotation is the one that carries it away from her.
+    arms[1].rotation.z = 0.62 * flowerPose + Math.sin(t * 1.1) * 0.03 * flowerPose;
+    // leaning out from her side; the more she carries, the further out it leans
+    handBouquet.rotation.z = -0.33 - 0.10 * flowerPose + Math.sin(t * 0.9) * 0.03 * flowerPose;
     head.rotation.y = Math.sin(t * 0.7) * 0.08 * idle;
     head.rotation.z = m.roll * 0.5 * d;
     updateHair(dt, Math.sin(phase) * amount * 0.12 + Math.sin(t * 1.3) * 0.02 * idle + m.roll * d);
@@ -784,5 +801,18 @@ export function createCouple(dressColor) {
     if (value) { danceId = -1; spinAngle = 0; }
   }
 
-  return { root, animate, setSitting, setDress, setEnvironment, measure, feet, stride: () => phase, toggleHolding, isHolding, nextDance, danceName };
+  function setFlowerPose(amount) {
+    flowerPose = Math.min(1, Math.max(0, amount));
+  }
+
+  return {
+    root, animate, setSitting, setDress, setEnvironment, measure, feet, stride: () => phase, toggleHolding, isHolding, nextDance, danceName,
+    // for the flower shop: her free arm, the group a bought rose hangs from, and the pose it needs
+    flowerArm: arms[1],
+    bouquetGroup: handBouquet,
+    // Her dress's own frame: the skirt profile lives here (the body is scaled as a whole), so any
+    // check on what she carries has to be expressed in it.
+    dressSpace: body,
+    setFlowerPose,
+  };
 }

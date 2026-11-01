@@ -2,6 +2,9 @@ import * as THREE from 'three';
 import { isCastleSolid } from './castle.js';
 import { LAYOUT } from './world.js';
 import { FOUNTAIN, GARDEN_BENCH } from './decor.js';
+import { inLane, inPlaza, STREET, PLAZA, TOWN_HOUSES, GATE, TOWN_WALL_Z, GATE_HALF_WIDTH, TOWN_WALL_HEIGHT } from './town-night.js';
+import { behindCastleBlocked } from './walk-rules.js';
+import { SHOP, stallCorners } from './flower-shop.js';
 
 const PLAYER_RADIUS = 0.3;
 // The boy walks beside the princess, so the hall walls keep this extra distance
@@ -52,6 +55,22 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   // Keep the bench solid without changing the route along the central path.
   if (Math.abs(x - GARDEN_BENCH.x) < GARDEN_BENCH.halfWidth + margin &&
       Math.abs(z - GARDEN_BENCH.z) < GARDEN_BENCH.halfDepth + margin && y < 1.4) return true;
+  // The flower shop's counter on the square: solid, so the couple buy from the front of it rather
+  // than walking through it. Checked against the stall's own footprint, because it is turned to
+  // face the walk rather than lined up with the axes.
+  if (y < 2.6) {
+    const corners = stallCorners();
+    const hw = SHOP.halfWidth + 0.12 + margin;
+    const dz = SHOP.counterDepth + 0.12 + margin;
+    // to the stall's own frame: turn the point back by -rotY and compare with the counter box
+    const dx = x - SHOP.x;
+    const dzz = z - SHOP.z;
+    const c = Math.cos(SHOP.rotY);
+    const s = Math.sin(SHOP.rotY);
+    const localX = dx * c - dzz * s;
+    const localZ = dx * s + dzz * c;
+    if (corners && Math.abs(localX) < hw && localZ > -dz && localZ < dz) return true;
+  }
   // The big envelope at the end of the hall
   const env = LAYOUT.envelope;
   if (Math.abs(x) < env.w / 2 + margin && Math.abs(z - env.z) < 0.1 + margin && y < env.y + env.h + 0.3) {
@@ -66,9 +85,41 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   }
   // The room's ceiling: the camera must not rise above it and look in from the top
   if (inBox && y >= R.height - margin && y < R.height + 0.3) return true;
+  // The lane to town and the square in front of its gate are outside the garden's own limits
+  const onLane = inLane(x, z, margin) || inPlaza(x, z, margin);
   // Garden limits
-  if (Math.abs(x) > LAYOUT.gardenHalfWidth) return true;
-  if (z > LAYOUT.gardenDepth) return true;
+  if (!onLane && Math.abs(x) > LAYOUT.gardenHalfWidth) return true;
+  if (!onLane && z > LAYOUT.gardenDepth) return true;
+  // Past the castle, only the lane and the square are open ground: the castle's own service yards
+  // behind the facade are not. This has to stay *under* the roof (the wall's own top is 7 m, the
+  // vault's crown 10.3 m): when it reached up to 12 m, the camera could not rise above the castle
+  // to look at it, so its walls were only ever seen from the grass.
+  //
+  // It also has to leave the hall alone: the zone starts at z = -1, a step past the doorway, so an
+  // exception for the hall is what keeps the front door usable. See src/walk-rules.js.
+  const throughFrontDoor = Math.abs(x) < hall + 0.2 && z > -len - margin;
+  if (behindCastleBlocked({ z, y, onLane, inHall: throughFrontDoor, inRoom: inBox })) return true;
+  // A couple of metres either side of the lane are a soft shoulder, nothing more
+  if (onLane && y < 2) {
+    // ... and the houses that frame it are solid
+    const inHouse = TOWN_HOUSES.some(
+      (h) => Math.abs(x - h.x) < h.w / 2 + margin && Math.abs(z - h.z) < h.d / 2 + margin
+    );
+    if (inHouse) return true;
+  }
+  // The low garden wall that runs along the lane, so the couple stays on the stones
+  if (onLane && y < 0.9) {
+    const laneEdge = STREET.halfWidth - margin;
+    if (Math.abs(Math.abs(x - STREET.x) - (STREET.halfWidth + 0.85)) < 0.2 + margin && z < 16 && z > -34) return true;
+    if (Math.abs(x - STREET.x) > laneEdge + 0.7) return true;
+  }
+  // The town wall, apart from the gatehouse's own opening, and the gatehouse itself
+  if (Math.abs(z - TOWN_WALL_Z) < 0.7 + margin && y < TOWN_WALL_HEIGHT && Math.abs(x - GATE.x) > GATE_HALF_WIDTH - margin) {
+    return true;
+  }
+  // The gatehouse itself: 10 m wide, its face at GATE.z + 3, its back against the wall. The lane
+  // ends at its steps.
+  if (Math.abs(x - GATE.x) < 5 + margin && z < GATE.z + 3 + margin && z > GATE.z - 5 && y < 13) return true;
   return false;
 }
 

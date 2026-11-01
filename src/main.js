@@ -20,6 +20,7 @@ import { composePostcard, canvasToBlob } from './postcard.js';
 import { createRescueGame, showHowTo } from './rescue.js';
 import { createCats } from './cats.js';
 import { buildDecor, GARDEN_BENCH } from './decor.js';
+import { createBouquet, buyLine, SHOP_EMPTY_LINE, flowerArmPose, ROSE_COLOURS } from './flower-shop.js';
 
 const $ = (sel) => document.querySelector(sel);
 const SWATCHES = [
@@ -122,6 +123,23 @@ if (!renderer) {
   dom.enter.disabled = true;
 }
 
+// If anything throws while the scene is being built, the canvas keeps the page background and the
+// game looks "blank". Say so, rather than leaving a black screen with no explanation: the message
+// names the failure, so a bug like this can be recognised (and reported) instead of guessed at.
+let bootFailed = false;
+function reportBootFailure(err) {
+  if (bootFailed) return;
+  bootFailed = true;
+  if (dom.webgl) {
+    dom.webgl.textContent = 'صحنه بالا نیامد. یک بار صفحه را نو کن؛ اگر باز هم همین‌طور بود، این خطا را بفرست: ' + (err && err.message ? err.message : String(err));
+    dom.webgl.hidden = false;
+  }
+  if (dom.enter) dom.enter.disabled = true;
+  console.error('[start-up]', err);
+}
+window.addEventListener('error', (e) => reportBootFailure(e.error || e.message));
+window.addEventListener('unhandledrejection', (e) => reportBootFailure(e.reason));
+
 const scene = new THREE.Scene();
 // Portrait phones get a wider vertical FOV so the couple fits side by side
 const camera = new THREE.PerspectiveCamera(
@@ -139,6 +157,13 @@ let houseSparkles = null;
 let footprints = null;
 let envelope = null;
 let controls = null;
+// Her bouquet, and how many roses she has bought. These belong up here with the other scene refs:
+// syncBouquet() is called as soon as the couple exists, inside the start-up block, and reading a
+// `let` declared further down throws "Cannot access before initialization" — one thrown error at
+// start-up and the canvas never draws a frame, so the whole page came up blank.
+// tests/startup-order.test.js checks that nothing the start-up block touches is declared below it.
+let bouquet = null;
+let rosesBought = 0;
 let started = false;
 let transition = null;
 let introSparkles = null;
@@ -210,6 +235,7 @@ if (renderer) {
   introSparkles = createSparkles(scene);
   introFairy = createFairy(scene);
   hero = createCouple(store.get().avatarColor);
+  syncBouquet(); // hangs her bouquet on her free arm (empty until she buys a rose)
   scene.add(hero.root);
   // Start in the garden, not at the origin: the origin is the middle of the door, and the couple sank into it before the walk began
   hero.root.position.copy(LAYOUT.spawn);
@@ -432,6 +458,13 @@ function tapFrame(ndc) {
       return;
     }
   }
+  if (world.flowers && nearFlowerShop()) {
+    const shopHits = raycaster.intersectObject(world.flowers.shop.group, true);
+    if (shopHits.length && shopHits[0].distance < world.flowers.radius + 2.5) {
+      buyFlower();
+      return;
+    }
+  }
   if (envelope) {
     const envHits = raycaster.intersectObjects(envelope.hitTargets, false);
     if (envHits.length && envHits[0].distance < 14) openEnvelope();
@@ -509,6 +542,79 @@ function closeVideoPanel() {
 
 dom.video.addEventListener('close', closeVideoPanel);
 
+// The walk to town: when the couple reaches the gate's doorstep, the town's own clock says hello
+// once per visit, and they turn back for home.
+const TOWN_RADIUS = 3.6;
+let townVisited = false;
+function checkTownWalk() {
+  if (!world?.town || !controls || townVisited || benchSeated) return;
+  const gate = world.town.gate;
+  if (!controls.isNear(gate.x, gate.z, TOWN_RADIUS)) return;
+  townVisited = true;
+  const line = world.town.greeting();
+  toast(line, 6500);
+  world.burstHearts(new THREE.Vector3(gate.x, 1.4, gate.z), 6);
+  audio.chime(659.25);
+  // a breath later, the couple turns back toward the house — unless they came to the flower shop,
+  // which stands on this same square: turning them round mid-purchase would be rude
+  window.setTimeout(() => {
+    const home = { x: 0, z: 12 };
+    if (controls && !benchSeated && !nearFlowerShop()) controls.faceToward(home.x, home.z);
+  }, 1400);
+  window.setTimeout(() => {
+    toast('برگردیم خونه؟ ✨', 3200);
+    townVisited = false; // they may come back another time
+  }, 9000);
+}
+
+// ---------- the flower shop at the end of the walk ------------------------
+
+function nearFlowerShop() {
+  if (!world?.flowers || !controls) return false;
+  return world.flowers.isNear(controls.position.x, controls.position.z);
+}
+
+// The bouquet hangs off her free arm (the one on the side away from the boy), and the arm swings
+// out to make room for it. Nothing here touches her dress: the roses sit in front of her shoulder.
+function syncBouquet() {
+  if (!hero) return;
+  if (!bouquet) bouquet = createBouquet(hero.bouquetGroup);
+  hero.setFlowerPose(Math.min(1, rosesBought / 3));
+}
+
+// Her flower arm's swing is folded into her own animation (see flowerArmPose and characters.js):
+// one rose already takes the arm most of the way out of her side, so the stems never touch the
+// dress. This only eases that pose in, so buying a rose does not snap her arm.
+let bouquetPoseApplied = 0;
+function updateBouquetPose(dt = 0.016) {
+  if (!hero) return;
+  const pose = flowerArmPose(rosesBought);
+  const target = rosesBought > 0 ? Math.min(1, 0.55 + 0.45 * (rosesBought / 5)) : 0;
+  bouquetPoseApplied += (target - bouquetPoseApplied) * Math.min(1, dt * 4);
+  hero.setFlowerPose(bouquetPoseApplied);
+  // the arm itself is posed in the walk cycle; the bouquet only needs its own steady tilt
+  // the tilt always leans out to her side (negative), easing further out as the bouquet fills
+  if (bouquet) bouquet.group.rotation.z = -0.3 - pose.sway * bouquetPoseApplied;
+}
+
+function buyFlower() {
+  if (!world?.flowers) return;
+  const result = world.flowers.shop.buy();
+  if (result.index < 0) {
+    toast(SHOP_EMPTY_LINE, 4000);
+    return;
+  }
+  rosesBought += 1;
+  syncBouquet();
+  // the rose she keeps is the one she took off the counter: same colour, so the bunch ends up mixed
+  const picked = ROSE_COLOURS[(result.index >= 0 ? result.index : 0) % ROSE_COLOURS.length];
+  bouquet.add({ petalColor: picked.petal });
+  toast(buyLine(rosesBought), 3200);
+  audio.chime([523.25, 587.33, 659.25, 783.99, 880][Math.min(rosesBought, 5) - 1] || 880);
+  world.burstHearts(new THREE.Vector3(world.flowers.centre.x, 1.5, world.flowers.centre.z + 0.4), 3);
+  updatePrompt();
+}
+
 function updatePrompt() {
   if (!started || anyDialogOpen()) {
     dom.prompt.hidden = true;
@@ -518,6 +624,12 @@ function updatePrompt() {
   if (benchSeated || controls.isNear(GARDEN_BENCH.x, GARDEN_BENCH.z, 2.5)) {
     promptTarget = { type: 'bench' };
     dom.promptLabel.textContent = benchSeated ? 'بلند شدن' : 'کنار هم بشینیم';
+  } else if (nearFlowerShop()) {
+    promptTarget = { type: 'flowers' };
+    const left = world.flowers.shop.remaining;
+    dom.promptLabel.textContent = left > 0
+      ? `خریدن گل (${formatNumber(left)} تا مانده)`
+      : 'گل‌های فروخته‌شده';
   } else if (nearVideoScreen()) {
     promptTarget = { type: 'video' };
     dom.promptLabel.textContent = 'دیدن ویدیو بزرگ‌تر';
@@ -543,6 +655,8 @@ function interact() {
     openEnvelope();
   } else if (promptTarget.type === 'video') {
     openVideo();
+  } else if (promptTarget.type === 'flowers') {
+    buyFlower();
   }
 }
 dom.promptBtn.addEventListener('click', interact);
@@ -685,6 +799,7 @@ function setFormError(message) {
 
 function start(state) {
   started = true;
+  townVisited = false;
   audio.unlock();
   setMusicUi();
 
@@ -876,6 +991,7 @@ function frame() {
   if (started) updateSparkles(t, dt, 1);
 
   if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
+  updateBouquetPose(dt);
   hero.animate(dt, t, started && controls.moving, controls.airborne);
   cats?.update(dt, t, hero, started, benchSeated, { intro: introPlaying, doorOpen: world.frontDoorOpen });
   syncCoupleUi();
@@ -905,6 +1021,7 @@ function frame() {
     lastDoorZ = hz;
   }
   if (started) updatePrompt();
+  if (started) checkTownWalk();
 
   adaptQuality(dt);
   renderer.render(scene, camera);

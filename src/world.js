@@ -1,6 +1,9 @@
 import * as THREE from 'three';
 import { memories as memoryList, soloMemories, soloVideo } from './memories.js';
 import { buildCastle } from './castle.js';
+import { buildCastleOuter } from './castle-outer.js';
+import { buildFlowerShop } from './flower-shop.js';
+import { stoneMaterial, boxUV } from './castle-stone.js';
 import { createRugGlint, createStoneGlint } from './rugglint.js';
 import { stoneNormal, doorNormal, giltNormal, ribbonNormal, heartGlass } from './architecture.js';
 import { buildTown } from './town.js';
@@ -8,6 +11,7 @@ import { advanceHallProgress } from './house-reactivity.js';
 import { outdoorNormal } from './outdoor-textures.js';
 import { roomFrameSlot, hallFrameSlot } from './room-frame-layout.js';
 import { createGardenGrass } from './garden-grass.js';
+import { gateGreeting, GATE_TRIGGER } from './town-night.js';
 import { createVideoPlayback, shouldPlayVideo } from './video-screen.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
@@ -27,7 +31,13 @@ export const LAYOUT = {
   // The photo room: a bigger chamber west of the gallery hall, in the middle of the hall, entered through a doorway in its west wall.
   room: {
     height: 6.4,
-    ox0: -16.0, ox1: -3.85, oz0: -23.4, oz1: -16.6, // outside faces (the hall wall is its east side)
+    // Outside faces, including the 0.34 m of masonry built around the room (castle-outer.js); the
+    // wall itself is `masonry`. The east side is the hall's own wall.
+    ox0: -16.34, ox1: -3.85, oz0: -23.74, oz1: -16.26, // outside faces (the hall wall is its east side)
+    // The room's own faces, inside that stone. Its east side is the hall's west wall, whose outer face
+    // (ix1) is where the annex must stop: building past it puts stone inside the hall.
+    ix0: -16.0, ix1: -4.15, iz0: -23.4, iz1: -16.6,
+    masonry: 0.34,
     x0: -15.6, x1: -4.15, z0: -23.0, z1: -17.0, // inside faces: 11.5 m long, 6 m wide
     door: { z0: -21.3, z1: -18.7, top: 6.0 }, // doorway in the hall's west wall, centred on the hall's middle (z0 is the far edge)
   },
@@ -396,7 +406,8 @@ export function buildWorld(scene, camera) {
   // Sky: a night gradient dome that fades to a plum horizon behind the castle
   const HORIZON = '#2c1f4a';
   scene.background = new THREE.Color(HORIZON);
-  scene.fog = new THREE.Fog(HORIZON, 34, 110);
+  // Started further out than before: the lane to town must not be washed into the horizon colour
+  scene.fog = new THREE.Fog(HORIZON, 46, 165);
   const domeMat = track(
     new THREE.ShaderMaterial({
       side: THREE.BackSide,
@@ -877,54 +888,19 @@ export function buildWorld(scene, camera) {
   heartWindow.rotation.y = 0;
   scene.add(heartWindow);
 
-  // Outer skins: the outside of the hall is stone, not the dark interior colour, and the back is closed.
-  // Each skin sits just outside the hall's own surface, and is double-sided, so from inside the hall
-  // it is hidden behind the walls, vault and heart window.
-  const skinMat = track(new THREE.MeshStandardMaterial({ color: '#cfc0b4', roughness: 0.9, side: THREE.DoubleSide }));
-  const SKIN_R = R_HALL + 0.22;
-  const skinPos = [];
-  [0.2, -LAYOUT.hallLength].forEach((z) => {
-    for (let i = 0; i <= VSEG; i += 1) {
-      const t = (i / VSEG) * Math.PI;
-      skinPos.push(SKIN_R * Math.cos(t), SPRING + SKIN_R * Math.sin(t), z);
-    }
+  // The hall seen from outside: masonry walls, a tiled barrel roof and a stone rear wall. This used
+  // to be three flat cream panels, which read as a blank box from the garden.
+  const castleShell = buildCastleOuter(scene, track, {
+    hallHalfWidth: LAYOUT.hallHalfWidth,
+    spring: LAYOUT.hallSpring,
+    length: LAYOUT.hallLength,
+    room: LAYOUT.room,
   });
-  const skinVaultGeo = track(new THREE.BufferGeometry());
-  skinVaultGeo.setAttribute('position', new THREE.Float32BufferAttribute(skinPos, 3));
-  skinVaultGeo.setIndex(vIdx);
-  skinVaultGeo.computeVertexNormals();
-  scene.add(new THREE.Mesh(skinVaultGeo, skinMat));
-
-  // Right side: just outside the right wall (its outside face is at x = 4.15)
-  const rightSkin = new THREE.Mesh(track(new THREE.PlaneGeometry(LAYOUT.hallLength + 0.4, SPRING)), skinMat);
-  rightSkin.rotation.y = Math.PI / 2;
-  rightSkin.position.set(4.18, SPRING / 2, -LAYOUT.hallLength / 2 + 0.1);
-  scene.add(rightSkin);
-
-  // Left side: outside the left wall, in two pieces that leave out the photo room's span and its doorway (z -23.4 to -16.6)
-  [[0.2, -16.6], [-23.4, -LAYOUT.hallLength]].forEach(([za, zb]) => {
-    const piece = new THREE.Mesh(track(new THREE.PlaneGeometry(za - zb, SPRING)), skinMat);
-    piece.rotation.y = -Math.PI / 2;
-    piece.position.set(-4.18, SPRING / 2, (za + zb) / 2);
-    scene.add(piece);
-  });
-
-  // Back: a round-topped stone wall behind the heart window, with the same cross-section
-  const backShape = new THREE.Shape();
-  backShape.moveTo(-SKIN_R, 0);
-  backShape.lineTo(SKIN_R, 0);
-  backShape.lineTo(SKIN_R, SPRING);
-  for (let i = 0; i <= 36; i += 1) {
-    const a = (i / 36) * Math.PI;
-    backShape.lineTo(SKIN_R * Math.cos(a), SPRING + SKIN_R * Math.sin(a));
-  }
-  backShape.closePath();
-  const back = new THREE.Mesh(track(new THREE.ShapeGeometry(backShape, 36)), skinMat);
-  back.position.set(0, 0, -LAYOUT.hallLength - 0.04);
-  scene.add(back);
 
   // House front (facade) with the door opening
-  const facadeMat = new THREE.MeshStandardMaterial({ color: '#e9dccb', roughness: 0.8, normalMap: stoneNormal(3, 4), normalScale: new THREE.Vector2(1, 1) });
+  // The front wall is ashlar like the rest of the castle, with the map in metres (a 9 m pier and a
+  // 8 m filler used to get one stretched tile each).
+  const facadeMat = track(stoneMaterial({ color: '#e6d8c8', tone: 172, seed: 63, rows: 7, normal: 0.55, roughness: 0.85 }));
   const facadeHeight = 8;
   const halfW = 10;
   const dw = LAYOUT.doorHalfWidth;
@@ -934,7 +910,7 @@ export function buildWorld(scene, camera) {
     [(halfW + dw) / 2, facadeHeight / 2, halfW - dw, facadeHeight],
   ];
   facadeParts.forEach(([x, y, w, h]) => {
-    const part = track(new THREE.Mesh(new THREE.BoxGeometry(w, h, 0.6), facadeMat));
+    const part = track(new THREE.Mesh(boxUV(new THREE.BoxGeometry(w, h, 0.6), w, h, 0.6), facadeMat));
     part.position.set(x, y, 0);
     scene.add(part);
   });
@@ -949,7 +925,14 @@ export function buildWorld(scene, camera) {
     const a = (i / 24) * Math.PI;
     facadeTop.lineTo(Math.cos(a) * dw, dh + Math.sin(a) * dw);
   }
-  const facadeArch = new THREE.Mesh(track(new THREE.ExtrudeGeometry(facadeTop, { depth: 0.6, bevelEnabled: false })), facadeMat);
+  const archGeo = track(new THREE.ExtrudeGeometry(facadeTop, { depth: 0.6, bevelEnabled: false }));
+  // ExtrudeGeometry's UVs are in metres already; bring them to the stone map's tile size
+  {
+    const uv = archGeo.attributes.uv;
+    for (let i = 0; i < uv.count; i += 1) uv.setXY(i, uv.getX(i) / 1.6, uv.getY(i) / 1.6);
+    uv.needsUpdate = true;
+  }
+  const facadeArch = new THREE.Mesh(archGeo, facadeMat);
   facadeArch.position.set(0, 0, -0.3);
   scene.add(facadeArch);
   // Pink moulding and gold piping over the doors, with a rosette at each springline and a crown on top
@@ -1092,10 +1075,12 @@ export function buildWorld(scene, camera) {
   const leafGeo = track(new THREE.IcosahedronGeometry(1, 0));
   const leafGreen = new THREE.MeshStandardMaterial({ color: '#3e7a5c', roughness: 0.9, flatShading: true });
   const leafBlossom = new THREE.MeshStandardMaterial({ color: '#e7a0b8', roughness: 0.9, flatShading: true });
+  // The lane to town leaves the garden at x = -19, so the two west trees move out of its way and
+  // stand as its gateway instead.
   const treeSpots = [
-    [-11, 3], [-21, 11], [-6, 22], [-17, 18], [-12, 22],
+    [-11, 3], [-20.8, 24.2], [-6, 22], [-17, 18], [-12, 22],
     [11, 4], [15, 10], [9, 15], [16, 20], [12, 24],
-    [-19, 2], [20, 1],
+    [-20.8, 20.4], [20, 1],
   ];
   // Alternate whole trees, in path order on each side rather than array order.
   const pinkTreeIndices = new Set();
@@ -1238,6 +1223,10 @@ export function buildWorld(scene, camera) {
   });
   // The town beyond the castle, with its skyline, landmarks and drifting lanterns
   const town = buildTown(scene, track);
+  // The flower shop at the end of the paved walk: on the town square, west of the lane, so it stands
+  // at the end of the walk without ever standing in it. Built here because here is where the town's
+  // ground and its walls are made, and it needs to sit on that square, not float over the grass.
+  const flowerShop = buildFlowerShop(scene, track);
 
   // Hanging lanterns in the hall
   const lanternCount = 64;
@@ -1390,6 +1379,9 @@ export function buildWorld(scene, camera) {
 
   const frames = [...hallFrames, ...roomFrames];
 
+  // The flower shop stands on the town square, at the end of the paved walk, and is built with the
+  // town below: the hall keeps its own end, with the envelope in front of the heart window.
+
   function applyPhoto(frame, texture) {
     const previous = frame.photo.material.map;
     const aspect = texture.image.width / texture.image.height || 1.4;
@@ -1471,21 +1463,7 @@ export function buildWorld(scene, camera) {
   block(ox0, x0, 0, H, oz0, oz1, velvet);
   block(ox0, ox1, 0, H, oz0, z0, velvet);
   block(ox0, ox1, 0, H, z1, oz1, velvet);
-  // Stone skins on the outside faces, so the room reads as part of the castle from outside, not a black box
-  const roomStone = track(new THREE.MeshStandardMaterial({ color: '#cfc0b4', roughness: 0.9 }));
-  const skinW = oz1 - oz0;
-  const skinWide = ox1 - ox0;
-  const westSkin = new THREE.Mesh(track(new THREE.PlaneGeometry(skinW, H)), roomStone);
-  westSkin.rotation.y = -Math.PI / 2;
-  westSkin.position.set(ox0 - 0.03, H / 2, (oz0 + oz1) / 2);
-  roomGroup.add(westSkin);
-  const southSkin = new THREE.Mesh(track(new THREE.PlaneGeometry(skinWide, H)), roomStone);
-  southSkin.rotation.y = Math.PI;
-  southSkin.position.set((ox0 + ox1) / 2, H / 2, oz0 - 0.03);
-  roomGroup.add(southSkin);
-  const northSkin = new THREE.Mesh(track(new THREE.PlaneGeometry(skinWide, H)), roomStone);
-  northSkin.position.set((ox0 + ox1) / 2, H / 2, oz1 + 0.03);
-  roomGroup.add(northSkin);
+  // Its outside faces are masonry, built with the rest of the castle shell above.
   block(ox0, ox1, -0.1, 0.01, oz0, oz1, roomFloor);
   block(ox0, ox1, H, H + 0.2, oz0, oz1, roomCeil);
   // Gold trim along the top and the base of the inside walls (broken at the doorway)
@@ -1720,8 +1698,9 @@ export function buildWorld(scene, camera) {
       playing: videoPlayback.playing,
     }));
     hallProgress = advanceHallProgress(hallProgress, playerPosition, LAYOUT.hallHalfWidth, LAYOUT.hallLength);
-    castle.update(t);
-    town.update(t);
+    castle.update(t, dt);
+    town.update(t, dt); // the clock and the town's windows keep their own, slow time
+    flowerShop.update(t); // the awning, the lantern and the shopkeeper
     clouds.forEach(({ cloud, x, phase }) => { cloud.position.x = x + Math.sin(t * 0.025 + phase) * 2; });
     // Slow, subtle movement shared across the garden canopy and chandeliers.
     swayingLeaves.forEach(({ leaf, phase, baseX }) => {
@@ -1839,5 +1818,19 @@ export function buildWorld(scene, camera) {
       },
     },
     get frontDoorOpen() { return frontDoor.isOpen; },
+    // The flower shop at the end of the hall, and the roses she has bought so far
+    flowers: {
+      shop: flowerShop,
+      centre: { x: flowerShop.buyAt.x, z: flowerShop.buyAt.z },
+      radius: flowerShop.radius,
+      isNear(x, z) {
+        return Math.hypot(x - flowerShop.buyAt.x, z - flowerShop.buyAt.z) <= flowerShop.radius;
+      },
+    },
+    // The walk to town ends here: the gate's doorstep, and what the town's clock says
+    town: {
+      gate: GATE_TRIGGER,
+      greeting: (now = new Date()) => gateGreeting(now),
+    },
   };
 }
