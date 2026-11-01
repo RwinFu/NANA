@@ -20,6 +20,7 @@ import { composePostcard, canvasToBlob } from './postcard.js';
 import { createRescueGame, showHowTo } from './rescue.js';
 import { createCats } from './cats.js';
 import { buildDecor, GARDEN_BENCH } from './decor.js';
+import { createBouquet, buyLine, SHOP_EMPTY_LINE, flowerArmPose } from './flower-shop.js';
 
 const $ = (sel) => document.querySelector(sel);
 const SWATCHES = [
@@ -210,6 +211,7 @@ if (renderer) {
   introSparkles = createSparkles(scene);
   introFairy = createFairy(scene);
   hero = createCouple(store.get().avatarColor);
+  syncBouquet(); // hangs her bouquet on her free arm (empty until she buys a rose)
   scene.add(hero.root);
   // Start in the garden, not at the origin: the origin is the middle of the door, and the couple sank into it before the walk began
   hero.root.position.copy(LAYOUT.spawn);
@@ -432,6 +434,13 @@ function tapFrame(ndc) {
       return;
     }
   }
+  if (world.flowers && nearFlowerShop()) {
+    const shopHits = raycaster.intersectObject(world.flowers.shop.group, true);
+    if (shopHits.length && shopHits[0].distance < world.flowers.radius + 2.5) {
+      buyFlower();
+      return;
+    }
+  }
   if (envelope) {
     const envHits = raycaster.intersectObjects(envelope.hitTargets, false);
     if (envHits.length && envHits[0].distance < 14) openEnvelope();
@@ -533,6 +542,55 @@ function checkTownWalk() {
   }, 9000);
 }
 
+// ---------- the flower shop at the end of the hall ------------------------
+
+let bouquet = null;
+let rosesBought = 0;
+
+function nearFlowerShop() {
+  if (!world?.flowers || !controls) return false;
+  return world.flowers.isNear(controls.position.x, controls.position.z);
+}
+
+// The bouquet hangs off her free arm (the one on the side away from the boy), and the arm swings
+// out to make room for it. Nothing here touches her dress: the roses sit in front of her shoulder.
+function syncBouquet() {
+  if (!hero) return;
+  if (!bouquet) bouquet = createBouquet(hero.bouquetGroup);
+  hero.setFlowerPose(Math.min(1, rosesBought / 3));
+}
+
+// Her flower arm's swing is folded into her own animation (see flowerArmPose and characters.js):
+// one rose already takes the arm most of the way out of her side, so the stems never touch the
+// dress. This only eases that pose in, so buying a rose does not snap her arm.
+let bouquetPoseApplied = 0;
+function updateBouquetPose(dt = 0.016) {
+  if (!hero) return;
+  const pose = flowerArmPose(rosesBought);
+  const target = rosesBought > 0 ? Math.min(1, 0.55 + 0.45 * (rosesBought / 5)) : 0;
+  bouquetPoseApplied += (target - bouquetPoseApplied) * Math.min(1, dt * 4);
+  hero.setFlowerPose(bouquetPoseApplied);
+  // the arm itself is posed in the walk cycle; the bouquet only needs its own steady tilt
+  // the tilt always leans out to her side (negative), easing further out as the bouquet fills
+  if (bouquet) bouquet.group.rotation.z = -0.3 - pose.sway * bouquetPoseApplied;
+}
+
+function buyFlower() {
+  if (!world?.flowers) return;
+  const result = world.flowers.shop.buy();
+  if (result.index < 0) {
+    toast(SHOP_EMPTY_LINE, 4000);
+    return;
+  }
+  rosesBought += 1;
+  syncBouquet();
+  bouquet.add({ petalColor: rosesBought % 2 ? '#ff5f8f' : '#ff8fb0' });
+  toast(buyLine(rosesBought), 3200);
+  audio.chime([523.25, 587.33, 659.25, 783.99, 880][Math.min(rosesBought, 5) - 1] || 880);
+  world.burstHearts(new THREE.Vector3(world.flowers.centre.x, 1.5, world.flowers.centre.z + 0.4), 3);
+  updatePrompt();
+}
+
 function updatePrompt() {
   if (!started || anyDialogOpen()) {
     dom.prompt.hidden = true;
@@ -542,6 +600,12 @@ function updatePrompt() {
   if (benchSeated || controls.isNear(GARDEN_BENCH.x, GARDEN_BENCH.z, 2.5)) {
     promptTarget = { type: 'bench' };
     dom.promptLabel.textContent = benchSeated ? 'بلند شدن' : 'کنار هم بشینیم';
+  } else if (nearFlowerShop()) {
+    promptTarget = { type: 'flowers' };
+    const left = world.flowers.shop.remaining;
+    dom.promptLabel.textContent = left > 0
+      ? `خریدن گل (${formatNumber(left)} تا مانده)`
+      : 'گل‌های فروخته‌شده';
   } else if (nearVideoScreen()) {
     promptTarget = { type: 'video' };
     dom.promptLabel.textContent = 'دیدن ویدیو بزرگ‌تر';
@@ -567,6 +631,8 @@ function interact() {
     openEnvelope();
   } else if (promptTarget.type === 'video') {
     openVideo();
+  } else if (promptTarget.type === 'flowers') {
+    buyFlower();
   }
 }
 dom.promptBtn.addEventListener('click', interact);
@@ -901,6 +967,7 @@ function frame() {
   if (started) updateSparkles(t, dt, 1);
 
   if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
+  updateBouquetPose(dt);
   hero.animate(dt, t, started && controls.moving, controls.airborne);
   cats?.update(dt, t, hero, started, benchSeated, { intro: introPlaying, doorOpen: world.frontDoorOpen });
   syncCoupleUi();

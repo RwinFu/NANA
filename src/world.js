@@ -2,6 +2,7 @@ import * as THREE from 'three';
 import { memories as memoryList, soloMemories, soloVideo } from './memories.js';
 import { buildCastle } from './castle.js';
 import { buildCastleOuter } from './castle-outer.js';
+import { buildFlowerShop, SHOP, shopClearsEnvelope } from './flower-shop.js';
 import { stoneMaterial, boxUV } from './castle-stone.js';
 import { createRugGlint, createStoneGlint } from './rugglint.js';
 import { stoneNormal, doorNormal, giltNormal, ribbonNormal, heartGlass } from './architecture.js';
@@ -1374,6 +1375,13 @@ export function buildWorld(scene, camera) {
 
   const frames = [...hallFrames, ...roomFrames];
 
+  // The end of the hall is a little flower shop: a striped stall under the heart window, with five
+  // roses on the counter. It was an empty dark corner; now the walk down the hall leads somewhere.
+  if (!shopClearsEnvelope(LAYOUT.envelope)) {
+    console.warn('flower shop would stand on the envelope');
+  }
+  const flowerShop = buildFlowerShop(scene, track);
+
   function applyPhoto(frame, texture) {
     const previous = frame.photo.material.map;
     const aspect = texture.image.width / texture.image.height || 1.4;
@@ -1691,6 +1699,7 @@ export function buildWorld(scene, camera) {
     }));
     hallProgress = advanceHallProgress(hallProgress, playerPosition, LAYOUT.hallHalfWidth, LAYOUT.hallLength);
     castle.update(t, dt);
+    flowerShop.update(t);
     town.update(t, dt); // the clock and the town's windows keep their own, slow time
     clouds.forEach(({ cloud, x, phase }) => { cloud.position.x = x + Math.sin(t * 0.025 + phase) * 2; });
     // Slow, subtle movement shared across the garden canopy and chandeliers.
@@ -1809,6 +1818,15 @@ export function buildWorld(scene, camera) {
       },
     },
     get frontDoorOpen() { return frontDoor.isOpen; },
+    // The flower shop at the end of the hall, and the roses she has bought so far
+    flowers: {
+      shop: flowerShop,
+      centre: { x: flowerShop.buyAt.x, z: flowerShop.buyAt.z },
+      radius: flowerShop.radius,
+      isNear(x, z) {
+        return Math.hypot(x - flowerShop.buyAt.x, z - flowerShop.buyAt.z) <= flowerShop.radius;
+      },
+    },
     // The walk to town ends here: the gate's doorstep, and what the town's clock says
     town: {
       gate: GATE_TRIGGER,

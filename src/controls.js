@@ -4,6 +4,7 @@ import { LAYOUT } from './world.js';
 import { FOUNTAIN, GARDEN_BENCH } from './decor.js';
 import { inLane, inPlaza, STREET, PLAZA, TOWN_HOUSES, GATE, TOWN_WALL_Z, GATE_HALF_WIDTH, TOWN_WALL_HEIGHT } from './town-night.js';
 import { behindCastleBlocked } from './walk-rules.js';
+import { SHOP } from './flower-shop.js';
 
 const PLAYER_RADIUS = 0.3;
 // The boy walks beside the princess, so the hall walls keep this extra distance
@@ -54,6 +55,11 @@ export function isSolid(x, y, z, margin = PLAYER_RADIUS) {
   // Keep the bench solid without changing the route along the central path.
   if (Math.abs(x - GARDEN_BENCH.x) < GARDEN_BENCH.halfWidth + margin &&
       Math.abs(z - GARDEN_BENCH.z) < GARDEN_BENCH.halfDepth + margin && y < 1.4) return true;
+  // The flower shop's counter at the end of the hall: the couple buy their roses from the front
+  if (x > SHOP.x - SHOP.halfWidth - margin && x < SHOP.x + SHOP.halfWidth + margin
+      && z < SHOP.z + 0.42 + margin && z > SHOP.z - 0.55 && y < 2.6) {
+    return true;
+  }
   // The big envelope at the end of the hall
   const env = LAYOUT.envelope;
   if (Math.abs(x) < env.w / 2 + margin && Math.abs(z - env.z) < 0.1 + margin && y < env.y + env.h + 0.3) {
