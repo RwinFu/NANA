@@ -187,9 +187,23 @@ let introT0 = 0;
 let starting = false; // the curtain is falling before the tour starts
 const introLook = new THREE.Vector3(); // where the intro camera looks, for the hand-off
 
+// Work that has to happen but not before the first frame: a chain of idle callbacks, so the browser
+// runs it when nothing is drawing rather than in the middle of the start-up.
+function scheduleWarmUp(job, delay = 1200) {
+  const run = () => {
+    if (typeof requestIdleCallback === 'function') requestIdleCallback(() => job(), { timeout: 4000 });
+    else setTimeout(job, 0);
+  };
+  setTimeout(run, delay);
+}
+
 function beginRescue() {
   rescueActive = true;
   dom.intro.hidden = true;
+  // The cats are built in the background of the gate rather than at start-up: their fur is two maps
+  // drawn on the CPU, and nothing on screen needs them until the tour begins. Built inside the rescue
+  // canvas' first idle moment, so they cannot cost the game a frame.
+  scheduleWarmUp(() => cats?.warm());
   rescue = createRescueGame({
     onDone: finishRescue,
     autoStart: true,

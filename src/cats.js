@@ -106,33 +106,41 @@ export function createCats(scene, hero, { butterflies = () => [], frames = [] } 
   const leadLast = { princess: new THREE.Vector3(), boy: new THREE.Vector3() };
   const leadIdle = { princess: 0, boy: 0 }; // seconds each one has stood still
 
-  const list = ['pastil', 'ani'].map((key, idx) => {
-    const built = buildCat(key);
-    group.add(built.root);
-    return {
-      key,
-      idx,
-      ...built,
-      gait: CAT_SPECS[key],
-      pos: new THREE.Vector3(),
-      yaw: 0,
-      scale: 0,
-      placed: false,
-      state: 'follow',
-      timer: 0,
-      cooldown: 2 + idx * 2,
-      guideCooldown: 3 + idx * 7,
-      guide: null,
-      target: null,
-      spot: new THREE.Vector3(),
-      lie: 0,
-      crouch: 0,
-      hop: 0,
-      lookAngle: null,
-      nearPerson: false,
-      attentive: false,
-    };
-  });
+  // The two cats are built on the first frame they can be seen, not while the world is being built.
+  // Their fur is two 256 x 256 maps drawn by hand on the CPU and they are hidden through the whole
+  // gate (the rescue game), so building them at start-up was work nothing on screen needed yet.
+  let built = null;
+  function buildCats() {
+    if (built) return built;
+    built = ['pastil', 'ani'].map((key, idx) => {
+      const cat = buildCat(key);
+      group.add(cat.root);
+      return {
+        key,
+        idx,
+        ...cat,
+        gait: CAT_SPECS[key],
+        pos: new THREE.Vector3(),
+        yaw: 0,
+        scale: 0,
+        placed: false,
+        state: 'follow',
+        timer: 0,
+        cooldown: 2 + idx * 2,
+        guideCooldown: 3 + idx * 7,
+        guide: null,
+        target: null,
+        spot: new THREE.Vector3(),
+        lie: 0,
+        crouch: 0,
+        hop: 0,
+        lookAngle: null,
+        nearPerson: false,
+        attentive: false,
+      };
+    });
+    return built;
+  }
 
   function leaderPos(name, out) {
     if (name === 'princess') return out.copy(hero.root.position);
@@ -159,6 +167,8 @@ export function createCats(scene, hero, { butterflies = () => [], frames = [] } 
   function update(dt, t, _hero, show, seated = false, story = {}) {
     group.visible = show || !!story.intro;
     if (!group.visible) return;
+    // first visible frame: build them now, not at start-up
+    const list = buildCats();
 
     if (!show && story.intro) {
       for (const cat of list) {
@@ -441,5 +451,6 @@ export function createCats(scene, hero, { butterflies = () => [], frames = [] } 
     }
   }
 
-  return { update, group };
+  // building them is not done at start-up; `warm()` lets a caller pay for it at a chosen moment
+  return { update, group, warm: () => buildCats() };
 }

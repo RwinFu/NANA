@@ -31,14 +31,19 @@ export function shouldPlayVideo({ distance, cameraDistance, playing }) {
 // Keeps one <video> in sync with the game: waits for decoded data, retries a rejected play
 // request a limited number of times, pauses while the page is hidden and resumes when it is
 // back, and never calls play() on a video that is already playing.
+// `armed` is what lets the clip start at all: the world arms it when the couple first comes near the
+// screen (and only then does the 1 MB download begin — see world.js). Before that it is not "wanted"
+// either, so its autoplay attempt does not fire, and there is no decoder running for a screen nobody
+// has walked up to yet.
 export function createVideoPlayback(video, documentRef = document, windowRef = window) {
+  let armed = false;
   let wanted = true; // the game wants this playing (sync() narrows it)
   let retries = 0;
   let retryTimer = null;
   let disposed = false;
 
   function playNow() {
-    if (disposed || !video || !wanted) return;
+    if (disposed || !video || !wanted || !armed) return;
     if (documentRef.hidden || video.error) return;
     if (!video.paused) return; // already playing
     if (video.readyState < 2) return; // 'loadeddata' / 'canplay' comes back here
@@ -107,6 +112,20 @@ export function createVideoPlayback(video, documentRef = document, windowRef = w
   playNow();
 
   return {
+    // The clip may start from now on (and its download is under way).
+    arm() {
+      if (disposed) return false;
+      const first = !armed;
+      armed = true;
+      if (first) {
+        retries = 0;
+        playNow();
+      }
+      return first;
+    },
+    get armed() {
+      return armed;
+    },
     // Called every frame; cheap when nothing changes.
     sync(shouldPlayIn) {
       if (disposed || !video) return;

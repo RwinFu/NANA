@@ -1648,7 +1648,10 @@ export function buildWorld(scene, camera) {
   roomVideo.muted = true;
   roomVideo.defaultMuted = true;
   roomVideo.playsInline = true;
-  roomVideo.autoplay = true;
+  // Not autoplay: the clip is started by startRoomVideo() when the couple comes near the screen. An
+  // autoplaying video is a live decoder for the whole game, including the two minutes of the gate,
+  // for a screen nobody is looking at yet.
+  roomVideo.autoplay = false;
   // the clip itself is only downloaded when the couple is near the screen (see startRoomVideo)
   roomVideo.preload = 'none';
   // iOS only treats a video as inline when it is also marked this way in markup, and it only
@@ -1729,6 +1732,9 @@ export function buildWorld(scene, camera) {
   function startRoomVideo() {
     if (roomVideoStarted) return;
     roomVideoStarted = true;
+    // Arming lets the clip play; loading starts the download. The poster stays on the screen until
+    // the first frame has decoded (see above), so the screen is never blank.
+    videoPlayback.arm();
     roomVideo.load();
   }
   scene.updateMatrixWorld(true);
