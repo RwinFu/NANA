@@ -85,9 +85,11 @@ export function buyLine(count) {
 // the +y axis, so the group can be tipped into her hand.
 function makeRose({ petalColor = '#ff5f8f', leafColor = '#2f7a4a', ribbon = '#ffe6f0', scale = 1 } = {}) {
   const group = new THREE.Group();
-  const petalMat = new THREE.MeshStandardMaterial({
+  // satin, so a physical material: `sheen` does not exist on MeshStandardMaterial, and it warned
+  // (and drew nothing) every time a rose was built
+  const petalMat = new THREE.MeshPhysicalMaterial({
     color: petalColor, roughness: 0.42, sheen: 0.4, sheenColor: new THREE.Color('#ffd6e6'),
-    normalMap: surfaceNormal('satin', 2), normalScale: new THREE.Vector2(0.15, 0.15),
+    sheenRoughness: 0.4, normalMap: surfaceNormal('satin', 2), normalScale: new THREE.Vector2(0.15, 0.15),
   });
   const leafMat = new THREE.MeshStandardMaterial({ color: leafColor, roughness: 0.75, side: THREE.DoubleSide });
   const ribbonMat = new THREE.MeshStandardMaterial({ color: ribbon, roughness: 0.5 });

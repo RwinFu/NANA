@@ -123,6 +123,23 @@ if (!renderer) {
   dom.enter.disabled = true;
 }
 
+// If anything throws while the scene is being built, the canvas keeps the page background and the
+// game looks "blank". Say so, rather than leaving a black screen with no explanation: the message
+// names the failure, so a bug like this can be recognised (and reported) instead of guessed at.
+let bootFailed = false;
+function reportBootFailure(err) {
+  if (bootFailed) return;
+  bootFailed = true;
+  if (dom.webgl) {
+    dom.webgl.textContent = 'صحنه بالا نیامد. یک بار صفحه را نو کن؛ اگر باز هم همین‌طور بود، این خطا را بفرست: ' + (err && err.message ? err.message : String(err));
+    dom.webgl.hidden = false;
+  }
+  if (dom.enter) dom.enter.disabled = true;
+  console.error('[start-up]', err);
+}
+window.addEventListener('error', (e) => reportBootFailure(e.error || e.message));
+window.addEventListener('unhandledrejection', (e) => reportBootFailure(e.reason));
+
 const scene = new THREE.Scene();
 // Portrait phones get a wider vertical FOV so the couple fits side by side
 const camera = new THREE.PerspectiveCamera(
@@ -140,6 +157,13 @@ let houseSparkles = null;
 let footprints = null;
 let envelope = null;
 let controls = null;
+// Her bouquet, and how many roses she has bought. These belong up here with the other scene refs:
+// syncBouquet() is called as soon as the couple exists, inside the start-up block, and reading a
+// `let` declared further down throws "Cannot access before initialization" — one thrown error at
+// start-up and the canvas never draws a frame, so the whole page came up blank.
+// tests/startup-order.test.js checks that nothing the start-up block touches is declared below it.
+let bouquet = null;
+let rosesBought = 0;
 let started = false;
 let transition = null;
 let introSparkles = null;
@@ -543,9 +567,6 @@ function checkTownWalk() {
 }
 
 // ---------- the flower shop at the end of the hall ------------------------
-
-let bouquet = null;
-let rosesBought = 0;
 
 function nearFlowerShop() {
   if (!world?.flowers || !controls) return false;
