@@ -42,10 +42,11 @@ function block(ctx, x, y, w, h, tone, rand) {
 
 // Ashlar: staggered courses of cut stone, with mortar lines and a little weathering. The result is
 // greyscale-on-tone, so one map works for every stone colour the town uses.
-export function stoneCanvas({ seed = 1, size = 256, rows = 6, tone = 150 } = {}) {
+export function stoneCanvas({ seed = 1, size = 256, rows = 6, tone = 196 } = {}) {
   const rand = rng(seed);
   const { canvas, ctx } = canvasOf(size);
-  ctx.fillStyle = `rgb(${tone - 62},${tone - 64},${tone - 58})`; // mortar, in shadow
+  // mortar: darker than the blocks, but not a black grout line — the old -62 read as charcoal
+  ctx.fillStyle = `rgb(${tone - 40},${tone - 42},${tone - 36})`;
   ctx.fillRect(0, 0, size, size);
   const rowH = size / rows;
   for (let r = 0; r < rows; r += 1) {
@@ -53,7 +54,7 @@ export function stoneCanvas({ seed = 1, size = 256, rows = 6, tone = 150 } = {})
     let x = (r % 2) * -(size / 8);
     while (x < size) {
       const w = (size / 3.2) * (0.75 + rand() * 0.6);
-      const shade = tone - 14 + Math.floor(rand() * 28);
+      const shade = tone - 10 + Math.floor(rand() * 22);
       block(ctx, x + 2, y + 2, w - 4, rowH - 4, shade, rand);
       x += w;
     }
@@ -105,7 +106,7 @@ export function roofCanvas({ seed = 2, size = 256, rows = 8, tone = 120 } = {}) 
 
 // Cobbles for the lane: flat, irregular setts packed tight, with fine dark joints. Real paving
 // stones are blocks, not pebbles, so each one is a rounded rectangle with its own tilt.
-export function cobbleCanvas({ seed = 3, size = 512, tone = 132 } = {}) {
+export function cobbleCanvas({ seed = 3, size = 512, tone = 168 } = {}) {
   const rand = rng(seed);
   const { canvas, ctx } = canvasOf(size);
   // the joint: dark, but not black, so the lane does not read as a grid
@@ -164,7 +165,7 @@ export function cobbleCanvas({ seed = 3, size = 512, tone = 132 } = {}) {
 
 // Old plaster or limewash: a near-flat tone with mottling, a few hairline cracks and a dark base.
 // This is what a house wall is mostly made of, so it must not be flat, and must not be busy either.
-export function plasterCanvas({ seed = 4, size = 256, tone = 150 } = {}) {
+export function plasterCanvas({ seed = 4, size = 256, tone = 220 } = {}) {
   const rand = rng(seed);
   const { canvas, ctx } = canvasOf(size);
   ctx.fillStyle = `rgb(${tone},${tone - 2},${tone + 2})`;

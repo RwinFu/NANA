@@ -119,11 +119,41 @@ function curlHeight() {
   return c;
 }
 
+// Tweed: a coarse woven cloth, a twill of two thread directions with slubs of thicker yarn. Wool at
+// arm's length has no pattern but this: a haze of threads with a raised slub every so often. A plain
+// colour on a coat, next to a dress this detailed, reads as plastic.
+function tweedHeight() {
+  const { c, g } = canvas();
+  g.fillStyle = '#3a3a3a';
+  g.fillRect(0, 0, SIZE, SIZE);
+  const step = 6;
+  for (let y = 0; y < SIZE; y += step) {
+    for (let x = 0; x < SIZE; x += step) {
+      // a twill weave: the raised thread alternates over/under every other step
+      const over = ((x / step) + (y / step)) % 2 === 0;
+      g.fillStyle = over ? '#c0c0c0' : '#6a6a6a';
+      g.fillRect(x, y, step - 1, step - 1);
+    }
+  }
+  // slubs: short thicker threads lying across the weave
+  const r = rng(23);
+  for (let i = 0; i < 90; i += 1) {
+    g.fillStyle = `rgba(255,255,255,${(0.25 + r() * 0.5).toFixed(2)})`;
+    const x = r() * SIZE;
+    const y = r() * SIZE;
+    const len = 8 + r() * 22;
+    if (r() > 0.5) g.fillRect(x, y, len, 2 + r() * 2);
+    else g.fillRect(x, y, 2 + r() * 2, len);
+  }
+  return c;
+}
+
 const KINDS = {
   satin: { height: () => satinHeight(), strength: 2.2 },
   strands: { height: () => strandHeight(rng(5)), strength: 2.4 },
   knit: { height: () => knitHeight(), strength: 3.2 },
   curl: { height: () => curlHeight(), strength: 2.8 },
+  tweed: { height: () => tweedHeight(), strength: 2.6 },
 };
 
 const cache = new Map();
@@ -140,5 +170,63 @@ export function surfaceNormal(kind, repeat = 1) {
   tex.repeat.set(repeat, repeat);
   tex.anisotropy = 4;
   cache.set(key, tex);
+  return tex;
+}
+
+// The same idea in colour: a fine, low-contrast mottle that sits on a material's map slot. It is
+// near-white so a tinted material keeps its own colour, and the small darkening is what gives cloth
+// the unevenness real fabric has. Without it a large skirt is one flat colour across its whole width.
+const weaveCache = new Map();
+
+export function clothWeave(kind = 'tweed', repeat = 6) {
+  const key = `${kind}:${repeat}`;
+  if (weaveCache.has(key)) return weaveCache.get(key);
+  const S = 128;
+  const c = document.createElement('canvas');
+  c.width = S;
+  c.height = S;
+  const g = c.getContext('2d');
+  g.fillStyle = '#f4f1ef';
+  g.fillRect(0, 0, S, S);
+  const r = rng(kind === 'satin' ? 11 : 47);
+  if (kind === 'satin') {
+    // broad soft sheen bands: satin catches light in wide stripes
+    for (let x = 0; x < S; x += 1) {
+      const v = 0.5 + 0.5 * Math.sin((x / S) * Math.PI * 2 * 3);
+      const l = Math.round(226 + 28 * v);
+      g.fillStyle = `rgb(${l},${l},${l})`;
+      g.fillRect(x, 0, 1, S);
+    }
+  } else {
+    // a twill: thin diagonal threads, plus a slight blotch so the tone is never even
+    for (let i = 0; i < 260; i += 1) {
+      const x = r() * S;
+      const y = r() * S;
+      const lum = Math.round(214 + r() * 40);
+      g.strokeStyle = `rgba(${lum},${lum},${lum},${(0.25 + r() * 0.5).toFixed(2)})`;
+      g.lineWidth = 0.7 + r() * 1.1;
+      g.beginPath();
+      g.moveTo(x, y);
+      g.lineTo(x + 6, y - 6);
+      g.stroke();
+    }
+    for (let i = 0; i < 26; i += 1) {
+      const x = r() * S;
+      const y = r() * S;
+      const rad = 6 + r() * 20;
+      const grd = g.createRadialGradient(x, y, 0, x, y, rad);
+      grd.addColorStop(0, 'rgba(196,188,182,0.35)');
+      grd.addColorStop(1, 'rgba(196,188,182,0)');
+      g.fillStyle = grd;
+      g.fillRect(x - rad, y - rad, rad * 2, rad * 2);
+    }
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  tex.wrapT = THREE.RepeatWrapping;
+  tex.repeat.set(repeat, repeat);
+  tex.anisotropy = 4;
+  weaveCache.set(key, tex);
   return tex;
 }

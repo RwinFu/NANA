@@ -13,6 +13,9 @@ import { roomFrameSlot, hallFrameSlot } from './room-frame-layout.js';
 import { createGardenGrass } from './garden-grass.js';
 import { gateGreeting, GATE_TRIGGER } from './town-night.js';
 import { createVideoPlayback, shouldPlayVideo } from './video-screen.js';
+import { skyLight, horizonColor } from './night-light.js';
+import { castleStone, hallInterior } from './palette.js';
+import { masonryMap, masonryBump } from './castle-stone.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -403,8 +406,9 @@ export function buildWorld(scene, camera) {
     return obj;
   };
 
-  // Sky: a night gradient dome that fades to a plum horizon behind the castle
-  const HORIZON = '#2c1f4a';
+  // Sky: a night gradient dome that fades to a plum horizon behind the castle. A touch lighter than
+  // the old #2c1f4a: the sky is the brightest thing in the frame, and the walls read against it.
+  const HORIZON = horizonColor;
   scene.background = new THREE.Color(HORIZON);
   // Started further out than before: the lane to town must not be washed into the horizon colour
   scene.fog = new THREE.Fog(HORIZON, 46, 165);
@@ -564,11 +568,25 @@ export function buildWorld(scene, camera) {
   });
 
   // Lights
-  const hemi = new THREE.HemisphereLight('#ffe2ca', '#715046', 1.05);
+  //
+  // It is a moonlit night, not a black one. The old pair was a warm hemisphere at 1.05 and one warm
+  // moon at 0.95 from the north-west: any wall the moon did not face — which is the whole lane side
+  // of the town and most of the castle's flanks — received nothing but the hemisphere's *ground*
+  // colour, and read as a black slab. See src/night-light.js for the numbers.
+  const hemi = new THREE.HemisphereLight(skyLight.color, skyLight.groundColor, skyLight.intensity);
   scene.add(hemi);
-  const moonLight = new THREE.DirectionalLight('#ffdfbd', 0.95);
+  const moonLight = new THREE.DirectionalLight(skyLight.keyColor, skyLight.keyIntensity);
   moonLight.position.set(-30, 50, 20);
   scene.add(moonLight);
+  // A soft, cool fill from the opposite side: shadowed faces get shape and a blue-violet cast
+  // (moonlight bouncing off the sky) instead of going to black.
+  const fillLight = new THREE.DirectionalLight(skyLight.fillColor, skyLight.fillIntensity);
+  fillLight.position.set(26, 18, -34);
+  scene.add(fillLight);
+  // ... and a warm bounce from the ground, so a wall's lower half is not darker than its top.
+  const bounceLight = new THREE.DirectionalLight(skyLight.bounceColor, skyLight.bounceIntensity);
+  bounceLight.position.set(0, -6, 8);
+  scene.add(bounceLight);
 
   const hallLights = [];
   [-8, -19, -30].forEach((z) => {
@@ -600,9 +618,11 @@ export function buildWorld(scene, camera) {
   const parquetTex = canvasTexture(256, 256, (ctx, w, h) => {
     const plank = 64;
     for (let row = 0; row < h / plank; row += 1) {
-      ctx.fillStyle = row % 2 ? '#6b4330' : '#5a3726';
+      // a warmer, lighter parquet: the floor is what the chandeliers are actually lighting, and the
+      // old #5a3726 planks swallowed that light and left the corridor floor black
+      ctx.fillStyle = row % 2 ? hallInterior.floorLight : hallInterior.floorDark;
       ctx.fillRect(0, row * plank, w, plank);
-      ctx.strokeStyle = 'rgba(30,15,10,0.65)';
+      ctx.strokeStyle = 'rgba(52,28,16,0.5)';
       ctx.lineWidth = 3;
       ctx.beginPath();
       ctx.moveTo(0, row * plank);
@@ -685,7 +705,22 @@ export function buildWorld(scene, camera) {
   // Hall walls and a round barrel vault: a half circle across the hall that springs from the wall tops
   const R_HALL = LAYOUT.hallHalfWidth;
   const SPRING = LAYOUT.hallSpring;
-  const vaultMat = track(new THREE.MeshStandardMaterial({ color: '#2a1f3d', roughness: 0.9, side: THREE.DoubleSide }));
+  // The hall's own walls and vault: a warm, deep rose-violet, not a near-black one. Lit only by the
+  // chandeliers, a #3a2a3f wall was a black band down both sides of the corridor.
+  //
+  // Walls and vault share ONE stone map at ONE scale (see HALL_TILE below). They did not before: the
+  // right wall was a BoxGeometry whose UVs ran 0..1, so a single tile was stretched over all 40 m
+  // (huge, blurred blocks), while the left wall was an ExtrudeGeometry with UVs in metres (tiny
+  // blocks), and the vault had no map at all. Three surfaces, three different looks, in one corridor.
+  const HALL_TILE = 1.6; // metres per texture tile, the same as the castle's outside stone
+  const vaultMat = track(new THREE.MeshStandardMaterial({
+    color: hallInterior.vault,
+    map: track(masonryMap({ tone: 208, seed: 79, rows: 8 })),
+    bumpMap: track(masonryBump(208)),
+    bumpScale: 0.035,
+    roughness: 0.9,
+    side: THREE.DoubleSide,
+  }));
   const vaultGeo = track(new THREE.BufferGeometry());
   const VSEG = 36;
   const vPos = [];
@@ -704,14 +739,32 @@ export function buildWorld(scene, camera) {
     vIdx.push(a, c, b, b, c, d);
   }
   vaultGeo.setAttribute('position', new THREE.Float32BufferAttribute(vPos, 3));
+  // UVs in tiles, measured on the surface: u runs round the barrel (arc length), v down the hall, so
+  // the courses of stone curve with the vault instead of smearing across it
+  const vUv = [];
+  for (let j = 0; j < 2; j += 1) {
+    for (let i = 0; i <= VSEG; i += 1) {
+      const t = (i / VSEG) * Math.PI;
+      vUv.push((R_HALL * t) / HALL_TILE, (j === 0 ? 0.2 : -LAYOUT.hallLength) / HALL_TILE);
+    }
+  }
+  vaultGeo.setAttribute('uv', new THREE.Float32BufferAttribute(vUv, 2));
   vaultGeo.setIndex(vIdx);
   vaultGeo.computeVertexNormals();
   scene.add(new THREE.Mesh(vaultGeo, vaultMat));
 
-  const wallMat = new THREE.MeshStandardMaterial({ color: '#3a2a3f', roughness: 0.85 });
+  // dressed stone inside too: the same course-and-joint map as outside, at a smaller scale, so the
+  // corridor walls read as masonry rather than as flat panels
+  const wallMat = new THREE.MeshStandardMaterial({
+    color: hallInterior.wall,
+    map: vaultMat.map,
+    bumpMap: vaultMat.bumpMap,
+    bumpScale: 0.035,
+    roughness: 0.88,
+  });
   const wallThickness = 0.3;
   // Right wall: one solid piece up to the springline of the vault
-  const sideWallGeo = track(new THREE.BoxGeometry(wallThickness, SPRING, LAYOUT.hallLength));
+  const sideWallGeo = track(boxUV(new THREE.BoxGeometry(wallThickness, SPRING, LAYOUT.hallLength), wallThickness, SPRING, LAYOUT.hallLength, HALL_TILE));
   const rightWall = new THREE.Mesh(sideWallGeo, wallMat);
   rightWall.position.set(LAYOUT.hallHalfWidth + wallThickness / 2, SPRING / 2, -LAYOUT.hallLength / 2);
   scene.add(rightWall);
@@ -735,7 +788,15 @@ export function buildWorld(scene, camera) {
   wallShape.lineTo(LAYOUT.hallLength, SPRING);
   wallShape.lineTo(-0.2, SPRING);
   wallShape.closePath();
-  const leftWall = new THREE.Mesh(track(new THREE.ExtrudeGeometry(wallShape, { depth: wallThickness, bevelEnabled: false })), wallMat);
+  const leftWallGeo = track(new THREE.ExtrudeGeometry(wallShape, { depth: wallThickness, bevelEnabled: false }));
+  {
+    // ExtrudeGeometry's UVs are in shape units (metres here). The map is drawn at one tile per
+    // HALL_TILE metres, so divide them down to match the right wall's boxUV.
+    const uv = leftWallGeo.attributes.uv;
+    for (let i = 0; i < uv.count; i += 1) uv.setXY(i, uv.getX(i) / HALL_TILE, uv.getY(i) / HALL_TILE);
+    uv.needsUpdate = true;
+  }
+  const leftWall = new THREE.Mesh(leftWallGeo, wallMat);
   leftWall.rotation.y = Math.PI / 2;
   leftWall.position.set(leftX - wallThickness / 2, 0, 0);
   scene.add(leftWall);
@@ -900,7 +961,7 @@ export function buildWorld(scene, camera) {
   // House front (facade) with the door opening
   // The front wall is ashlar like the rest of the castle, with the map in metres (a 9 m pier and a
   // 8 m filler used to get one stretched tile each).
-  const facadeMat = track(stoneMaterial({ color: '#e6d8c8', tone: 172, seed: 63, rows: 7, normal: 0.55, roughness: 0.85 }));
+  const facadeMat = track(stoneMaterial({ color: castleStone.hallWall, tone: 216, seed: 63, rows: 7, normal: 0.55, roughness: 0.85 }));
   const facadeHeight = 8;
   const halfW = 10;
   const dw = LAYOUT.doorHalfWidth;
@@ -1309,18 +1370,35 @@ export function buildWorld(scene, camera) {
       photo.position.z = 0.045;
       group.add(photo);
 
-      // Lamp above the frame, and a soft wash of light on the wall
+      // Picture light: a small brass gallery lamp sitting ON the top edge of the frame, leaning out
+      // over the picture, plus a soft wash of light on the wall.
+      //
+      // It used to be a black bracket on a 3 mm stem, hung 12 cm clear above the frame with nothing
+      // touching anything. From anywhere off-axis in the corridor — which is most of the time — the
+      // 5 cm arm read as a black dash floating on the wall with a thin wire under it, not as a lamp.
+      // Now the stem starts inside the frame's top moulding and the shade is gold, so the parts join
+      // up and catch the same light as the frame.
+      const lampStemH = 0.2;
       const lampArm = new THREE.Mesh(
-        new THREE.BoxGeometry(0.05, 0.24, 0.05),
-        new THREE.MeshStandardMaterial({ color: '#15121c', metalness: 0.6, roughness: 0.4 })
+        new THREE.CylinderGeometry(0.014, 0.02, lampStemH, 8),
+        track(new THREE.MeshStandardMaterial({ color: '#8a6a34', metalness: 0.85, roughness: 0.34 }))
       );
-      lampArm.position.set(0, 0.75, 0.08);
+      // the stem's lower end sits 4 cm inside the frame's top edge, so there is no gap to read
+      lampArm.position.set(0, 0.75, 0.075);
       group.add(lampArm);
-      const lampHead = new THREE.Mesh(
-        new THREE.SphereGeometry(0.1, 12, 10),
-        new THREE.MeshBasicMaterial({ color: memory.frame.glow, fog: false })
+      // the shade: a shallow flared cap over the bulb, the way a gallery light actually looks
+      const lampShade = new THREE.Mesh(
+        track(new THREE.CylinderGeometry(0.11, 0.055, 0.11, 14, 1, true)),
+        track(new THREE.MeshStandardMaterial({ color: '#c9a24a', metalness: 0.8, roughness: 0.3, side: THREE.DoubleSide }))
       );
-      lampHead.position.set(0, 0.87, 0.1);
+      lampShade.position.set(0, 0.93, 0.13);
+      lampShade.rotation.x = -0.45; // tipped down toward the picture
+      group.add(lampShade);
+      const lampHead = new THREE.Mesh(
+        track(new THREE.SphereGeometry(0.075, 12, 10)),
+        track(new THREE.MeshBasicMaterial({ color: memory.frame.glow, fog: false }))
+      );
+      lampHead.position.set(0, 0.9, 0.15);
       group.add(lampHead);
       const warmGlow = new THREE.Color(memory.frame.glow).lerp(new THREE.Color('#ffd7a6'), 0.8);
       const wash = new THREE.Sprite(glowAdd(warmGlow, 0.20));
@@ -1339,6 +1417,7 @@ export function buildWorld(scene, camera) {
         frameMesh,
         lampHead,
         lampArm,
+        lampShade,
         ornaments,
         ornamentMat,
         maxW,
@@ -1402,8 +1481,11 @@ export function buildWorld(scene, camera) {
       jewel.scale.set(1 / frameW, 1 / frameH, 1);
     });
     const top = frameH / 2;
-    frame.lampArm.position.y = top + 0.12;
-    frame.lampHead.position.y = top + 0.24;
+    // The stem straddles the frame's top edge: 4 cm of it inside the moulding, the rest above, so
+    // the lamp is visibly fixed to the frame instead of hovering over it.
+    frame.lampArm.position.y = top + 0.06;
+    frame.lampShade.position.y = top + 0.24;
+    frame.lampHead.position.y = top + 0.21;
     frame.wash.scale.set(w + 2.2, h + 1.6, 1);
     frame.photo.material.map = texture;
     previous?.dispose();
@@ -1460,12 +1542,22 @@ export function buildWorld(scene, camera) {
   const cx = (x0 + x1) / 2;
   const cz = (z0 + z1) / 2;
   // Walls: west (back), far (south), near (north). The east side is the hall's west wall, which has the doorway.
+  //
+  // They stop at the OUTER face of the hall's wall (ox1 = -3.85 - 0.30), not at its inner face. Running
+  // them to the inner face (the old -3.85) put a 0.74 m band of plum velvet exactly in the plane of the
+  // hall's stone wall: from the corridor it was a black stripe down the wall, and where its faces
+  // coincided with the masonry's the two z-fought. In truth 0.30 m of them were inside the hall's own
+  // wall, and the rest was velvet pretending to be the hall's stone.
+  const xWallOuter = -LAYOUT.hallHalfWidth - wallThickness;
   block(ox0, x0, 0, H, oz0, oz1, velvet);
-  block(ox0, ox1, 0, H, oz0, z0, velvet);
-  block(ox0, ox1, 0, H, z1, oz1, velvet);
-  // Its outside faces are masonry, built with the rest of the castle shell above.
-  block(ox0, ox1, -0.1, 0.01, oz0, oz1, roomFloor);
-  block(ox0, ox1, H, H + 0.2, oz0, oz1, roomCeil);
+  block(ox0, xWallOuter, 0, H, oz0, z0, velvet);
+  block(ox0, xWallOuter, 0, H, z1, oz1, velvet);
+  // Its outside faces are masonry, built with the rest of the castle shell above. The floor runs on
+  // under the hall's wall to its inner face, because that last 0.30 m is the floor of the doorway
+  // passage: stopping it at the outer face left a slot you could see the dark under the castle through.
+  // (A floor is horizontal, so it cannot z-fight with the wall's faces the way the velvet did.)
+  block(ox0, -LAYOUT.hallHalfWidth, -0.1, 0.01, oz0, oz1, roomFloor);
+  block(ox0, xWallOuter, H, H + 0.2, oz0, oz1, roomCeil);
   // Gold trim along the top and the base of the inside walls (broken at the doorway)
   const trimTop = H - 0.25;
   block(x0, x1, trimTop, trimTop + 0.12, z0, z0 + 0.1, gold);

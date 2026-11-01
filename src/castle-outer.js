@@ -1,4 +1,5 @@
 import * as THREE from 'three';
+import { castleStone } from './palette.js';
 import { stoneMaterial, tileMaterial, stoneBox, stonePanel, gableRoof, TILE } from './castle-stone.js';
 
 // The outside of the castle behind its pretty front: the two side walls of the gallery hall, the
@@ -51,12 +52,12 @@ export function buildCastleOuter(scene, track, { hallHalfWidth = 3.85, spring = 
   group.name = 'castle-outer';
   scene.add(group);
 
-  const wallStone = track(stoneMaterial({ color: '#ddd0c4', tone: 168, seed: 31, rows: 7, normal: 0.6 }));
-  const plinthStone = track(stoneMaterial({ color: '#b9aca2', tone: 150, seed: 37, rows: 5, normal: 0.7 }));
-  const trimStone = track(stoneMaterial({ color: '#efe4d8', tone: 182, seed: 43, rows: 8, normal: 0.45, roughness: 0.8 }));
-  const wallStone2 = track(stoneMaterial({ color: '#d3c6ba', tone: 160, seed: 91, rows: 7, normal: 0.6 }));
-  const roofTiles = track(tileMaterial({ color: '#d79ab0', tone: 126, seed: 51, roughness: 0.6 }));
-  const roomTiles = track(tileMaterial({ color: '#8d9aa6', tone: 96, seed: 57, roughness: 0.62 }));
+  const wallStone = track(stoneMaterial({ color: castleStone.wallShade, tone: 212, seed: 31, rows: 7, normal: 0.6 }));
+  const plinthStone = track(stoneMaterial({ color: castleStone.plinth, tone: 194, seed: 37, rows: 5, normal: 0.7 }));
+  const trimStone = track(stoneMaterial({ color: castleStone.trim, tone: 226, seed: 43, rows: 8, normal: 0.45, roughness: 0.8 }));
+  const wallStone2 = track(stoneMaterial({ color: castleStone.wallShade, tone: 204, seed: 91, rows: 7, normal: 0.6 }));
+  const roofTiles = track(tileMaterial({ color: '#d79ab0', tone: 170, seed: 51, roughness: 0.6 }));
+  const roomTiles = track(tileMaterial({ color: '#a9b6c4', tone: 140, seed: 57, roughness: 0.62 }));
   // a slot: near-black, but with a little sheen, so it reads as depth rather than a cut-out
   const darkMat = track(new THREE.MeshStandardMaterial({ color: '#1b1420', roughness: 0.55, metalness: 0.15 }));
   // dark leaded glass, with a faint warm reflection so it is glass and not a black hole

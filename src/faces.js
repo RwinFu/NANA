@@ -76,17 +76,17 @@ function buildEye(head, side, o) {
 // both ends, so it reads as fine hair, not as a wire. Points are in head space, x mirrored by side.
 function buildBrow(head, side, pts, R, material, thickness) {
   const path = new THREE.CatmullRomCurve3(pts.map(([x, y]) => new THREE.Vector3(side * x, y, 0)), false, 'centripetal');
-  const N = 10;
+  const N = 18;
   const a = new THREE.Vector3();
   const b = new THREE.Vector3();
   for (let i = 0; i <= N; i += 1) {
     const t = i / N;
     path.getPoint(t, a);
     path.getPoint(Math.min(1, t + 0.01), b);
-    const r = thickness * (0.5 + 0.5 * Math.sin(Math.PI * t));
+    const r = thickness * (0.62 + 0.5 * Math.sin(Math.PI * t));
     const dab = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), material);
     dab.position.set(a.x, a.y, frontZ(a.x, a.y, R) - 0.001);
-    dab.scale.set(1.8, 1, 0.6);
+    dab.scale.set(2.1, 1, 0.55);
     dab.rotation.z = Math.atan2(b.y - a.y, b.x - a.x);
     head.add(dab);
   }
@@ -115,7 +115,7 @@ export function addPrincessFace(head) {
   const lashMat = physMat({ color: '#1e1210', roughness: 0.5 });
   const lowerMat = physMat({ color: '#a77a68', roughness: 0.5 });
   const lidShadow = physMat({ color: '#f2a6c4', roughness: 0.6, transparent: true, opacity: 0.25, depthWrite: false });
-  const cheekMat = physMat({ color: '#ff8fb0', roughness: 0.7, transparent: true, opacity: 0.85 });
+  const cheekMat = physMat({ color: '#ff93b4', roughness: 0.8, transparent: true, opacity: 0.3, depthWrite: false });
   const lipMat = physMat({ color: '#e0557a', roughness: 0.25, clearcoat: 0.8, clearcoatRoughness: 0.1 });
   const lipLineMat = physMat({ color: '#8c2a45', roughness: 0.4 });
   const noseMat = physMat({ color: '#eab28f', roughness: 0.55, sheen: 0.3, sheenColor: new THREE.Color('#ffd9c2') });
@@ -129,9 +129,14 @@ export function addPrincessFace(head) {
     });
     blinks.push({ mesh: eye, base: 1 });
     buildBrow(head, side, [[0.03, 0.086], [0.085, 0.1], [0.15, 0.088]], R, browMat, 0.0042);
-    // cheek blush
-    const cheek = place(new THREE.Mesh(new THREE.SphereGeometry(0.05, 12, 10), cheekMat), head, side * 0.14, -0.065, 0.175);
-    cheek.scale.set(1, 0.7, 0.4);
+    // cheek blush: one wide, very flat wash sitting on the skin (frontZ keeps it from floating off the
+    // curve). Two smaller lobes read as patches; one soft band reads as colour coming through.
+    {
+      const cx = 0.135;
+      const cy = -0.062;
+      const cheek = place(new THREE.Mesh(new THREE.SphereGeometry(0.07, 16, 12), cheekMat), head, side * cx, cy, frontZ(side * cx, cy, R) - 0.006);
+      cheek.scale.set(1.15, 0.52, 0.1);
+    }
   });
 
   // a small nose: a soft tip with a darker shadow under it
@@ -154,7 +159,7 @@ export function addBoyFace(head, skinMat) {
   const pupil = physMat({ color: '#0e0807', roughness: 0.3 });
   const lineMat = physMat({ color: '#1f1412', roughness: 0.5 });
   const browMat = physMat({ color: '#3a2620', roughness: 0.6 });
-  const cheekMat = physMat({ color: '#f58fa6', roughness: 0.7, transparent: true, opacity: 0.55 });
+  const cheekMat = physMat({ color: '#f58fa6', roughness: 0.8, transparent: true, opacity: 0.34, depthWrite: false });
   const lipMat = physMat({ color: '#c96a7e', roughness: 0.4, clearcoat: 0.3, clearcoatRoughness: 0.3 });
   const lipLineMat = physMat({ color: '#8a3446', roughness: 0.5 });
   const dimpleMat = physMat({ color: '#e5a983', roughness: 0.6 });
@@ -170,8 +175,9 @@ export function addBoyFace(head, skinMat) {
     });
     blinks.push({ mesh: eye, base: 1 });
     buildBrow(head, side, [[0.03, 0.08], [0.085, 0.09], [0.14, 0.082]], R, browMat, 0.0052);
-    const cheek = place(new THREE.Mesh(new THREE.SphereGeometry(0.036, 10, 8), cheekMat), head, side * 0.12, -0.055, 0.185);
-    cheek.scale.set(1, 0.7, 0.4);
+    // on the skin, not in front of it, and wide and soft rather than a dot
+    const cheek = place(new THREE.Mesh(new THREE.SphereGeometry(0.05, 14, 10), cheekMat), head, side * 0.115, -0.05, frontZ(side * 0.115, -0.05, R) - 0.006);
+    cheek.scale.set(1.1, 0.55, 0.1);
     // ears with a darker inner part
     place(new THREE.Mesh(new THREE.SphereGeometry(0.048, 10, 8), skinMat), head, side * 0.222, -0.012, 0).scale.set(0.45, 1, 0.8);
     place(new THREE.Mesh(new THREE.SphereGeometry(0.026, 10, 8), earInnerMat), head, side * 0.228, -0.012, 0.004).scale.set(0.3, 0.7, 0.6);
