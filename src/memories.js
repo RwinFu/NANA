@@ -181,14 +181,10 @@ export const soloMemories = [
   { id: 'blue-jacket', title: 'کاپشن آبی', caption: 'با کاپشن آبی و گوشواره‌ی کوچیک؛ آرومی و قشنگی توی یک قاب.', chapter: 'آرامش آبی', image: memoryImage('solo-09.jpg'), frame: { name: 'لاجورد', color: '#2d4f8a', glow: '#9ec7ff' } },
 ];
 
-// The room's video. Two files of the same clip:
-// - `src` is the light, silent copy that plays in the world: a muted video is the only kind a
-//   phone will start on its own, and the wall screen does not need the sound track.
-// - `soundSrc` is the loud-mastered copy with sound, played on the big panel after a tap or a
-//   key press (the original clip was recorded very quiet, so it was normalised for the web).
+// The room's video, silent. The clip has no sound track at all: the gold frame in the photo
+// room shows it as a quiet picture, and the panel shows the same picture large.
 export const soloVideo = {
   src: memoryImage('solo-video.mp4'),
-  soundSrc: memoryImage('solo-video-full.mp4'),
   // Shown until the first frame is decoded, so the frame is never a black rectangle
   poster: memoryImage('solo-video-poster.jpg'),
 };

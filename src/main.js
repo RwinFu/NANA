@@ -474,7 +474,7 @@ function toggleBench() {
 }
 
 let promptTarget = null;
-// The clip in the photo room, played large on a panel with its own sound.
+// The clip in the photo room, played large on a panel (silent, like the clip itself).
 // A short tap on the screen in the room opens it too, so a phone needs no keyboard.
 const VIDEO_RADIUS = 3.0;
 function nearVideoScreen() {
@@ -483,50 +483,19 @@ function nearVideoScreen() {
 }
 
 let videoPanelTimer = 0;
-let videoMutedManually = false; // the viewer chose silence: don't turn it back on
-// A phone's ring/silent switch mutes web audio without touching video.muted or video.volume,
-// and the panel has no other way to tell. Probe it once per visit; if the page's audio context
-// cannot start, sound is being suppressed by the device (or the browser blocked it).
-let deviceSilenced = null;
-function audioIsSuppressed() {
-  if (deviceSilenced !== null) return deviceSilenced;
-  const Ctx = window.AudioContext || window.webkitAudioContext;
-  if (!Ctx) return false;
-  try {
-    const ctx = new Ctx();
-    deviceSilenced = ctx.state !== 'running';
-    ctx.close?.();
-  } catch {
-    deviceSilenced = false;
-  }
-  return deviceSilenced;
-}
 function openVideo() {
   if (!world) return;
   window.clearTimeout(videoPanelTimer); // the panel may be reopening while it unloads
   const player = dom.videoPlayer;
   if (player.getAttribute('src') !== world.video.src) player.src = world.video.src;
   player.currentTime = 0;
-  player.volume = 1;
   openDialog(dom.video);
-  // This runs from a real tap or key press, which is what lets a browser start it with sound.
-  player.muted = videoMutedManually;
+  // The clip has no sound track: it stays muted so it can start on its own, on any phone.
+  player.muted = true;
   const attempt = player.play();
-  if (!deviceSilenced && audioIsSuppressed() && !player.muted) {
-    toast('صدا توسط گوشی/مرورگر قطع است؛ حالت سکوت و صدا را چک کن 🔈', 4600);
-  }
-  if (attempt && typeof attempt.catch === 'function') {
-    // If sound was refused (a strict autoplay policy), play the picture and say so.
-    attempt.catch(() => {
-      player.muted = true;
-      player.play().catch(() => {});
-      toast('برای شنیدن صدا، دکمه‌ی بلندگو را روی ویدیو بزن 🔈', 4200);
-    });
-  }
+  if (attempt && typeof attempt.catch === 'function') attempt.catch(() => {});
 }
-dom.videoPlayer.addEventListener('volumechange', () => {
-  if (dom.videoPlayer.muted) videoMutedManually = true;
-});
+
 function closeVideoPanel() {
   const player = dom.videoPlayer;
   if (!player.paused) player.pause();
@@ -551,7 +520,7 @@ function updatePrompt() {
     dom.promptLabel.textContent = benchSeated ? 'بلند شدن' : 'کنار هم بشینیم';
   } else if (nearVideoScreen()) {
     promptTarget = { type: 'video' };
-    dom.promptLabel.textContent = 'دیدن ویدیو با صدا';
+    dom.promptLabel.textContent = 'دیدن ویدیو بزرگ‌تر';
   } else if (nearFrame >= 0) {
     promptTarget = { type: 'frame', index: nearFrame };
     dom.promptLabel.textContent = `دیدن خاطره‌ی ${formatNumber(nearFrame + 1)}`;

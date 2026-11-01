@@ -6,7 +6,6 @@ import { fileURLToPath } from 'node:url';
 // The room's clip is shipped as a web-safe, lightweight file. A phone-sized screen shows it
 // about 2.8 m wide, so a bigger file buys no visible detail, only stutter and slow starts.
 const clip = fileURLToPath(new URL('../public/memories/solo-video.mp4', import.meta.url));
-const soundClip = fileURLToPath(new URL('../public/memories/solo-video-full.mp4', import.meta.url));
 const poster = fileURLToPath(new URL('../public/memories/solo-video-poster.jpg', import.meta.url));
 
 // Minimal MP4 reader: find the boxes this test cares about.
@@ -69,13 +68,17 @@ test('the in-world clip is a light, silent H.264 file (a phone only autoplays mu
   assert.ok(height <= 1280 && width <= 720, `frames are ${width}x${height}, expected at most 720x1280`);
 });
 
-test('the copy for the big panel has a sound track too', () => {
-  assert.ok(existsSync(soundClip), 'the panel needs its own file with sound');
-  const { faststart, tracks } = readMovie(soundClip);
-  assert.ok(faststart);
-  assert.deepEqual(tracks.map((t) => t.codec).sort(), ['avc1', 'mp4a'], 'video plus sound');
-  const bytes = statSync(soundClip).size;
-  assert.ok(bytes < 3.5 * 1024 * 1024, `sound copy is ${(bytes / 1024 / 1024).toFixed(2)} MB`);
+test('the wildcard: nothing in the game can play video sound', () => {
+  // The clip has no sound track, and neither the panel nor the wall screen may unmute it.
+  const main = readFileSync(fileURLToPath(new URL('../src/main.js', import.meta.url)), 'utf8');
+  const world = readFileSync(fileURLToPath(new URL('../src/world.js', import.meta.url)), 'utf8');
+  assert.ok(!/player\.muted\s*=\s*false/.test(main), 'the panel never unmutes the clip');
+  assert.ok(!/soundSrc/.test(main) && !/soundSrc/.test(world), 'no second, louder copy is wired in');
+  assert.ok(!existsSync(fileURLToPath(new URL('../public/memories/solo-video-full.mp4', import.meta.url))),
+    'the copy with sound is not shipped');
+
+  const { tracks } = readMovie(clip);
+  assert.ok(!tracks.some((t) => t.codec === 'mp4a'), 'the shipped clip has no audio track');
 });
 
 test('the poster frame ships next to the clip', () => {

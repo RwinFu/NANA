@@ -1636,55 +1636,6 @@ export function buildWorld(scene, camera) {
   scene.updateMatrixWorld(true);
   screen.getWorldPosition(videoWorld);
 
-  // A small badge under the screen: this picture is silent, the sound is on the big panel.
-  const badgeTex = canvasTexture(512, 128, (ctx, w, h) => {
-    ctx.clearRect(0, 0, w, h);
-    ctx.fillStyle = 'rgba(30, 16, 28, 0.72)';
-    const r = h / 2;
-    ctx.beginPath();
-    ctx.moveTo(r, 0);
-    ctx.lineTo(w - r, 0);
-    ctx.arc(w - r, r, r, -Math.PI / 2, Math.PI / 2);
-    ctx.lineTo(r, h);
-    ctx.arc(r, r, r, Math.PI / 2, -Math.PI / 2);
-    ctx.closePath();
-    ctx.fill();
-    // speaker, with a little cross for "muted"
-    ctx.fillStyle = '#ffe9b0';
-    ctx.beginPath();
-    ctx.moveTo(52, 46);
-    ctx.lineTo(72, 46);
-    ctx.lineTo(96, 28);
-    ctx.lineTo(96, 100);
-    ctx.lineTo(72, 82);
-    ctx.lineTo(52, 82);
-    ctx.closePath();
-    ctx.fill();
-    ctx.strokeStyle = '#ffe9b0';
-    ctx.lineWidth = 6;
-    ctx.beginPath();
-    ctx.moveTo(116, 46);
-    ctx.lineTo(146, 82);
-    ctx.moveTo(146, 46);
-    ctx.lineTo(116, 82);
-    ctx.stroke();
-    ctx.fillStyle = '#fff6e6';
-    ctx.font = `600 44px ${FONT}`;
-    ctx.textAlign = 'right';
-    ctx.textBaseline = 'middle';
-    ctx.direction = 'rtl';
-    ctx.fillText('صدا: از نزدیک ببین', w - 30, h / 2 + 2);
-  });
-  badgeTex.colorSpace = THREE.SRGBColorSpace;
-  track(badgeTex);
-  const badge = new THREE.Mesh(
-    track(new THREE.PlaneGeometry(1.5, 0.375)),
-    track(new THREE.MeshBasicMaterial({ map: badgeTex, transparent: true, toneMapped: false }))
-  );
-  badge.position.set(x0 + 0.13, videoY - fitH / 2 - 0.42, cz);
-  badge.rotation.y = Math.PI / 2;
-  roomGroup.add(badge);
-
   // Two small sconces beside the video frame
   const sconceMat = track(new THREE.MeshBasicMaterial({ color: '#ffd6ea' }));
   const sconceGeo = track(new THREE.SphereGeometry(0.1, 12, 10));
@@ -1875,8 +1826,7 @@ export function buildWorld(scene, camera) {
     },
     // The room's video screen, for the interact prompt and the big player
     video: {
-      src: soloVideo.soundSrc, // the copy with sound, for the panel
-      silentSrc: soloVideo.src,
+      src: soloVideo.src,
       screen,
       // Where the couple has to be for the prompt to appear
       get centre() { return videoWorld; },
