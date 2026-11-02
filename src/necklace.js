@@ -215,5 +215,7 @@ export function createNecklace(track = (o) => o) {
     return { meshes, lines };
   })();
 
-  return { group, worn, update, heart, counts };
+  // `gem` is exported so the film can aim at the *stone* rather than at the chain's centre: the stone is the
+  // thing that has to be sharp, and it sits a few centimetres below the group's origin.
+  return { group, worn, update, heart, gem, counts };
 }

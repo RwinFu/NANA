@@ -188,6 +188,7 @@ let wasInsideCastle = false;
 const giftNeck = new THREE.Vector3();
 const giftCamFrame = { position: new THREE.Vector3(), look: new THREE.Vector3(), roll: 0, closeness: 0, shot: 'find' };
 const giftCamClear = { x: 0, y: 0, z: 0 }; // the film's pose after the wall check
+const giftCamNecklace = new THREE.Vector3(); // the necklace's world position, for the film to aim at
 const giftCamFrom = new THREE.Vector3();
 const giftCamLookFrom = new THREE.Vector3();
 const giftCamLook = new THREE.Vector3();
@@ -721,7 +722,19 @@ function giftAnchors(outBox, outHold, outNeck) {
   const fx = Math.sin(yaw);
   const fz = Math.cos(yaw);
   outBox.set(p.x + fx * 1.35, 1.5, p.z + fz * 1.35);
-  outHold.set(p.x + fx * 0.75, 2.05, p.z + fz * 0.75);
+  // It turns in the air *in front of* her, not over her shoulder. The box opens at 1.35 m in front of her (the
+  // fairy holds it at arm's length), and the necklace used to come back to 0.75 m -- i.e. back over her own
+  // head, where a camera that wants to be in the garden cannot get within three metres of it, and a pendant at
+  // three metres is nine pixels. Held out at 1.5 m it is in the open, on the camera's side of her: the shot can
+  // stand 1.2 m away without going near the wall, and the stone fills the frame. From there it drops onto her
+  // neck, which is a move of half a metre rather than a metre.
+  // 1.62 m: her own eye level. At 2.05 it turned *above* both their heads, which put it in the same part of the
+  // sky as the balloons and read as a decoration hanging from nothing. At her eye level it is being held out to
+  // her, which is what is happening.
+  // held a little to her side, away from him, so the chain is seen against the castle instead of across his face
+  const rx = Math.cos(yaw);
+  const rz = -Math.sin(yaw);
+  outHold.set(p.x + fx * 1.5 + rx * 0.35, 1.62, p.z + fz * 1.5 + rz * 0.35);
   // where it settles: her own neck, in her body's frame (NECK_POSE in gift.js), converted to world
   outNeck.set(0, NECK_POSE.y, NECK_POSE.z);
   hero.dressSpace.localToWorld(outNeck);
@@ -775,6 +788,10 @@ function updateGift(dt) {
     gift.worn = true;
   }
   necklace.update(t, dt, gift.worn ? 1 : 0.55, gift.worn ? null : pose.swing ?? null);
+  // the film needs to know where it is: the pendant's own world position, which is what has to be in focus
+  // (the group's origin is the chain's centre, not the stone)
+  necklace.group.updateWorldMatrix(true, true);
+  (necklace.gem ?? necklace.group).getWorldPosition(giftCamNecklace);
 
   // The garden answers at 'glow': the castle's own lights come up to full, then settle. They are left at
   // 1, which is the state they are in for the whole game anyway, so there is nothing to put back.
@@ -836,7 +853,9 @@ function placeGiftCamera(dt) {
     outYaw: 0,
   },
   introFairy.returning ? introFairy.position : null,
-  gift.t >= 9.8 ? giftNeck : null,
+  // where the necklace actually is this frame: in the box, in the air, or on her neck. From 5.4 s it is the
+  // subject of the shot, so the film is pointed at it -- not at the couple, and not at the butterfly.
+  giftCamNecklace,
   giftCamFrame);
   if (blend <= 0) return; // the walking camera has the view back: do not write over it
   // The film's own pose is checked against the castle the same way the walking camera's is: cast from the aim

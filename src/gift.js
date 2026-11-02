@@ -116,7 +116,11 @@ export function necklacePose(t, { boxAt, neckAt, holdAt }) {
     at.y += (neckAt.y - holdAt.y) * n;
     at.z += (neckAt.z - holdAt.z) * n;
     at.scale = Math.min(NECK_WEAR_SCALE, 0.15 + k * 2.4);
-    at.spin = t * 2.4;
+    // One slow turn, easing to a stop *facing front*. It used to spin at a constant rate, which meant it was
+    // showing its back at whatever moment the camera happened to be looking at it -- and now that it is the
+    // subject of the shot, "which way is it facing" is the whole picture. Ending on a whole turn leaves the
+    // pendant face-on for the moment it lands.
+    at.spin = Math.PI * 2 * (k * k * (3 - 2 * k));
     return at;
   }
   if (t < 11.6) {

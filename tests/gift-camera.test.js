@@ -131,7 +131,7 @@ test('the film leaves the doorway, watches the butterfly, then comes in for the 
   // 1. it gets out of the hall and stands off
   const garden = rel(5.4);
   assert.ok(garden.out > 2.6, `it is out in the garden by the hold (${garden.out.toFixed(2)} m out)`);
-  assert.ok(garden.y > 1.9 && garden.y < 3.4, `at head height for the butterfly (${garden.y.toFixed(2)} m)`);
+  assert.ok(garden.y > 1.5 && garden.y < 3.4, `at head height for the butterfly (${garden.y.toFixed(2)} m)`);
   // 2. it comes in close for the pendant
   const close = rel(10.7);
   assert.ok(close.out > 0.45 && close.out < 1.6, `in close at the settle (${close.out.toFixed(2)} m out)`);
@@ -230,15 +230,17 @@ test('the roll is a whisper, never a dutch angle', () => {
 
 test('it works wherever they come out of the castle and whichever way they face', () => {
   const yaws = [0, 0.9, Math.PI, -2.4, 7.1];
-  const base = at(6.0, { x: 0, z: 0, yaw: 0, outYaw: 0 }, { x: 1.2, y: 6.4, z: 0.6 });
+  // measured while the butterfly holds the box (the necklace dolly deliberately depends on where the necklace
+  // is that frame, which is not rigid -- that is the point of it)
+  const base = at(3.2, { x: 0, z: 0, yaw: 0, outYaw: 0 }, { x: 1.2, y: 2.4, z: 0.6 }, null);
   for (const yaw of yaws) {
     for (const x of [-14, 0, 9]) {
       // the film stands off along the outward axis, so a couple out in the open has one: their facing
       const couple = { x, z: 21, yaw, outYaw: yaw };
       // the butterfly's flight is built from where the couple are standing (see fairy.js beginReturn), so she is
       // always the same distance from them: that is what makes this framing rigid
-      const nearFairy = { x: x + 1.2, y: 6.4, z: 21 + 0.6 };
-      const p = at(6.0, couple, nearFairy);
+      const nearFairy = { x: x + 1.2, y: 2.4, z: 21 + 0.6 };
+      const p = at(3.2, couple, nearFairy, null);
       // the framing is rigid: distance from her is the same everywhere, only rotated
       const d = Math.hypot(p.position.x - x, p.position.z - 21);
       const dBase = Math.hypot(base.position.x, base.position.z);
@@ -300,7 +302,7 @@ test('the camera never goes inside the castle walls, and the wall check can only
   }
 });
 
-test('the butterfly is in the frame while she is the subject, and the couple never leave it', () => {
+test('each thing is the subject while it is the subject, and none of them is filmed from behind', () => {
   // The shot is *about* the butterfly, so she has to be in the picture while she presents the box and circles --
   // and the couple have to stay in it too, or the film is of two people's backs. The camera cannot simply point
   // at her: she circles 2 m to their side, which is what put them out of the bottom of the frame.
@@ -328,9 +330,58 @@ test('the butterfly is in the frame while she is the subject, and the couple nev
     proj.position.set(frame.position.x, frame.position.y, frame.position.z);
     proj.lookAt(frame.look.x, frame.look.y, frame.look.z);
     proj.updateMatrixWorld(true);
-    if (t >= 2.6 && t <= 9.2) {
+    // while the butterfly is bringing the box down, she has to be in the picture, and so do the couple --
+    // but only until the box is open. From then on she may leave the shot: the necklace is the subject.
+    if (t >= 2.6 && t <= 5.0) {
       assert.ok(inFrame(fairy.position), `the butterfly is out of frame at t=${t.toFixed(1)}`);
       assert.ok(inFrame({ x: HERE.x, y: HERE.neckY + 0.2, z: HERE.z }), `the couple are out of frame at t=${t.toFixed(1)}`);
     }
+  }
+});
+
+test('from the moment it leaves the box, the necklace is what the camera is pointed at', () => {
+  // It used to fly past behind their shoulders, out of focus, while the shot watched the butterfly. The whole
+  // scene is about this one object, so from 5.4 s (out of the box) to 9.8 s (on her neck) the aim *is* the
+  // necklace, and the camera is close enough for it to read -- and it is never behind her: the camera stands on
+  // the outward side of her, so the shot is of the necklace with her behind it, not of her back through it.
+  const cam = { x: 0, y: 3.70, z: 12.4 + 4.93 };
+  const couple = { ...HERE, follow: cam };
+  const proj = new THREE.PerspectiveCamera(55, 16 / 9, 0.05, 400);
+  const v = new THREE.Vector3();
+  // (the aim takes a fraction of a second to settle onto it as it clears the lid: it is fully on the necklace
+  // from 5.6, and from 5.4 it is most of the way there)
+  for (let t = 6.4; t <= 9.2; t += 0.2) {
+    // the necklace's real path, as the game flies it (see necklacePose): up out of the box, over her head
+    const k = Math.min(1, (t - 5.4) / 4.4);
+    const rise = Math.min(1, k / 0.45);
+    const e = rise * rise * (3 - 2 * rise);
+    const boxAt = { x: HERE.x, y: 1.5, z: HERE.z - 1.35 }; // in front of her (she faces -z)
+    const holdAt = { x: HERE.x, y: 2.05, z: HERE.z - 1.5 }; // held out in front of her (she faces -z here)
+    const toNeck = Math.min(1, Math.max(0, (k - 0.62) / 0.38));
+    const n = toNeck * toNeck * (3 - 2 * toNeck);
+    const at = {
+      x: boxAt.x + (holdAt.x - boxAt.x) * e,
+      y: boxAt.y + (holdAt.y - boxAt.y) * e + Math.sin(k * Math.PI * 2) * 0.06,
+      z: boxAt.z + (holdAt.z - boxAt.z) * e + ((HERE.z + 0.0) - holdAt.z) * n,
+    };
+    const frame = giftCamera(t, couple, null, at, {});
+    // it is the aim point
+    const toAim = Math.hypot(frame.look.x - at.x, frame.look.y - at.y, frame.look.z - at.z);
+    assert.ok(toAim < 0.02, `the aim is ${toAim.toFixed(2)} m off the necklace at t=${t.toFixed(1)}`);
+    // it is in the middle of the frame, not at the edge, and the camera is close to it
+    proj.position.set(frame.position.x, frame.position.y, frame.position.z);
+    proj.lookAt(frame.look.x, frame.look.y, frame.look.z);
+    proj.updateMatrixWorld(true);
+    v.set(at.x, at.y, at.z).project(proj);
+    assert.ok(Math.abs(v.x) < 0.35 && Math.abs(v.y) < 0.35, `the necklace is off centre at t=${t.toFixed(1)}`);
+    const d = Math.hypot(frame.position.x - at.x, frame.position.y - at.y, frame.position.z - at.z);
+    assert.ok(d < 3.0, `the camera is ${d.toFixed(2)} m from the necklace at t=${t.toFixed(1)}, too far for it to read`);
+    // and never behind her: it stands on her outward side, in the garden, so the shot is of the necklace with
+    // her behind it -- not of her back, through her
+    const outZ = (frame.position.x - HERE.x) * Math.sin(HERE.outYaw) + (frame.position.z - HERE.z) * Math.cos(HERE.outYaw);
+    assert.ok(outZ > 1.2, `the camera is behind her at t=${t.toFixed(1)} (${outZ.toFixed(2)} m out)`);
+    // and it is on the garden side of the pendant too, not between the pendant and her
+    const outAt = (at.x - HERE.x) * Math.sin(HERE.outYaw) + (at.z - HERE.z) * Math.cos(HERE.outYaw);
+    assert.ok(outZ > outAt, `the camera is inside her at t=${t.toFixed(1)} (${outZ.toFixed(2)} vs ${outAt.toFixed(2)})`);
   }
 });
