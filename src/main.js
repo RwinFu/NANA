@@ -848,9 +848,12 @@ function placeGiftCamera(dt) {
     neckY: giftNeckY(),
     focusY: giftWalkPose.focusY,
     follow: giftWalkPose,
-    // the castle's door faces +z: that is the direction that is actually out of the building, and the film has
-    // to keep its close camera on that side of the facade rather than in front of her nose
+    // the castle's door faces +z: that is the direction that is actually out of the building
     outYaw: 0,
+    // ...but the close-up has to see her *face*, and if she has turned round to look at the castle then those
+    // two are opposite directions. `solid` is the game's own collision function: the film uses it to work out
+    // which way round her front is reachable from, so it never ends up filming the back of her head.
+    solid: (x, y, z) => isSolid(x, y, z, 0.22),
   },
   introFairy.returning ? introFairy.position : null,
   // where the necklace actually is this frame: in the box, in the air, or on her neck. From 5.4 s it is the

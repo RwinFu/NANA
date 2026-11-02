@@ -80,7 +80,7 @@ test('the whole twelve seconds never moves more than a fifth of a metre in a fra
   let worstL = 0;
   let worstT = 0;
   let last = at(0);
-  for (let t = 1 / 60; t <= GIFT_SECONDS; t += 1 / 60) {
+  for (let t = 1 / 60; t <= 11.9; t += 1 / 60) {
     const now = at(t);
     const dp = dist(now.position, last.position);
     const dl = dist(now.look, last.look);
@@ -91,6 +91,12 @@ test('the whole twelve seconds never moves more than a fifth of a metre in a fra
   // the pull-back out to the walking camera is necessarily the quickest part of the film -- it covers three
   // metres in a second and a bit -- but it accelerates smoothly and never steps
   assert.ok(worstP < 0.25, `largest step is ${worstP.toFixed(3)} m at t=${worstT.toFixed(2)}`);
+  // and the last leg -- handing back to the walking camera, which can be metres away -- is fast on purpose but is
+  // a dissolve: the blend weight there is under a quarter, and the final frame is exactly the player's camera
+  for (let t = GIFT_SECONDS - 0.2; t <= GIFT_SECONDS; t += 1 / 60) {
+    assert.ok(giftCameraBlend(t) < 0.7, `the hand-back is a fade, not a cut (weight ${giftCameraBlend(t).toFixed(2)} at t=${t.toFixed(2)})`);
+  }
+  assert.ok(giftCameraBlend(GIFT_SECONDS) < 0.02, 'and on the last frame the player\'s camera has it entirely');
   assert.ok(worstL < 0.5, `largest look step is ${worstL.toFixed(3)} m`);
 });
 
@@ -383,5 +389,35 @@ test('from the moment it leaves the box, the necklace is what the camera is poin
     // and it is on the garden side of the pendant too, not between the pendant and her
     const outAt = (at.x - HERE.x) * Math.sin(HERE.outYaw) + (at.z - HERE.z) * Math.cos(HERE.outYaw);
     assert.ok(outZ > outAt, `the camera is inside her at t=${t.toFixed(1)} (${outZ.toFixed(2)} vs ${outAt.toFixed(2)})`);
+  }
+});
+
+test('the landing is filmed from her front, whatever way she is facing', () => {
+  // The scene starts with the couple walking out of the door, so "out of the castle" is the natural place to put
+  // the camera -- but a player can walk out and then turn round to look at the castle, and then the outward
+  // direction is *behind* her. A camera there films the back of her head while the necklace drops onto the
+  // other side of it, which is what "the camera is behind the princess and nothing can be seen" was.
+  //
+  // So the landing is placed relative to her *face*, not to the door, and swung there round her rather than
+  // through her. This drives four placements, including both ways round, and requires the camera to be on her
+  // face side for the whole landing and the close-up.
+  const cases = [
+    { name: 'out of the door, facing the garden', yaw: 0, z: 1.6, follow: { x: 0, y: 3.70, z: -3.33 } },
+    { name: 'turned round, facing the castle', yaw: Math.PI, z: 3.2, follow: { x: 0, y: 3.70, z: 8.1 } },
+    { name: 'facing the castle, out in the garden', yaw: Math.PI, z: 12, follow: { x: 0, y: 3.70, z: 16.9 } },
+    { name: 'facing the garden', yaw: 0, z: 12, follow: { x: 0, y: 3.70, z: 7.07 } },
+    { name: 'side on', yaw: Math.PI / 2, z: 6, follow: { x: -4.9, y: 3.70, z: 6 } },
+  ];
+  for (const c of cases) {
+    const couple = { x: 0, z: c.z, yaw: c.yaw, outYaw: 0, neckY: 1.14, focusY: 1.35, follow: c.follow };
+    const fx = Math.sin(c.yaw);
+    const fz = Math.cos(c.yaw);
+    for (let t = 9.4; t <= 11.4; t += 1 / 30) {
+      const p = giftCamera(t, couple, null, null, {}).position;
+      // the component of "where the camera is" along her nose: positive is her front
+      const ahead = p.x * fx + (p.z - c.z) * fz;
+      assert.ok(ahead > 0.2, `${c.name}: the camera is behind her at t=${t.toFixed(2)} (${ahead.toFixed(2)} m)`);
+      assert.ok(Math.hypot(p.x, p.z - c.z) > 0.5, `${c.name}: the camera is inside her at t=${t.toFixed(2)}`);
+    }
   }
 });
