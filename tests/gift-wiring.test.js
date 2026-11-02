@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+// the real level layout, so the path rules are checked against the castle rather than against numbers
+const world = await import('../src/world.js');
 
 // The scene itself is tested in gift.test.js against the real props. This file is the *wiring* check: that
 // main.js actually starts it, at the right moment, and does not leave the necklace in the world.
@@ -16,19 +18,59 @@ test('the gift is checked and driven from the frame loop', () => {
   assert.match(main, /if \(started\) updateGift\(dt\)/, 'and the scene advances');
 });
 
-test('it is triggered by being inside the castle and then outside it', () => {
-  assert.match(main, /function inHallNow\(\)/, 'there is an "is inside the hall" rule');
-  assert.match(main, /function outOfHallNow\(\)/, 'and an "is back outside" rule');
-  assert.match(main, /if \(inHallNow\(\)\) \{\n    wasInsideCastle = true;/, 'entering is remembered');
-  assert.match(main, /giftReady\(\{ wasInside: wasInsideCastle, isOutside: outOfHallNow\(\)/,
-    'and coming out is what fires the scene');
-  // the doorway itself must not count as "inside", or the scene fires as they pass through it
-  assert.match(main, /CASTLE_INSIDE_Z = -1\.5/, 'inside means well past the door');
-  assert.match(main, /CASTLE_OUTSIDE_Z = 1\.2/, 'outside means clear of it');
+test('the trigger is a walk out of the front door, not "somewhere past the walls"', () => {
+  // What went wrong: the exit was `z > 1.2 || |x| > hallHalfWidth + 2` -- "out the front door, or past the
+  // walls". The hall's west wall has a doorway into the photo room, so coming back out of that room put her at
+  // x -4.15, past the walls, and the film played in the middle of the castle.
+  assert.doesNotMatch(main, /\|\| Math\.abs\(hero\.root\.position\.x\) > LAYOUT\.hallHalfWidth \+ 2/,
+    'the "past the walls" escape is gone');
+  assert.match(main, /function updateFrontDoor\(\)/, 'the front door is tracked as a crossing');
+  assert.match(main, /leftThroughFrontDoor = true;/, 'walking out arms it');
+  assert.match(main, /leftThroughFrontDoor = false;/, 'and walking back in disarms it');
+  assert.match(main, /const outThroughTheFrontDoor = leftThroughFrontDoor && outOfHallNow\(\);/,
+    'and the scene needs that crossing, not a position');
+  assert.match(main, /if \(Math\.abs\(x\) > FRONT_DOOR_REACH\) \{ frontDoorSide = null; return; \}/,
+    'and only in front of the facade: there is no other way out of the castle');
+  assert.match(main, /leftThroughFrontDoor = false;\n    return;/, 'a skipped check does not leave the exit armed');
+});
+
+test('the front-door rules, run against the paths a player can actually walk', () => {
+  // The rules are in main.js, which cannot be imported here, so they are re-stated and checked against the
+  // geometry. If main.js and this disagree the source assertions above fail first.
+  const { LAYOUT } = world;
+  const DOOR_Z = 0.12;
+  const REACH = LAYOUT.doorHalfWidth + 2.5;
+  const inHall = (p) => Math.abs(p.x) < LAYOUT.hallHalfWidth + 0.6 && p.z < -1.5 && p.z > -LAYOUT.hallLength;
+  const outside = (p) => p.z >= 1.2 && Math.abs(p.x) <= REACH;
+  const line = (x0, z0, x1, z1, n = 400) => Array.from({ length: n }, (_, i) => ({ x: x0 + (x1 - x0) * i / (n - 1), z: z0 + (z1 - z0) * i / (n - 1) }));
+  const walk = (path) => {
+    let inside = false, side = null, left = false, fired = false;
+    for (const p of path) {
+      if (Math.abs(p.x) > REACH) side = null;
+      else {
+        const s = p.z >= DOOR_Z ? 1 : -1;
+        if (side === -1 && s === 1) left = true; else if (side === 1 && s === -1) left = false;
+        side = s;
+      }
+      if (fired) continue;
+      if (inHall(p)) inside = true;
+      else if (inside && left && outside(p)) fired = true;
+    }
+    return fired;
+  };
+  assert.equal(walk(line(0, -10, 0, 4)), true, 'in and straight back out the front door fires');
+  assert.equal(walk(line(0, 4, 0, -10)), false, 'walking in alone does not');
+  assert.equal(walk([...line(-10, -20, -4.2, -20), ...line(-4.2, -20, -2, -20), ...line(-2, -20, -2, -10)]), false,
+    'coming out of the photo room does not -- this is the bug that was reported');
+  assert.equal(walk(line(-4.3, -22, -4.3, -10)), false, 'nor does standing in the room\'s doorway');
+  assert.equal(walk([...line(0, -10, 0, -34), ...line(0, -34, 0, -10)]), false, 'nor a walk to the far end of the hall');
+  assert.equal(walk([...line(0, -10, 0, 4), ...line(0, 4, 0, -10)]), true, 'out is what fires, not the walk back in');
+  assert.equal(walk(line(-3, -2, -3, 4)), true, 'out through the front door a little to one side also fires');
+  assert.equal(walk(line(-5.2, 1.6, -5.2, -3)), false, 'walking round the outside of the facade never fires');
 });
 
 test('the scene is offered once, and only when nothing else owns the screen', () => {
-  assert.match(main, /if \(!started \|\| gift \|\| giftGiven \|\| !introFairy \|\| letterView \|\| anyDialogOpen\(\)\) return;/);
+  assert.match(main, /if \(!started \|\| gift \|\| giftGiven \|\| !introFairy \|\| letterView \|\| anyDialogOpen\(\)\) \{/);
   assert.match(main, /giftGiven = true;/, 'and it cannot happen twice');
 });
 

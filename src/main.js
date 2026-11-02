@@ -697,9 +697,41 @@ function inHallNow() {
   const z = hero.root.position.z;
   return Math.abs(hero.root.position.x) < LAYOUT.hallHalfWidth + 0.6 && z < CASTLE_INSIDE_Z && z > -LAYOUT.hallLength;
 }
+// The rule used to be "out of the hall", written as `z > 1.2 || |x| > hallHalfWidth + 2` -- "out the front
+// door, or past the walls". But the hall's west wall has a doorway in it into the photo room, so coming back out
+// of that room put her at x -4.15, past the walls, and the film played in the middle of the castle. What matters
+// is not where she is but which door she went through, and the castle has exactly one way out of the building:
+// the front door. The room is an annex sealed inside it, with no outside door of its own.
+//
+// Measured: the front door is at z 0.12, and the walkable strip in front of it is continuous from x -6 to x 6,
+// so nothing props her away from it.
+const FRONT_DOOR_REACH = LAYOUT.doorHalfWidth + 2.5; // she must be near the front door, not round a corner
+const CASTLE_FAR_END = -LAYOUT.hallLength + 1;
+
+// How far out of the building she is, in z, on this frame: at or past 1.2 she is on the path in front of it.
 function outOfHallNow() {
-  const z = hero.root.position.z;
-  return z > CASTLE_OUTSIDE_Z || Math.abs(hero.root.position.x) > LAYOUT.hallHalfWidth + 2;
+  const { x, z } = hero.root.position;
+  if (z < CASTLE_OUTSIDE_Z) return false;
+  // Only in front of the facade. There is no way out of the castle at the sides or the back, so a position out
+  // there can only be a glitch or a teleport, and it must not be mistaken for the walk she is meant to make.
+  return Math.abs(x) <= FRONT_DOOR_REACH;
+}
+
+// The front door's own plane, and the side she was on last frame. Walking out of the castle is a *step*
+// through this plane, not a place: the garden threshold she has to reach is a metre further on, so no single
+// frame can be both "crossed the door" and "out on the path". So the crossing arms the exit and the flag stays
+// armed until she crosses back in.
+const FRONT_DOOR_Z = 0.12;
+let frontDoorSide = null; // -1 inside, +1 outside, null unknown
+let leftThroughFrontDoor = false;
+
+function updateFrontDoor() {
+  const { x, z } = hero.root.position;
+  if (Math.abs(x) > FRONT_DOOR_REACH) { frontDoorSide = null; return; }
+  const side = z >= FRONT_DOOR_Z ? 1 : -1;
+  if (frontDoorSide === -1 && side === 1) leftThroughFrontDoor = true; // walked out
+  else if (frontDoorSide === 1 && side === -1) leftThroughFrontDoor = false; // walked back in
+  frontDoorSide = side;
 }
 
 function beginGift() {
@@ -911,14 +943,24 @@ function setGiftVignette(amount) {
   el.style.opacity = on ? String(Math.min(0.85, amount * 0.8)) : '0';
 }
 
-// The trigger, checked every frame while the game is on: inside the castle at least once, then out.
+// The trigger, checked every frame: she has been inside the castle, and then she walks out of its front door.
+// The exit is a crossing, not a position, so the room's side door -- and anything else that moves her about
+// inside the building -- can no longer start the film.
 function checkGift() {
-  if (!started || gift || giftGiven || !introFairy || letterView || anyDialogOpen()) return;
+  updateFrontDoor();
+  // While the trigger is not being watched, a crossing is still recorded -- but the *exit* is not: a dialog
+  // opening while she is out on the path, or a film running, must not be mistaken for her walking out again.
+  if (!started || gift || giftGiven || !introFairy || letterView || anyDialogOpen()) {
+    leftThroughFrontDoor = false;
+    return;
+  }
   if (inHallNow()) {
     wasInsideCastle = true;
     return;
   }
-  if (!giftReady({ wasInside: wasInsideCastle, isOutside: outOfHallNow(), alreadyGiven: giftGiven, sceneActive: !!gift })) return;
+  // the front door is the only way out, so her last crossing of it has to have been outward
+  const outThroughTheFrontDoor = leftThroughFrontDoor && outOfHallNow();
+  if (!giftReady({ wasInside: wasInsideCastle, isOutside: outThroughTheFrontDoor, alreadyGiven: giftGiven, sceneActive: !!gift })) return;
   beginGift();
 }
 
