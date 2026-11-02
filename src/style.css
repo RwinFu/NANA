@@ -171,72 +171,93 @@ a {
   padding: 48px 0;
 }
 
-.intro-kicker {
-  margin: 0 0 6px;
-  color: var(--lamp);
-  font-size: 16px;
-  font-weight: 600;
-}
-
 .intro h1 {
-  margin: 0 0 22px;
-  font-size: clamp(64px, 11vw, 148px);
-  font-weight: 900;
-  line-height: 0.95;
-  letter-spacing: -0.02em;
+  margin: 0 0 30px;
+  font-family: 'Lalezar', 'Vazirmatn Variable', Vazirmatn, system-ui, sans-serif;
+  /* Lalezar has one weight and it is already heavy, so no font-weight: the browser must not fake a bolder one,
+     which thickens the strokes and closes up the counters. */
+  font-weight: 400;
+  font-size: clamp(76px, 12vw, 158px);
+  /* 1.15, not 0.86: Lalezar's ی and ج hang well below the baseline and its ک and ل rise above the x-height.
+     A tighter line-height than this clips the descenders against the next element. */
+  line-height: 1.15;
+  letter-spacing: 0;
+  color: var(--cream);
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.22), 0 22px 54px rgba(0, 0, 0, 0.5);
 }
 
-.intro-lede {
-  margin: 0 0 30px;
-  max-width: 44ch;
-  color: var(--muted);
-  font-size: 17px;
-  line-height: 2;
+
+/* The kicker sits above the title as a small gold line, with a rule that ties it to the title */
+.intro-kicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 0 10px;
+  color: var(--lamp);
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.01em;
+}
+.intro-kicker::before {
+  content: '';
+  width: 26px;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(to left, var(--lamp), rgba(255, 207, 138, 0));
 }
 
 .setup {
   display: grid;
-  gap: 18px;
+  gap: 26px;
   margin: 0;
   border: 0;
   padding: 0;
+  max-width: 480px;
 }
 
 .row {
   display: grid;
   grid-template-columns: 1fr 1fr;
-  gap: 22px;
+  gap: 26px;
 }
 
 .row-end {
   grid-template-columns: 1fr auto;
   align-items: end;
+  gap: 18px;
 }
 
 .field {
   display: grid;
-  gap: 4px;
+  gap: 8px;
   min-width: 0;
 }
 
 .field > span,
 .swatches legend {
   color: var(--muted);
-  font-size: 14px;
+  font-size: 15px;
+  font-weight: 500;
   padding: 0;
+}
+
+/* seven words, no more: the form is on the start screen and must not read as paperwork */
+.setup .field > span {
+  opacity: 0.85;
 }
 
 .field input {
   width: 100%;
   min-width: 0;
   border: 0;
-  border-bottom: 1px solid rgba(255, 241, 225, 0.3);
+  border-bottom: 1px solid rgba(255, 241, 225, 0.24);
   border-radius: 0;
   background: transparent;
-  padding: 8px 0 10px;
-  font-size: 18px;
+  padding: 6px 0 12px;
+  font-size: 20px;
+  font-weight: 500;
   color: var(--cream);
-  transition: border-color 0.2s ease;
+  transition: border-color 0.25s ease, box-shadow 0.25s ease;
 }
 
 .field input::placeholder {
@@ -246,6 +267,11 @@ a {
 .field input:focus {
   outline: none;
   border-bottom-color: var(--lamp);
+}
+
+/* the two names are the point of this screen: give them the most light */
+.row .field input {
+  font-size: 22px;
 }
 
 .field input:focus-visible {
@@ -908,12 +934,7 @@ dialog h2 {
   }
 
   .intro h1 {
-    font-size: clamp(56px, 19vw, 84px);
-  }
-
-  .intro-lede {
-    font-size: 15px;
-    line-height: 1.85;
+    font-size: clamp(64px, 22vw, 96px);
     margin-bottom: 20px;
   }
 
@@ -1010,12 +1031,6 @@ dialog h2 {
 
   .stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-height: 560px) and (min-width: 761px) {
-  .intro-lede {
-    display: none;
   }
 }
 
