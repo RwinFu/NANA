@@ -2,10 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { QUALITY_STEPS, MAX_SCALE, MIN_SCALE, clampScale, nextQuality, createQuality } from '../src/quality.js';
 
-// The game ran at 30-35 fps. The single biggest reason was that it opened at 1.5 device pixels per CSS
-// pixel -- 2.25x the pixels of scale 1 on a 3x phone -- and then needed two seconds of slow frames before
-// it stepped down once, to 1.25. These tests pin the behaviour that replaced it: open at 1, react within
-// half a second, go low enough to matter, and never fight a display that is already near 60.
+// These tests hold the resolution to the one thing the player actually complained about: it went blurry.
+// The ladder now stops at one device pixel per CSS pixel. A high-density display may be sharper than CSS
+// pixels, never softer, and speed has to come from the scene instead.
 
 const ms = (fps) => 1000 / fps;
 const run = (fps, seconds, start = 3, dpr = 1) => {
@@ -21,41 +20,56 @@ const run = (fps, seconds, start = 3, dpr = 1) => {
   return { final: state.index, changes: out };
 };
 
-test('it opens at 1, not at 1.5', () => {
-  const q = createQuality(3);
-  assert.equal(q.scale, 1, 'starting at 1.5 was 2.25x the pixels on a 3x phone');
+test('it opens at 1 and never goes below it', () => {
+  for (const dpr of [1, 2, 3]) {
+    const q = createQuality(dpr);
+    assert.equal(q.scale, 1, `opens sharp on a ${dpr}x display`);
+  }
+  assert.equal(MIN_SCALE, 1, 'the floor is one device pixel per CSS pixel');
   assert.equal(QUALITY_STEPS[0], MAX_SCALE, 'the ladder starts at the ceiling');
+  assert.equal(QUALITY_STEPS[QUALITY_STEPS.length - 1], MIN_SCALE, 'and ends at the floor, not below it');
 });
 
-test('the scale is never above the display, and may go below one CSS pixel', () => {
+test('a struggling display keeps its pixels: the ladder has nothing below 1 to give', () => {
+  // 30 fps for ten seconds on a 1x screen: it may not soften the picture at all
+  const q = createQuality(1);
+  for (let i = 0; i < 60 * 10; i++) q.update(1 / 30);
+  assert.equal(q.scale, 1, 'it must not trade sharpness for frames');
+  assert.equal(q.atFloor, true, 'and it reports that it is out of resolution to give');
+});
+
+test('the scale is never above the display, and never below one CSS pixel', () => {
   assert.equal(clampScale(2, 1), 1, 'a 1x screen cannot use 2 device pixels per CSS pixel');
   assert.equal(clampScale(2, 3), 2);
-  assert.equal(clampScale(0.5, 3), 0.5, 'a struggling phone is allowed below one CSS pixel');
+  assert.equal(clampScale(0.5, 3), MIN_SCALE, 'and it is never allowed below one CSS pixel');
   assert.equal(clampScale(0.1, 3), MIN_SCALE);
 });
 
-test('30 fps steps down within half a second, and keeps stepping', () => {
-  const { final, changes } = run(30, 3);
-  assert.ok(changes.length >= 2, `it keeps stepping down while the frames are slow: ${changes.length} steps`);
-  assert.ok(changes[changes.length - 1] < changes[0], 'and each step is lower than the last');
-  assert.ok(final > 3, 'ending up lower than where it started');
+test('on a 2x display that cannot keep up, it steps down to 1 and stops there', () => {
+  // start at 2, hold 30 fps: it gives back the extra pixels down to 1, then holds
+  let state = { index: 0, slowFor: 0, fastFor: 0 };
+  const changes = [];
+  for (let i = 0; i < 60 * 4; i++) {
+    const r = nextQuality({ frameMs: 1000 / 30, ...state, devicePixelRatio: 2 });
+    state = { index: r.index, slowFor: r.slowFor, fastFor: r.fastFor };
+    if (r.changed) changes.push(r.scale);
+  }
+  assert.ok(changes.length >= 1, 'it does trade the headroom away');
+  assert.equal(Math.min(...changes), 1, 'but never below one device pixel per CSS pixel');
+  assert.equal(state.index, QUALITY_STEPS.length - 1);
 });
 
-test('35 fps -- the measured frame rate -- reaches a scale that can carry 60', () => {
-  // at 35 fps the pixel work has to fall by ~1.7x to reach 60; area scales as the square, so the
-  // linear scale has to fall by ~1.3x from where it is. Check it actually gets there and can go lower.
-  const { changes } = run(35, 10);
-  const lowest = Math.min(...changes);
-  assert.ok(lowest <= 0.7, `it is willing to go low: lowest step ${lowest}`);
-});
-
-test('a steady 60 does not move, and does not climb past what the device can use', () => {
+test('on a 1x display it never even tries to climb', () => {
   const q = createQuality(1);
-  for (let i = 0; i < 600; i++) q.update(1 / 60);
-  assert.equal(q.scale, 1, 'on a 1x display there is nothing above 1 to climb to');
-  const hd = createQuality(2);
-  for (let i = 0; i < 600; i++) hd.update(1 / 60);
-  assert.ok(hd.scale <= 2);
+  for (let i = 0; i < 60 * 10; i++) q.update(1 / 60);
+  assert.equal(q.scale, 1, 'a 1x screen has no headroom, so a perfect frame rate changes nothing');
+});
+
+test('a 3x display at a steady 60 climbs into its headroom, up to 2', () => {
+  const hd = createQuality(3);
+  for (let i = 0; i < 60 * 10; i++) hd.update(1 / 60);
+  assert.ok(hd.scale > 1, `it uses the pixels the display offers: ${hd.scale}`);
+  assert.ok(hd.scale <= MAX_SCALE, 'but not past the ceiling');
 });
 
 test('one long frame is treated as a hitch, not as a slow GPU', () => {
