@@ -218,10 +218,13 @@ a {
 
 .swatches legend {
   color: var(--lamp);
-  font-size: 14px;
+  /* Five words now instead of two, so it is set at the size of a spoken line rather than a field label -- it
+     is the only instruction on the screen, and the one place the page talks to her directly. */
+  font-size: 17px;
   font-weight: 600;
+  line-height: 1.6;
   padding: 0;
-  margin-bottom: 14px;
+  margin-bottom: 16px;
 }
 
 .swatch-row {
