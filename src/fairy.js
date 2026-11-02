@@ -571,6 +571,7 @@ export function createFairy(scene) {
   };
   const giftPos = new THREE.Vector3();
   const giftNext = new THREE.Vector3();
+  const giftJoin = new THREE.Vector3(); // where the previous stage left her, for a continuous join
 
   // Start the return. `at` is where the couple are; the flight is built from that, so she arrives in
   // front of them wherever they came out of the castle.
@@ -585,6 +586,27 @@ export function createFairy(scene) {
     pos.copy(gift.from);
     lastPos.copy(gift.from);
     figure.scale.setScalar(1);
+  }
+
+  // The point a stage *ends* on, so the next stage can be joined to it instead of jumped to.
+  function joinPoint(_time, at, which) {
+    const centre = gift.centre;
+    if (which === 'hover') {
+      const time = at;
+      giftJoin.copy(gift.to);
+      giftJoin.y += Math.sin(time * 1.9) * 0.06;
+      giftJoin.x += Math.sin(time * 1.3) * 0.07;
+      giftJoin.z += Math.cos(time * 1.1) * 0.05;
+      return giftJoin;
+    }
+    // the end of the loop: k = 1 of the circle above
+    const angle = -Math.PI * 0.5 + Math.PI * 2;
+    giftJoin.set(
+      centre.x + Math.cos(angle) * 1.9,
+      centre.y + 1.25,
+      centre.z + Math.sin(angle) * 1.9 * 0.85 + 0.8,
+    );
+    return giftJoin;
   }
 
   // Where the return flight is at time `time`, and what she is doing.
@@ -622,6 +644,10 @@ export function createFairy(scene) {
         centre.y + 1.25 + Math.sin(k * Math.PI * 2) * 0.22,
         centre.z + Math.sin(angle) * r * 0.85 + 0.8,
       );
+      // The loop starts a couple of metres from where she was hovering, so it is *joined* rather than jumped:
+      // the first half second glides her from the hover out into the loop. (Before this, she teleported 2.6 m
+      // sideways on the frame the loop began -- in the middle of the shot, in plain view.)
+      out.lerp(joinPoint(time, holdEnd, 'hover'), 1 - smoothstep(Math.min(1, k * 8)));
       return { stage: 'circle', k };
     }
     if (time < leaveEnd) {
@@ -633,6 +659,8 @@ export function createFairy(scene) {
         centre.z + 0.8 + e * 5.0,
       );
       out.x += Math.sin(time * 2.4) * 0.4 * (1 - e);
+      // and the same at the other end: she finishes the loop and climbs out of *there*
+      out.lerp(joinPoint(time, circleEnd, 'loop'), 1 - smoothstep(Math.min(1, k * 10)));
       return { stage: 'leave', k };
     }
     return { stage: 'gone', k: 1 };

@@ -59,34 +59,41 @@ function keyed(keys, t) {
 // This is what makes the hand-over and the hand-back free: at t = 0 and t = GIFT_SECONDS the values below are
 // *exactly* the follow camera's, not an approximation of them.
 const FOLLOW_WEIGHT = [[0, 1], [1.15, 0], [11.5, 0], [GIFT_SECONDS, 1]];
-// How the orbit is shaped. It cannot be "turn 200 degrees": where her face is depends on where the player's
-// camera happened to be pointing when they walked out, so the turn is computed from the follow camera's own
-// angle, and it is aimed at one thing -- being in front of her face when the necklace lands.
+// The film is not about the couple, and it is not about the castle: it is about the butterfly.
 //
-// An earlier version used fixed turn counts and filmed the *back of her head* for the climactic close-up, which
-// is exactly what it looked like.
-const SETTLE_AT = 9.6; // the necklace is hers from 9.8; be in front of her before that
-const TURN_FRONT_DEG = 8; // very slightly off dead-on: enough to keep a cheek, not enough to hide the gold
-// the shape of the turn out to her front (0 = follow camera, 1 = in front of her)
-const OUT_KEYS = [[0, 0], [0.28, 0.60], [0.55, 0.84], [1, 1]];
-// ... and the shape of the rest of the move, back round to the walking camera. It holds her front until the
-// necklace has finished settling (11.6), which is the moment the shot exists for.
-const SETTLE_END = 10.6;
-const BACK_KEYS = [[0, 0], [0.30, 0.14], [0.66, 0.62], [1, 1]];
-// Metres out from her. The tightest point is at the settle (9.8 - 11.6), not after it: the close-up has to
-// happen while the necklace is going on, which is the whole point of the shot.
-const RADIUS = [[0, 5.6], [2.6, 5.6], [5.4, 4.1], [7.6, 2.9], [9.8, 1.35], [10.7, 0.70], [11.6, 1.8], [12.15, 3.9], [GIFT_SECONDS, 4.93]];
-// Height above her throat: a low, looking-up opening, rising with the gold, then level with the gold itself.
-const HEIGHT = [[0, -0.55], [2.6, -0.52], [5.4, -0.34], [7.6, -0.06], [9.8, 0.24], [10.7, 0.26], [11.6, 0.55], [12.15, 2.2], [GIFT_SECONDS, 2.56]];
-// What it is pointed at, in the same terms: how far in front of her and how high above her throat.
-const LOOK_FORWARD = [[0, 0.6], [2.6, 0.55], [5.4, 0.55], [7.6, 0.4], [9.8, 0.14], [10.7, 0.17], [11.6, 0.14], [GIFT_SECONDS, 0]];
-const LOOK_ABOVE = [[0, 0.50], [2.6, 0.22], [5.4, 0.26], [7.6, 0.18], [9.8, 0.0], [10.7, 0.02], [11.6, 0.12], [GIFT_SECONDS, 0.56]];
+// She dives in over the roof with the box, she hovers in front of them while it opens, and then she circles
+// them -- once, slowly, at head height -- before she climbs away. That circle *is* the movement of the shot, so
+// the camera does not have to supply any: it takes itself out of the doorway, stands off in the garden, and
+// watches her go round, with the couple in the lower part of the frame. Then, when the necklace leaves the box
+// and comes down onto her neck, the camera comes in on the pendant for the one shot that has to be read.
+//
+// Positions here are measured from the couple along the *outward* axis -- the direction out of the castle door --
+// not along her own nose. She can leave the doorway at any angle, or even walking backwards, and the film still
+// has to stand somewhere that exists: the garden. That is also why it never orbits her at close range; the
+// doorway is 3 m wide and the walls are 3.85 m either side, and a swing round her at 2 m is a path through
+// masonry (measured: a sixth of the film was inside the wall, starting at 0.8 s).
+const OUT = [[0, -4.93], [0.7, -3.6], [1.3, -0.2], [2.0, 2.6], [2.6, 3.9], [5.4, 3.7], [7.6, 3.3], [9.4, 2.9], [10.0, 1.7], [10.7, 0.62], [11.4, 0.9], [11.9, 2.2], [12.3, 2.2], [GIFT_SECONDS, -4.93]];
+// Metres to the side of that axis (her right, when she is walking out).
+const SIDE = [[0, 0], [0.7, 0.42], [1.3, 0.72], [2.0, 1.0], [2.6, 0.95], [2.6, 0.95], [5.4, 0.85], [7.6, 0.72], [9.4, 0.6], [10.7, 0.06], [11.3, 0.6], [11.8, 1.0], [12.2, 1.1], [GIFT_SECONDS, 0]];
+// Height above her throat.
+const HEIGHT = [[0, 2.56], [0.7, 1.3], [1.3, 0.8], [2.0, 0.95], [2.6, 1.2], [5.4, 1.08], [7.6, 0.95], [9.4, 0.8], [10.0, 0.5], [10.7, 0.1], [11.4, 0.35], [11.9, 1.2], [12.3, 2.0], [GIFT_SECONDS, 2.56]];
+// How much of the frame belongs to the butterfly. Full through the open-the-box and the circle; dropped only at
+// the end, when the necklace is what we are looking at.
+const AIM_FAIRY = [[0, 0], [1.3, 0], [2.1, 0.85], [2.9, 1], [8.8, 1], [9.5, 0.2], [10.0, 0]];
+// What it is pointed at when it is *not* the butterfly: her throat, sliding a little off dead centre once the
+// camera is round in front of her.
+const LOOK_AIM = [[0, 0], [9.6, 0], [10.4, 0.5], [11.0, 0.55], [GIFT_SECONDS, 0]];
+const LOOK_ABOVE = [[0, 0.56], [9.4, 0.1], [10.0, 0.0], [10.7, 0.02], [11.4, 0.06], [GIFT_SECONDS, 0.56]];
 // How close the shot is, for the vignette: 0 is the walking camera's own view.
 const CLOSENESS = [[0, 0], [5.4, 0], [7.6, 0.35], [9.8, 0.7], [10.7, 0.95], [11.6, 0.8], [12.2, 0.1], [GIFT_SECONDS, 0]];
 // A whisper of tilt for the close shot, in radians, eased to zero at both ends.
 const ROLL = [[0, 0], [5.4, 0], [9.0, -0.015], [10.7, -0.05], [12.0, 0], [GIFT_SECONDS, 0]];
 
+// Scalar and 3-D mixes, plus a flat ground distance: the film works in the horizontal plane and only ever
+// lifts or drops, so nothing here needs a full vector class.
 const mix = (a, b, w) => a + (b - a) * w;
+const mix3 = (a, b, w) => ({ x: mix(a.x, b.x, w), y: mix(a.y, b.y, w), z: mix(a.z, b.z, w) });
+const dist2 = (a, b) => Math.hypot(a.x - b.y * 0 - b.x, a.z - b.z);
 
 // The couple's own frame: where she faces, and her right hand side.
 function frameOf(couple) {
@@ -104,56 +111,81 @@ function frameOf(couple) {
 // mild roll in radians, a 0..1 `closeness` for the caller's vignette, and the shot's name.
 export function giftCamera(t, couple, fairy, neck, out = {}) {
   void neck;
-  void fairy;
   const f = frameOf(couple);
+  // The close-up stands *outside* the castle, and that is not the same as in front of her nose: a player can
+  // leave the doorway at an angle, or even walking back towards the facade. `outYaw` is the direction that is
+  // actually out of the building (the door faces +z); it defaults to her facing for anywhere in the open.
+  const outYaw = couple.outYaw ?? couple.yaw;
+  const ox = Math.sin(outYaw);
+  const oz = Math.cos(outYaw);
+  // the side axis of that outward frame
+  const rx0 = Math.cos(outYaw);
+  const rz0 = -Math.sin(outYaw);
   const shot = giftShot(t);
   const neckY = couple.neckY ?? 1.14;
   const follow = couple.follow ?? null;
   const focusY = couple.focusY ?? neckY + 0.56;
 
   // where the walking camera is, in her frame: how far round, how far out, how high
-  let followAngle = Math.PI;
-  let followRadius = 4.93;
-  let followHeight = neckY + 1.0;
-  if (follow) {
-    const dx = follow.x - f.x;
-    const dz = follow.z - f.z;
-    followRadius = Math.hypot(dx, dz);
-    followHeight = follow.y;
-    // angle measured from her facing, turning the same way as the film's own TURN
-    followAngle = Math.atan2(dx * f.rx + dz * f.rz, dx * f.fx + dz * f.fz);
-  }
+  // Where the walking camera stands, in her frame: how far along her facing, how far to her right, how high.
+  const toFrame = (p) => {
+    const dx = p.x - f.x;
+    const dz = p.z - f.z;
+    return { fwd: dx * f.fx + dz * f.fz, side: dx * f.rx + dz * f.rz, y: p.y };
+  };
+  const followFrame = follow ? toFrame(follow) : { fwd: -4.93, side: 0, y: neckY + 2.56 };
 
+  // The move is authored on the outward axis; the walking camera's own pose is mixed into it at both ends, so
+  // the film begins and ends *exactly* on it (measured: 0.0000 m) and never has to travel to get there or back.
   const w = keyed(FOLLOW_WEIGHT, t);
-  // Turn, in degrees, from where the walking camera is: out to her face, hold it for the settle, then one
-  // continuous sweep back round to the walking camera's own angle. Monotonic, and exactly 360 in total.
-  const front = TURN_FRONT_DEG - (followAngle * 180) / Math.PI;
-  let toFront = ((front % 360) + 360) % 360;
-  if (toFront > 180) toFront -= 360; // the short way round, whichever side the player's camera is on
-  // Out to her face, then back the way it came: a crane move, not a full orbit. Both legs ease from and to a
-  // standstill, so the turnaround at her face is a camera settling and starting again, never a whip-pan.
-  const turn = t <= SETTLE_AT
-    ? toFront * keyed(OUT_KEYS.map(([a, b]) => [a * SETTLE_AT, b]), t)
-    : toFront * (1 - keyed(BACK_KEYS.map(([a, b]) => [SETTLE_END + a * (GIFT_SECONDS - SETTLE_END), b]), t));
-  const angle = followAngle + (turn * Math.PI) / 180;
-  const radius = mix(keyed(RADIUS, t), followRadius, w);
-  const height = mix(neckY + keyed(HEIGHT, t), followHeight, w);
-  const forward = Math.cos(angle) * radius;
-  const side = Math.sin(angle) * radius;
-
+  const outDist = mix(keyed(OUT, t), followFrame.fwd, w);
+  const lat = mix(keyed(SIDE, t), followFrame.side, w);
+  const height = mix(neckY + keyed(HEIGHT, t), followFrame.y, w);
   const P = {
-    x: f.x + f.fx * forward + f.rx * side,
+    x: f.x + ox * outDist + rx0 * lat,
     y: height,
-    z: f.z + f.fz * forward + f.rz * side,
-  };
-  const lookFwd = mix(keyed(LOOK_FORWARD, t), 0, w);
-  const lookY = mix(neckY + keyed(LOOK_ABOVE, t), focusY, w);
-  const L = {
-    x: f.x + f.fx * lookFwd,
-    y: lookY,
-    z: f.z + f.fz * lookFwd,
+    z: f.z + oz * outDist + rz0 * lat,
   };
 
+  // ---- what it is pointed at -------------------------------------------------
+  // Her throat, with the butterfly's weight on top of it. `fairy` is her world position (main.js passes it while
+  // she is returning, null once she has gone); if it is missing the film simply behaves as it did before.
+  const aimAtFairy = keyed(AIM_FAIRY, t) * (fairy ? 1 : 0) * (1 - w);
+  const aim = keyed(LOOK_AIM, t);
+  const lookY = mix(neckY + keyed(LOOK_ABOVE, t), focusY, w);
+  const neckAim = {
+    x: mix(f.x, f.x + f.fx * 0.16, aim),
+    y: lookY,
+    z: mix(f.z, f.z + f.fz * 0.16, aim),
+  };
+  // She dives in from above the roof, so the aim has to be allowed to rise with her -- but only so far. The
+  // frame must keep the couple's heads in it, so the butterfly comes *down into the top of the shot* rather than
+  // dragging the camera up after her and leaving them out of the bottom of it.
+  const fairyAimY = Math.min(Math.max(fairy ? fairy.y : neckY, neckY + 0.45), neckY + 0.86);
+  const fairyAim = fairy ? { x: fairy.x, y: fairyAimY, z: fairy.z } : neckAim;
+  // Aim *between* them rather than at either: she circles at 2 m to the couple's side, and a camera that simply
+  // points at her drops them out of the bottom of the frame -- which is what it looked like.
+  const mid = {
+    x: mix(neckAim.x, fairyAim.x, 0.5),
+    y: mix(neckAim.y, fairyAim.y, 0.5),
+    z: mix(neckAim.z, fairyAim.z, 0.5),
+  };
+  const L = mix3(neckAim, mid, aimAtFairy);
+
+  // And stand back far enough that both of them fit: a 55-degree lens sees 0.5 m of half-width per metre, so the
+  // distance needed is the widest offset from the aim point divided by tan(24 deg), with room to breathe.
+  if (fairy && aimAtFairy > 0.001) {
+    const off = Math.max(dist2(L, neckAim), dist2(L, fairyAim)) + 0.45;
+    const want = off / Math.tan(0.42);
+    const dir = { x: P.x - L.x, y: P.y - L.y, z: P.z - L.z };
+    const len = Math.hypot(dir.x, dir.z) || 1;
+    const have = len;
+    if (want > have) {
+      const k = (want - have) * aimAtFairy;
+      P.x += (dir.x / len) * k;
+      P.z += (dir.z / len) * k;
+    }
+  }
   // A whisper of handheld drift, so the frame is not mathematically still -- but faded out at both ends, so it
   // cannot fight the exact match with the walking camera where the film begins and ends.
   const drift = (0.010 + 0.018 * keyed(CLOSENESS, t)) * (1 - w);
@@ -169,8 +201,44 @@ export function giftCamera(t, couple, fairy, neck, out = {}) {
   return out;
 }
 
-// How much of the film owns the camera: 0 is the walking camera, 1 is the film. Because the film's own pose is
-// the walking camera's pose at both ends, this only has to be a smooth 0..1; it no longer has to hide travel.
+// Keep the film's camera out of the walls.
+//
+// The composition already avoids the masonry: it stands off on the outward axis, and it is measured clear for
+// the whole film from the doorway, the steps, the garden and while walking back towards the facade. But the
+// couple can leave the door at an odd angle, and then the walking camera the film hands over from may itself be
+// standing in a wall (it is inside the hall, and its own distance is resolved against the ray it casts from the
+// player). So the same test is applied to the film's pose: cast from what it is looking at out to where it wants
+// to stand, and stop just before the first obstacle -- never in front of it.
+//
+// This shortens, it never teleports: the free distance varies continuously along the corridor, so the shot can
+// only ease in closer. It is the same rule as controls.js uses for the walking camera, which is why the film
+// and the game agree about where a camera may stand.
+export function keepCameraClear(pos, look, solid, out = {}) {
+  out.x = pos.x;
+  out.y = pos.y;
+  out.z = pos.z;
+  if (!solid) return out;
+  const dx = pos.x - look.x;
+  const dy = pos.y - look.y;
+  const dz = pos.z - look.z;
+  const len = Math.hypot(dx, dy, dz);
+  if (len < 0.05) return out;
+  const MIN = 0.9; // never closer than this: the pendant has to stay readable
+  let free = len;
+  for (let d = MIN; d <= len; d += 0.1) {
+    if (solid(look.x + (dx / len) * d, look.y + (dy / len) * d, look.z + (dz / len) * d)) {
+      free = Math.max(MIN, d - 0.12);
+      break;
+    }
+  }
+  if (free === len) return out;
+  const k = free / len;
+  out.x = look.x + dx * k;
+  out.y = look.y + dy * k;
+  out.z = look.z + dz * k;
+  return out;
+}
+
 export function giftCameraBlend(t) {
   const into = smooth(t / 0.5);
   const outOf = 1 - smooth((t - (GIFT_SECONDS - 0.6)) / 0.6);

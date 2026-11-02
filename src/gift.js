@@ -70,9 +70,14 @@ export const NECK = { y: 1.666, pendantY: 1.53, z: 0.15, chainRadius: 0.145 };
 // the gold choker is built in, characters.js y = 1.68). One number, used by the flight's landing point and
 // by the code that mounts it, so the two cannot disagree.
 export const NECK_POSE = { y: NECK.y, z: 0.0 };
-// She wears the necklace at her own size: it is parented to her body, which is scaled by this. The flight has
-// to shrink to exactly this before it lands, or the necklace pops 32% bigger the instant it touches her neck.
-export const NECK_WEAR_SCALE = 0.68;
+// The necklace's own model is drawn in *her body's* frame, so when it is worn its local scale is 1: her body
+// already carries the 0.68. While it is in the air it is parented to the scene instead, so the caller has to
+// multiply by her body's scale (see `airScale` in main.js) or the necklace is 32% too big in flight.
+//
+// Getting this wrong the other way -- setting the local scale to 0.68 while it is *inside* her body -- multiplies
+// the two and makes it 0.46 of size: a necklace a third too small, sunk a third deeper into her chest. That is
+// what "falls into the dress" looked like.
+export const NECK_WEAR_SCALE = 1;
 
 // The three poses the necklace passes through, as a function of the scene's time:
 //   in the box   (before 'lift')   — small, still, hidden inside the lid

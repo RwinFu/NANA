@@ -119,6 +119,10 @@ test('the necklace is in the box, then in the air, then on her neck, then it sta
   assert.equal(landing.scale, NECK_WEAR_SCALE, 'her size, not the world\'s');
   assert.ok(Math.abs(necklacePose(9.79, { boxAt, holdAt, neckAt }).scale - NECK_WEAR_SCALE) < 0.02,
     'and it is already that size when it lands, so there is no pop');
+  // the necklace's own model is drawn in her body's frame, so worn its local scale must be exactly 1: her body
+  // already carries 0.68. Setting 0.68 here multiplies the two and makes it a third too small and sunk a third
+  // deeper -- which is exactly what "it falls into the dress" looked like.
+  assert.equal(NECK_WEAR_SCALE, 1, 'the worn necklace is not scaled twice');
 
   // Settled: it rides her breathing now, so it is *at* her neck rather than frozen on it. The motion is
   // a couple of millimetres, which is the point - a necklace glued in place looks glued on.
@@ -403,7 +407,7 @@ test('nothing of hers is in front of the necklace, from any shot of the film', a
 
   const neck = new THREE.Vector3(0, NECK_POSE.y, 0);
   hero.dressSpace.localToWorld(neck);
-  const couple = { x: 0, z: 0, yaw: 0, neckY: neck.y, focusY: 1.70, follow: { x: 0, y: 3.70, z: -4.93 } };
+  const couple = { x: 0, z: 0, yaw: 0, outYaw: 0, neckY: neck.y, focusY: 1.70, follow: { x: 0, y: 3.70, z: -4.93 } };
   const ray = new THREE.Raycaster();
   const visibleFrom = (from, to) => {
     const dir = to.clone().sub(from).normalize();
@@ -418,7 +422,8 @@ test('nothing of hers is in front of the necklace, from any shot of the film', a
     heart: n.group.getObjectByName('necklace-heart-plate').getWorldPosition(new THREE.Vector3()),
     strand: hero.dressSpace.localToWorld(new THREE.Vector3(0, NECK_POSE.y - 0.05, 0.262)),
   };
-  for (const t of [2.6, 5.4, 7.6, 9.8, 10.0, 10.4, 10.7, 11.0, 11.2, 11.6]) {
+  // the film's own shots: from when the camera is out in the open beside her until it starts to hand back
+  for (const t of [4.6, 5.4, 7.6, 9.8, 10.0, 10.4, 10.7, 11.0, 11.2, 11.4]) {
     const shot = giftCamera(t, couple, null, neck, {});
     const cam = new THREE.Vector3(shot.position.x, shot.position.y, shot.position.z);
     for (const [name, at] of Object.entries(parts)) {
@@ -441,4 +446,30 @@ test('the stone is a white brilliant, not a pink bead', () => {
     assert.equal(glint.children[0].material.color.getHexString(), 'ffffff');
     assert.equal(glint.children[0].material.toneMapped, false, 'and tone mapping cannot roll it off to grey');
   });
+});
+
+test('the butterfly flies a continuous path with the present, never teleporting', () => {
+  // The return flight is four stages with hand-written keys, and it used to *jump* at two of the joins: 2.6 m
+  // sideways on the frame the loop began, and 1.9 m at the frame she set off. In a scene that is otherwise one
+  // continuous camera move, that reads as a glitch in the middle of the shot. Each join is now blended.
+  const scene = new THREE.Scene();
+  const camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.05, 400);
+  const fairy = withCanvas(() => createFairy(scene));
+  fairy.beginReturn({ x: 0, z: 1.8 });
+  const dt = 1 / 60;
+  let prev = null;
+  let worst = 0;
+  let worstAt = 0;
+  for (let i = 0; i <= Math.ceil(GIFT_SECONDS / dt); i++) {
+    const t = i * dt;
+    fairy.update(t, dt, 1, true, camera);
+    const p = fairy.position;
+    if (prev) {
+      const d = Math.hypot(p.x - prev.x, p.y - prev.y, p.z - prev.z);
+      if (d > worst) { worst = d; worstAt = t; }
+    }
+    prev = { x: p.x, y: p.y, z: p.z };
+  }
+  // her diving arrival is genuinely fast; the point is that nothing is a *jump*
+  assert.ok(worst < 0.3, `her flight jumps ${worst.toFixed(2)} m in one frame at t=${worstAt.toFixed(2)}`);
 });

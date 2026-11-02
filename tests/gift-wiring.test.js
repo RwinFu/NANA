@@ -72,8 +72,10 @@ test('the scene does not add a light to the garden', () => {
 });
 
 test('the film owns the camera while it runs, and hands it back untouched', () => {
-  assert.match(main, /import \{ giftCamera, giftCameraBlend \} from '\/src\/gift-camera\.js'|import \{ giftCamera, giftCameraBlend \} from '\.\/gift-camera\.js'/,
+  assert.match(main, /import \{[^}]*\bgiftCamera\b[^}]*\} from '(\.\/|\/src\/)gift-camera\.js'/,
     'the film camera is the one in gift-camera.js');
+  // and it is checked against the castle the same way the walking camera is, rather than trusted
+  assert.match(main, /keepCameraClear\(/, 'the film pose is cleared against the walls before it is used');
   assert.match(main, /\n    placeGiftCamera\(dt\);/, 'it is driven from the frame loop');
   // it must run after the walking camera has moved, or the blend starts from last frame's pose
   // the walking camera is placed by controls.update(...), which has a guard on it; the film must come

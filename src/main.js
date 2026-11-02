@@ -24,7 +24,7 @@ import { createNecklace } from './necklace.js';
 import {
   GIFT_SECONDS, giftReady, giftBeat, necklacePose, NECK_POSE, GIFT_LINES, GIFT_AFTER,
 } from './gift.js';
-import { giftCamera, giftCameraBlend } from './gift-camera.js';
+import { giftCamera, giftCameraBlend, keepCameraClear } from './gift-camera.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
 import { createRescueGame, showHowTo } from './rescue.js';
 import { createCats } from './cats.js';
@@ -187,6 +187,7 @@ let giftAfterLine = false;
 let wasInsideCastle = false;
 const giftNeck = new THREE.Vector3();
 const giftCamFrame = { position: new THREE.Vector3(), look: new THREE.Vector3(), roll: 0, closeness: 0, shot: 'find' };
+const giftCamClear = { x: 0, y: 0, z: 0 }; // the film's pose after the wall check
 const giftCamFrom = new THREE.Vector3();
 const giftCamLookFrom = new THREE.Vector3();
 const giftCamLook = new THREE.Vector3();
@@ -751,11 +752,12 @@ function updateGift(dt) {
   const anchors = giftAnchors(giftBoxAt, giftHoldAt, giftNeck);
   const pose = necklacePose(t, anchors);
   if (t < 9.8) {
-    // it is not on her yet: the *chain* lives in the world, in front of the couple. The `worn` mount
-    // stays on her body whether or not anything is in it, so it can never be left orphaned.
+    // Not on her yet: the *chain* lives in the world, in front of the couple. In the air its parent is the
+    // scene, which has no scale, so the world size has to be set here -- and it has to be her body's scale,
+    // because that is the size it will be the instant it is handed to her (and stays that size: no pop).
     if (necklace.group.parent !== scene) scene.add(necklace.group);
     necklace.group.position.set(pose.x, pose.y, pose.z);
-    necklace.group.scale.setScalar(pose.scale);
+    necklace.group.scale.setScalar(pose.scale * airScale());
     necklace.group.rotation.set(0.15, pose.spin, 0);
     necklace.group.visible = t >= 5.4;
   } else {
@@ -829,18 +831,32 @@ function placeGiftCamera(dt) {
     neckY: giftNeckY(),
     focusY: giftWalkPose.focusY,
     follow: giftWalkPose,
+    // the castle's door faces +z: that is the direction that is actually out of the building, and the film has
+    // to keep its close camera on that side of the facade rather than in front of her nose
+    outYaw: 0,
   },
   introFairy.returning ? introFairy.position : null,
   gift.t >= 9.8 ? giftNeck : null,
   giftCamFrame);
   if (blend <= 0) return; // the walking camera has the view back: do not write over it
-  camera.position.lerpVectors(giftCamFrom, frame.position, blend);
+  // The film's own pose is checked against the castle the same way the walking camera's is: cast from the aim
+  // point out and stop before the first wall. This is a backstop, not the composition -- the move is already
+  // measured clear from everywhere the scene can start -- and it can only shorten the shot, never move it
+  // somewhere else. See keepCameraClear.
+  keepCameraClear(frame.position, frame.look, (x, y, z) => isSolid(x, y, z, 0.22), giftCamClear);
+  camera.position.lerpVectors(giftCamFrom, giftCamClear, blend);
   giftCamLook.copy(giftCamLookFrom).lerp(frame.look, blend);
   camera.lookAt(giftCamLook);
   // the film's own whisper of roll, for the close shot
   camera.rotateZ(frame.roll * blend);
   // the soft aperture: a vignette while the film is tight on her, gone when it is wide
   setGiftVignette(frame.closeness * blend);
+}
+
+// How big her body is in the world, which is the size the necklace has to be while it is in the air.
+const giftBodyScale = new THREE.Vector3();
+function airScale() {
+  return hero.dressSpace.getWorldScale(giftBodyScale).x || 1;
 }
 
 // Where her throat is in the world, this frame, straight off her own body.
