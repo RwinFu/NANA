@@ -7,6 +7,7 @@ import './style.css';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { allMemories, defaults, letterParagraphs, soloVideo } from './memories.js';
+import { textFor } from './memory-text.js';
 import { createStore, formatNumber } from './state.js';
 import { buildWorld, LAYOUT } from './world.js';
 import { createCouple } from './characters.js';
@@ -407,13 +408,14 @@ function showMemory(index) {
   const count = allMemories.length;
   memoryIndex = (index + count) % count;
   const memory = allMemories[memoryIndex];
-  $('#memory-title').textContent = memory.title;
-  $('#memory-caption').textContent = memory.caption;
+  const text = textFor(memory);
+  $('#memory-title').textContent = text.title;
+  $('#memory-caption').textContent = text.caption;
   $('#memory-chapter').textContent = memory.chapter;
   $('#memory-count').textContent = `${formatNumber(memoryIndex + 1)} از ${formatNumber(count)}`;
   $('#memory-frame-name').textContent = `قاب ${memory.frame.name}`;
   memoryFrame.style.setProperty('--frame', memory.frame.color);
-  memoryPhoto.alt = memory.title;
+  memoryPhoto.alt = text.title;
   memoryPhoto.hidden = false;
   memoryPhoto.src = memory.image;
   memoryPhoto.onerror = () => {

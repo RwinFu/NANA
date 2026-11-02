@@ -658,6 +658,32 @@ dialog h2 {
   line-height: 1.15;
 }
 
+/* The memory card's own type: a display face for the title, the text face for the sentence.
+   The title in Vazirmatn 900 was the same voice as the caption, one size up, and a caption under a
+   photograph should not read as body copy. Lalezar ('our' Persian display face, already loaded for the
+   start screen) is round and even in weight 400 -- a title face at title size, not a bolded paragraph. */
+dialog.memory-sheet h2,
+dialog.video-sheet h2 {
+  font-family: 'Lalezar', 'Vazirmatn Variable', Vazirmatn, system-ui, sans-serif;
+  font-weight: 400;
+  /* Lalezar's ی and ج hang below the baseline far more than Vazirmatn's; at 1.15 a two-line title
+     clips its own descenders. */
+  line-height: 1.36;
+  letter-spacing: 0;
+  margin: 2px 0 12px;
+  font-size: clamp(32px, 4.4vw, 46px);
+  text-wrap: balance;
+}
+
+dialog.memory-sheet .memory-caption,
+dialog.video-sheet .memory-caption {
+  font-size: clamp(16px, 1.35vw, 19px);
+  /* 2.05: Persian needs the air, and a caption of two or three lines should not read as a block. */
+  line-height: 2.05;
+  max-width: 42ch;
+  text-wrap: pretty;
+}
+
 .pager {
   display: flex;
   gap: 8px;
@@ -692,9 +718,10 @@ dialog h2 {
 }
 
 .memory-frame-name {
-  margin: 12px 0 0;
+  margin: 10px 0 0;
   color: var(--muted);
-  font-size: 14px;
+  font-size: 13px;
+  letter-spacing: 0.02em;
   text-align: center;
 }
 
@@ -702,8 +729,9 @@ dialog h2 {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  margin: 0 0 14px;
-  font-size: 14px;
+  margin: 0 0 10px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
 }
 
 .memory-meta > span:first-child {
