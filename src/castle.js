@@ -270,9 +270,13 @@ export function buildCastle(scene, track) {
   const keepHidden = 10.75; // the roof ridge; above this the keep is clear of the building
   const upperH = Math.max(keepH - (keepHidden - KEEP.base), 0.1);
   const upperBase = KEEP.top - upperH;
+  // The drum was one battered cylinder, r * 1.05 at the foot to r at the top. Splitting it must not flatten
+  // that taper: the two pieces take the radius the single drum had at their own heights, so the silhouette
+  // from the garden is the silhouette it always was, to the millimetre.
+  const taper = (y) => KEEP.r * (1.05 - (0.05 * (y - KEEP.base)) / keepH);
   {
     // The two pieces share one map, laid out from the base of the drum, so the courses run across the join
-    const geo = drum(new THREE.CylinderGeometry(KEEP.r, KEEP.r, upperH, 32), KEEP.r, upperH);
+    const geo = drum(new THREE.CylinderGeometry(KEEP.r, taper(upperBase), upperH, 32), KEEP.r, upperH);
     const uv = geo.attributes.uv;
     const shift = (upperBase - KEEP.base) / TILE;
     for (let i = 0; i < uv.count; i += 1) uv.setY(i, uv.getY(i) + shift);
@@ -282,7 +286,7 @@ export function buildCastle(scene, track) {
   {
     const lowerH = keepHidden - KEEP.base;
     // theta 0 is +z, which is the garden, so the half we keep is centred there: -90 deg to +90 deg
-    const geo = drum(new THREE.CylinderGeometry(KEEP.r, KEEP.r * 1.05, lowerH, 32, 1, true, -Math.PI / 2, Math.PI), KEEP.r, lowerH);
+    const geo = drum(new THREE.CylinderGeometry(taper(keepHidden), KEEP.r * 1.05, lowerH, 32, 1, true, -Math.PI / 2, Math.PI), KEEP.r, lowerH);
     const lower = add(geo, stone, KEEP.x, KEEP.base + lowerH / 2, KEEP.z);
     lower.name = 'keep-lower';
     add(drum(new THREE.CylinderGeometry(KEEP.r * 1.08, KEEP.r * 1.12, 0.8, 32, 1, true, -Math.PI / 2, Math.PI), KEEP.r, 0.8), stoneDark, KEEP.x, KEEP.base + 0.4, KEEP.z);
