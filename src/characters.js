@@ -591,6 +591,29 @@ export function createCouple(dressColor) {
   let danceId = -1; // -1 no dance, otherwise an index into DANCE_NAMES
   let danceT = 0; // time spent in the current dance
   let danceAmount = 0; // eased: 0 walking, 1 dancing
+  // ---- the turn ---------------------------------------------------------------------------------------
+  // `facing` is where she is *really* pointed (the controls own it); `turnYaw` is where the model is drawn,
+  // which lags a little behind it and eases into it. The gap is the animation: head first, body after, and the
+  // things that hang off her trailing behind that. See the turn block inside `animate`.
+  let facingYaw = 0;
+  let turnYaw = null; // starts synced to the facing on the first frame
+  let turnSpeed = 0;
+let turnVel = 0;
+let boyVel = 0;
+  let headLead = 0;
+  let turnSwing = 0;
+  // The turn is a bell curve, not an exponential: the angular velocity ramps up, holds, and eases into the new
+// facing. At these numbers a ninety-degree turn takes about a third of a second and the body is never more than
+// ~14 degrees behind where she is really pointed, so she does not visibly slide sideways while it catches up.
+const TURN_GAIN = 14; // how hard it pulls towards the target angle
+const TURN_MAX_VEL = 7.5; // radians/second
+const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the brake at the end
+  function shortestArc(from, to) {
+    let d = to - from;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    return d;
+  }
   let spinAngle = 0; // how far she has turned in the spin dance
   // eased dance poses, so switching dances never snaps
   let armX = 0;
@@ -689,9 +712,17 @@ export function createCouple(dressColor) {
     boyWorld.lerp(boyTarget, 1 - Math.exp(-dt * FOLLOW_RATE));
     boyWorld.y = rootPos.y; // he rises and lands with her when she jumps
     const faceHer = lerpAngle(0, m.phi + Math.PI, danceAmount);
-    boyYaw = lerpAngle(boyYaw, yaw + faceHer, 1 - Math.exp(-dt * FOLLOW_RATE));
+    // He does not snap round either. The rate below is his *position*, which has to keep up or he trails her
+    // like a balloon; his facing gets the same bell curve she has, or he pivots on the spot the instant she turns.
+    const boyWant = shortestArc(boyYaw, yaw + faceHer);
+    boyVel += clamp(clamp(boyWant * TURN_GAIN, -TURN_MAX_VEL, TURN_MAX_VEL) - boyVel, -TURN_ACCEL * dt, TURN_ACCEL * dt);
+    boyYaw += boyVel * dt;
+    if (Math.abs(shortestArc(boyYaw, yaw + faceHer)) < 0.004) { boyYaw = yaw + faceHer; boyVel = 0; }
     boy.position.copy(root.worldToLocal(boyWorld.clone()));
-    boy.rotation.y = boyYaw - yaw;
+    boy.rotation.y = shortestArc(0, boyYaw - turnYaw);
+    // he leans into the turn and his head leads it a little, the same way hers does
+    boyBody.rotation.z = (boyBody.rotation.z ?? 0) - boyVel * 0.012;
+    boyHead.rotation.y = lookYaw + clamp(boyVel * 0.03, -0.2, 0.2);
   }
 
   function animate(dt, t, moving, airborne = false) {
@@ -712,6 +743,41 @@ export function createCouple(dressColor) {
     if (dancing) danceT += step;
     danceAmount += ((dancing ? 1 : 0) - danceAmount) * Math.min(1, dt * 4);
     holdAmount += ((holding || dancing ? 1 : 0) - holdAmount) * Math.min(1, dt * 6);
+
+    // ---- the turn -----------------------------------------------------------------------------------
+    // `root.rotation.y` is what the controls set the instant she changes direction, which snaps her whole body
+    // round: 18 degrees on the first frame of a turn at 60 fps, 36 at 30, and then a constant-rate spin for the
+    // rest of it. That is what "the turning looks artificial" is -- a body is not a turntable.
+    //
+    // So the model lags behind the *true* facing, smoothly, and the lag is what gets animated: her head goes
+    // first, her body follows on an ease, and what hangs off her (skirt, hair, the arm on his side) keeps
+    // trailing a moment after the body has stopped. All of it is cosmetic -- the facing the game uses for
+    // walking, for the camera and for the necklace is untouched.
+    if (turnYaw === null) { turnYaw = facingYaw; root.rotation.y = turnYaw; }
+    const wantArc = shortestArc(turnYaw, facingYaw);
+    // how fast we *want* to be turning: proportional to how far there is left, capped
+    const wantVel = clamp(wantArc * TURN_GAIN, -TURN_MAX_VEL, TURN_MAX_VEL);
+    // ...and the angular velocity itself ramps, so the very first frame of a turn is the slowest, not the fastest
+    turnVel += clamp(wantVel - turnVel, -TURN_ACCEL * step, TURN_ACCEL * step);
+    const turnRate = turnYaw + turnVel * step;
+    const turnDelta = shortestArc(turnYaw, turnRate);
+    turnYaw = turnRate;
+    // never overshoot the target: if we would pass it this frame, land on it and stop
+    if (Math.abs(shortestArc(turnYaw, facingYaw)) < 0.004 || Math.sign(turnVel) !== Math.sign(shortestArc(turnYaw, facingYaw))) {
+      if (Math.abs(shortestArc(turnYaw, facingYaw)) < 0.004) { turnYaw = facingYaw; turnVel = 0; }
+    }
+    // how hard is she turning right now, in radians per second
+    const turnNow = Math.abs(turnDelta) / Math.max(step, 1e-4);
+    turnSpeed += (turnNow - turnSpeed) * Math.min(1, step * 10);
+    const turning = Math.min(1, turnSpeed / 2.6);
+    // her head leads the turn, and settles after it
+    headLead += ((turnDelta / Math.max(step, 1e-4)) * 0.045 - headLead) * Math.min(1, step * 9);
+    headLead = clamp(headLead, -0.34, 0.34);
+    // and what she is wearing swings out sideways while she turns
+    turnSwing += (clamp(-(turnDelta / Math.max(step, 1e-4)) * 0.055, -0.24, 0.24) - turnSwing) * Math.min(1, step * 4);
+    root.rotation.y = turnYaw;
+    // a short step under her, so a turn has feet in it (a quarter of a stride, only while she is turning)
+    phase += turning * step * 2.0;
 
     // Her turn: she spins during the spin dance, then unwinds to face forward
     if (danceId === 1) {
@@ -751,10 +817,10 @@ export function createCouple(dressColor) {
     // Fold only the skirt at its waist; the upper body keeps its natural proportions.
     skirtPose.scale.y = 1 - 0.72 * sitAmount;
     skirtPose.scale.z = 1 + 0.15 * sitAmount;
-    body.rotation.y = spinAngle + turn * d;
-    body.rotation.z = s * 0.025 * amount * walk + m.roll * d;
-    skirt.rotation.z = s * 0.05 * amount * walk + m.roll * d * 0.6;
-    skirt.rotation.x = Math.abs(s) * 0.03 * amount * walk;
+    body.rotation.y = spinAngle + turn * d - headLead * 0.55;
+    body.rotation.z = s * 0.025 * amount * walk + m.roll * d + turnSwing * 0.12;
+    skirt.rotation.z = s * 0.05 * amount * walk + m.roll * d * 0.6 + turnSwing * 0.7;
+    skirt.rotation.x = Math.abs(s) * 0.03 * amount * walk - turnSwing * 0.3;
     shoeRest.forEach((x, i) => {
       const fw = phase + i * Math.PI;
       const fi = fd + i * Math.PI;
@@ -766,16 +832,16 @@ export function createCouple(dressColor) {
     });
     // Her arm on his side: hangs by default, reaches for his hand when holding, and takes the dance pose
     arms[0].rotation.x = Math.sin(phase) * 0.04 * amount * walk + armX * d;
-    arms[0].rotation.z = THREE.MathUtils.lerp(THREE.MathUtils.lerp(-0.12, -0.6, holdAmount), armZ, d) - 0.35 * air;
+    arms[0].rotation.z = THREE.MathUtils.lerp(THREE.MathUtils.lerp(-0.12, -0.6, holdAmount), armZ, d) - 0.35 * air + turnSwing * 0.8;
     arms[1].rotation.x = -s * 0.35 * amount * walk * (1 - 0.6 * flowerPose) + 0.15 * idle - 0.15 * d * Math.sin(fd) + 0.1 * flowerPose;
     // With flowers in her hand the arm swings out and forward instead of brushing the skirt.
     // This arm sits at +x, so a positive z rotation is the one that carries it away from her.
     arms[1].rotation.z = 0.62 * flowerPose + Math.sin(t * 1.1) * 0.03 * flowerPose;
     // leaning out from her side; the more she carries, the further out it leans
     handBouquet.rotation.z = -0.33 - 0.10 * flowerPose + Math.sin(t * 0.9) * 0.03 * flowerPose;
-    head.rotation.y = Math.sin(t * 0.7) * 0.08 * idle;
+    head.rotation.y = Math.sin(t * 0.7) * 0.08 * idle + headLead;
     head.rotation.z = m.roll * 0.5 * d;
-    updateHair(dt, Math.sin(phase) * amount * 0.12 + Math.sin(t * 1.3) * 0.02 * idle + m.roll * d);
+    updateHair(dt, Math.sin(phase) * amount * 0.12 + Math.sin(t * 1.3) * 0.02 * idle + m.roll * d + turnSwing * 1.6);
 
     // Boy: legs step in time with hers; knees bend in the forward swing
     legs.forEach((hip, i) => {
@@ -791,7 +857,7 @@ export function createCouple(dressColor) {
     const wave = waveAmount;
     freeArm.rotation.x = -s * 0.5 * amount * (1 - wave) * walk;
     freeArm.rotation.z = wave * (-2.4 + Math.sin(t * 7) * 0.25) + freeZ * d;
-    boyHead.rotation.y = lookYaw - Math.sin(t * 0.6) * 0.05 * idle;
+    // (his head lead is set with his yaw in followPrincess; this keeps the idle look on top of it)
     torso.scale.y = 1 + 0.012 * Math.sin(t * 2.1) * idle;
     // blinks: the eyes close for a moment every few seconds, at different times for each of them
     const pOpen = blinkFactor(t, 0, 4.1);
@@ -860,6 +926,11 @@ export function createCouple(dressColor) {
 
   return {
     root, animate, setSitting, setDress, setEnvironment, measure, feet, stride: () => phase, toggleHolding, isHolding, nextDance, danceName,
+    // The game owns where she is really pointed; the model eases its own facing towards it so turns are animated
+    // rather than snapped. `setFacing` is called every frame from the walk controls with the true heading.
+    setFacing(yaw) { facingYaw = yaw; },
+    facing: () => facingYaw,
+    drawnFacing: () => turnYaw,
     // for the flower shop: her free arm, the group a bought rose hangs from, and the pose it needs
     flowerArm: arms[1],
     bouquetGroup: handBouquet,

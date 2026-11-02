@@ -106,3 +106,18 @@ test('the film opens on the walking camera, not on a flight to the other side of
   assert.match(main, /follow: giftWalkPose/, 'the film is handed that pose, not its own last frame');
   assert.match(main, /if \(blend <= 0\) return;/, 'and once it has handed back it stops writing to the camera');
 });
+
+// The film is framed against her throat and her front, frame by frame, and it cannot survive the player
+// walking out of it. So for its length the controls ignore movement -- the same gate the bench already uses.
+test('the player\'s movement is ignored for the length of the film', () => {
+  const controls = readFileSync(new URL('../src/controls.js', import.meta.url), 'utf8');
+  assert.match(main, /controls\?\.setFilmRunning\?\.\(true\)/, 'beginning the film locks movement');
+  assert.match(main, /controls\?\.setFilmRunning\?\.\(false\)/, 'and finishing it gives movement back');
+  // the lock is checked where the movement input is read, not only in the API
+  assert.match(controls, /isBlocked\(\) \|\| benchSeated \|\| filmRunning \? \[0, 0\] : computeMoveInput\(\)/,
+    'the movement input is zeroed behind the lock');
+  // and held keys do not survive it: she must not lurch off when the film ends
+  const setter = controls.slice(controls.indexOf('setFilmRunning(value)'));
+  assert.match(setter.slice(0, 400), /keys\.clear\(\)/, 'held keys are dropped');
+  assert.match(setter.slice(0, 400), /joystick\.x = joystick\.y = 0/, 'and so is the joystick');
+});

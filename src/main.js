@@ -704,6 +704,8 @@ function beginGift() {
   if (!introFairy || !necklace || !giftBox) return;
   const p = hero.root.position;
   gift = { t: 0, beat: 'arrive', worn: false, lastLine: null };
+  // the player's own walking is ignored for the length of the film, so the framing cannot be walked out of
+  controls?.setFilmRunning?.(true);
   // the fairy's flight is built from where the couple are standing, so she arrives in front of them
   introFairy.beginReturn({ x: p.x, z: p.z + 0.2 });
   // the necklace starts inside the box, invisible until the lid lifts
@@ -805,6 +807,7 @@ function updateGift(dt) {
 
 function finishGift() {
   if (!gift) return;
+  controls?.setFilmRunning?.(false);
   giftGiven = true;
   gift = null;
   // the necklace stays exactly where it is: on her neck, forever
