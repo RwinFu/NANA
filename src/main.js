@@ -556,7 +556,7 @@ async function openPostcard() {
     const canvas = await composePostcard({
       snapshot,
       title: 'خانه‌ی ما',
-      names: `${s.fromName} & ${s.toName}`,
+      names: `${s.fromName} & ${s.toNameJoint ?? s.toName}`,
       subtitle: '۳۶۵ روز خاطره‌ی قشنگ · تا ابد در قلبم',
     });
     const blob = await canvasToBlob(canvas);

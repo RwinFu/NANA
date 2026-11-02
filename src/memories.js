@@ -4,8 +4,13 @@
 export const defaults = {
   // The two names the house is for. `fromName` is the signature under the letter and the "from" line on the
   // envelope; `toName` is who it is addressed to.
+  //
+  // `toName` carries the mim: the house is hers, so every line that speaks to her says «فائقم» -- the letter's
+  // title, the envelope, the HUD, the anniversary line. (A joint line, like the postcard's "the two of us",
+  // uses `toNameJoint`, because «آروین & فائقم» reads as if the card belonged to him alone.)
   fromName: 'آروین',
-  toName: 'فائقه',
+  toName: 'فائقم',
+  toNameJoint: 'فائقه',
   dedication: 'اولین سالگرد یکی شدنمون مبارک؛ تمام لحظه‌های با تو بودن، ارزش قاب گرفتن دارند.',
   anniversaryMsg:
     'اولین سالگرد عشقمون مبارک قشنگم! ۳۶۵ روزه که با اومدنت به زندگیم همه‌چیز زیباتر شده ❤️💍✨',
@@ -16,7 +21,7 @@ export const letterParagraphs = [
   'سلام مهربون‌ترین دختر دنیا،',
   'درست یک سال پیش، تو وارد زندگیم شدی و از همون روز اول، همه‌چیز رنگ و بوی دیگه‌ای گرفت. تک‌تک این قاب‌ها که توی این خونه می‌بینی، گوشه‌ای از زیباترین لحظه‌هایی هستن که کنار هم ساختیم.',
   'از خنده‌ها و بحث‌هامون گرفته تا آرامشِ بودنت کنارم، همه‌شون باارزش‌ترین گنجینه‌ی زندگی منن.',
-  'اولین سالگردمون مبارک، فائقه؛ قول میدم هر روز بیشتر از دیروز دوستت داشته باشم و کنارت باشم. ❤️',
+  'اولین سالگردمون مبارک، فائقم؛ قول میدم هر روز بیشتر از دیروز دوستت داشته باشم و کنارت باشم. ❤️',
   // The signature under the letter is not a fifth paragraph: the reader and the 3D sheet both draw it from
   // `defaults.fromName` (see fillLetter() and drawPaper()), so the name lives in one place.
 ];

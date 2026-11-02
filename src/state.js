@@ -1,8 +1,8 @@
 import { defaults } from './memories.js';
 
-// v9: the couple's names changed (فائقه, آروین), and the stored names win over the defaults -- which is
-// right for a name the owner typed and wrong for a name we got wrong. Bumping the key retires the old pair.
-const STORAGE_KEY = 'our-home-v9';
+// v10: the stored names win over the defaults -- which is right for a name the owner typed and wrong for a
+// name we got wrong. The key goes up when a default changes, so a stored pair cannot mask it.
+const STORAGE_KEY = 'our-home-v10';
 const HEX = /^#[0-9a-f]{6}$/i;
 
 function clampText(value, fallback, max) {
@@ -14,6 +14,7 @@ function sanitize(raw) {
   return {
     fromName: clampText(raw.fromName, defaults.fromName, 24),
     toName: clampText(raw.toName, defaults.toName, 24),
+    toNameJoint: clampText(raw.toNameJoint, defaults.toNameJoint, 24),
     dedication: clampText(raw.dedication, defaults.dedication, 90),
     anniversaryMsg: clampText(raw.anniversaryMsg, defaults.anniversaryMsg, 120),
     avatarColor: HEX.test(raw.avatarColor) ? raw.avatarColor : defaults.avatarColor,
