@@ -1,5 +1,6 @@
 import * as THREE from 'three';
 import { LAYOUT, wrapText } from './world.js';
+import { letterParagraphs } from './memories.js';
 import { envelopeNormal } from './architecture.js';
 import { createEnvelopeShell } from './envelope-art.js';
 import { BEATS as OPEN_BEATS, BEAT_AT, OPEN_TIME as TIMELINE_TIME, openingAtTime } from './letter-open.js';
@@ -30,7 +31,7 @@ const PAPER_H = 1.9;
 export const BEATS = OPEN_BEATS;
 export const OPEN_TIME = TIMELINE_TIME;
 
-function drawPaper(ctx, w, h, fromName, toName, paragraph) {
+function drawPaper(ctx, w, h, fromName, toName, paragraphs) {
   // The same paper, ink and border as the reader in style.css (dialog.letter-sheet), so the 3D sheet
   // and the page that takes over from it are one material. If one of these colours changes, the other
   // has to change with it — tests/envelope.test.js compares them.
@@ -54,30 +55,52 @@ function drawPaper(ctx, w, h, fromName, toName, paragraph) {
 
   ctx.fillStyle = '#9c5b60';
   ctx.font = `700 26px ${FONT}`;
-  ctx.fillText('نامه‌ای برای تو', w / 2, 92);
+  ctx.fillText('نامه‌ای از طرف ' + fromName, w / 2, 70);
 
   ctx.fillStyle = '#553542';
   ctx.font = `900 58px ${FONT}`;
-  ctx.fillText(`برای ${toName}`, w / 2, 150);
-
-  ctx.fillStyle = '#9c5b60';
-  ctx.font = `500 30px ${FONT}`;
-  ctx.fillText(`نامه‌ای از طرف ${fromName}`, w / 2, 208);
+  ctx.fillText(`برای ${toName}`, w / 2, 128);
 
   ctx.strokeStyle = 'rgba(150,104,87,0.2)';
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(120, 244);
-  ctx.lineTo(w - 120, 244);
+  ctx.moveTo(96, 176);
+  ctx.lineTo(w - 96, 176);
   ctx.stroke();
 
+  // The body of the letter on the sheet itself, and its signature under it.
+  //
+  // The paragraph that used to be drawn here was a third of the letter pulled out of the middle and set on
+  // the paper; the rest of it only appeared once the reader opened over the top, so the sheet and the page
+  // disagreed. They are the same letter now: every paragraph, in order, with the signature below.
   ctx.fillStyle = '#70545a';
-  ctx.font = `500 34px ${FONT}`;
-  const lines = wrapText(ctx, paragraph, w - 280, 4);
-  lines.forEach((line, i) => ctx.fillText(line, w / 2, 306 + i * 62));
+  ctx.font = `500 22px ${FONT}`;
+  const lines = [];
+  for (const part of paragraphs) {
+    wrapText(ctx, part, w - 280, 4).forEach((line) => lines.push(line));
+    lines.push(''); // a blank line between paragraphs, as on the page
+  }
+  // The whole letter, set small enough to fit on one sheet: the physical page is a prop (the reader that
+  // opens over it at the end of the opening is where the words are actually read), but it has to be the same
+  // letter, so nothing is cut -- the type is simply sized to the space.
+  const BODY_TOP = 210;
+  const LEADING = 28;
+  const room = Math.max(1, Math.floor((h - 96 - BODY_TOP) / LEADING));
+  lines.slice(0, room).forEach((line, i) => {
+    if (line) ctx.fillText(line, w / 2, BODY_TOP + i * LEADING);
+  });
+
+  ctx.fillStyle = '#9c5b60';
+  ctx.font = `700 30px ${FONT}`;
+  ctx.fillText(`با تمام قلب و وجودم، ${fromName}`, w / 2, h - 78);
 }
 
-export function createEnvelope(scene, { fromName, toName, paragraph, audio = null, onBeat = null }) {
+// The letter's own words, as the sheet draws them: every paragraph, in order. Imported here rather than
+// passed in by every caller, so the sheet and the reader can never show different letters (main.js still
+// passes names through, because those are the couple's and can change at run time).
+const LETTER = letterParagraphs;
+
+export function createEnvelope(scene, { fromName, toName, paragraphs = null, audio = null, onBeat = null }) {
   const { x, y, z, w, h } = LAYOUT.envelope;
   const group = new THREE.Group();
   group.position.set(x, y, z);
@@ -177,11 +200,11 @@ export function createEnvelope(scene, { fromName, toName, paragraph, audio = nul
     if (onBeat) onBeat(beat);
   }
 
-  function setNames(from, to, text) {
-    drawPaper(paperCanvas.getContext('2d'), paperCanvas.width, paperCanvas.height, from, to, text);
+  function setNames(from, to, lines) {
+    drawPaper(paperCanvas.getContext('2d'), paperCanvas.width, paperCanvas.height, from, to, lines);
     paperTex.needsUpdate = true;
   }
-  setNames(fromName, toName, paragraph);
+  setNames(fromName, toName, paragraphs ?? LETTER);
 
   function open(callback) {
     if (state !== 'closed') return;

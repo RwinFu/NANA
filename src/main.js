@@ -318,7 +318,7 @@ if (renderer) {
   envelope = createEnvelope(scene, {
     fromName: store.get().fromName,
     toName: store.get().toName,
-    paragraph: letterParagraphs[1],
+    paragraphs: letterParagraphs,
     audio,
     // each beat fires its own burst of light where the envelope is, so the opening is not silent
     onBeat: (beat) => {
@@ -1235,7 +1235,7 @@ function start(state) {
   hero?.setDress(state.avatarColor);
   fillLetter(state);
   if (envelope) {
-    const redraw = () => envelope.setNames(state.fromName, state.toName, letterParagraphs[1]);
+    const redraw = () => envelope.setNames(state.fromName, state.toName, letterParagraphs);
     redraw();
   }
 
@@ -1261,7 +1261,7 @@ store.subscribe((state) => {
 if (world) {
   const draw = () => {
     world.setDedication(store.get().dedication);
-    if (envelope) envelope.setNames(store.get().fromName, store.get().toName, letterParagraphs[1]);
+    if (envelope) envelope.setNames(store.get().fromName, store.get().toName, letterParagraphs);
   };
   document.fonts.ready.then(draw);
   document.fonts.load('800 96px "Vazirmatn Variable"').then(draw, draw);

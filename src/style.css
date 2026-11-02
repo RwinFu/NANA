@@ -808,11 +808,17 @@ dialog.video-sheet .memory-caption {
 }
 
 .letter-body p {
-  margin: 0 0 16px;
+  margin: 0 0 18px;
   color: var(--cream);
-  font-size: 18px;
+  font-size: clamp(17px, 1.5vw, 20px);
+  /* 2.1: a letter is read line by line, and Persian sits low in its own line box. */
   line-height: 2.1;
+  text-wrap: pretty;
 }
+
+/* The letter is the one piece of prose in the house, so it gets a measure: lines that stop short of the
+   card's edges are easier to read back to themselves than lines that run the full width. */
+dialog.letter-sheet .letter-body p { max-width: 46ch; margin-inline: auto; }
 
 .letter-sign {
   display: grid;
