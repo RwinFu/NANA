@@ -1,50 +1,47 @@
-// The words in the memory dialog: one short title per frame, and nothing underneath it.
+// The words in the memory dialog: one name per frame, and nothing else.
 //
-// The captions are gone on purpose. They were the part of this dialog that was never right: written from a
-// distance, two clauses each, and always explaining the feeling after showing it. A photograph with a name
-// under it says more than a photograph with a paragraph under it.
+// The card used to carry a caption under the photograph, a chapter line above it, and a placard under
+// the frame naming its material. All three are gone: the photograph, its name, and the pager are the
+// whole card, and the name the frame already had -- the one shorthand line it was always listed under in
+// src/memories.js -- is the name it shows. Anything cleverer than that competed with the picture.
 //
-// So each frame gets a name of a few words, about the two of them rather than about either one alone: a
-// memory of a house is a memory of a pair. `id` ties each entry to its photo in src/memories.js; a photo with
-// no entry here shows the title it already carries.
+// `id` ties each name to its photo; a photo with no entry here falls back to the name it carries.
 
 export const memoryText = {
   // --- the hall ----------------------------------------------------------
-  'flowers-in-the-car': { title: 'دست‌هامون، پر از گل' },
-  'mirror-selfie': { title: 'آینه، همیشه دونفره' },
-  'little-surprise': { title: 'خنده‌ی توی ماشین' },
-  'red-rose': { title: 'رزِ دونفره' },
-  'home-mirror': { title: 'خودمونیِ دونفره' },
-  'warm-hug': { title: 'امن‌ترین جای دنیا' },
-  'birthday-cake': { title: 'آرزوی اون شب' },
-  'sweet-treat': { title: 'شیرینیِ نصف‌نصف' },
-  'black-and-white': { title: 'سیاه‌وسفیدِ رنگی' },
-  'quiet-moment': { title: 'سکوتِ دونفره' },
-  'dinner-date': { title: 'قراری که دیر شد' },
-  'colorful-night': { title: 'شبِ رنگیِ ما' },
-  'night-drive-flash': { title: 'شب، ماشین، فلاش' },
-  'side-by-side': { title: 'کنار هم، بی‌ژست' },
+  'flowers-in-the-car': { title: 'لبخندِ شیرین' },
+  'mirror-selfie': { title: 'قابِ آینه' },
+  'little-surprise': { title: 'سورپرایزِ کوچک' },
+  'red-rose': { title: 'رزِ سرخ' },
+  'home-mirror': { title: 'خودمونی' },
+  'warm-hug': { title: 'آغوشِ امن' },
+  'birthday-cake': { title: 'آرزو و شمع' },
+  'sweet-treat': { title: 'لحظه‌ی شیرین' },
+  'black-and-white': { title: 'سیاه‌وسفید' },
+  'quiet-moment': { title: 'آرامش' },
+  'dinner-date': { title: 'قرارِ دونفره' },
+  'colorful-night': { title: 'شبِ رویایی' },
+  'night-drive-flash': { title: 'شبِ دیروقت' },
+  'side-by-side': { title: 'کنار هم' },
   'selfie-together': { title: 'سلفیِ دونفره' },
-  'mirror-love': { title: 'آینه و شیطونی' },
-  'closer': { title: 'نزدیک‌تر از همیشه' },
-  'winter-tree': { title: 'زمستونِ کنار هم' },
+  'mirror-love': { title: 'آینه‌ی عاشقانه' },
+  'closer': { title: 'نزدیک‌تر' },
+  'winter-tree': { title: 'شبِ زمستونی' },
 
   // --- the photo room ----------------------------------------------------
-  'calm-look': { title: 'آرومِ آروم' },
-  'cat-cuddle': { title: 'دو تا دوستِ کوچیک' },
-  'kitten-hug': { title: 'بغلِ کوچیک' },
+  'calm-look': { title: 'لبخندِ آروم' },
+  'cat-cuddle': { title: 'مهربانی' },
+  'kitten-hug': { title: 'گرمای دل' },
   'floral-shirt': { title: 'روزِ آفتابی' },
-  'red-necklace': { title: 'قرمزِ خنده‌دار' },
-  'bouquet': { title: 'دسته‌گلِ دونفره' },
-  'strawberry-mirror': { title: 'شیطونیِ توت‌فرنگی' },
+  'red-necklace': { title: 'شادیِ ساده' },
+  'bouquet': { title: 'دسته‌گل' },
+  'strawberry-mirror': { title: 'شیطنت' },
   'christmas-tree': { title: 'کریسمسِ ما' },
   'blue-jacket': { title: 'آرامشِ آبی' },
 };
 
-/**
- * The title for a memory. There is no caption any more; `textFor` still returns one shape for both dialogs,
- * so a future caption (or a photo that carries its own) has somewhere to go.
- */
+// The name a memory shows. There is no caption any more; `textFor` still returns one shape, so a future
+// caption (or a photo that carries its own) has somewhere to go.
 export function textFor(memory) {
   return { title: memoryText[memory.id]?.title ?? memory.title };
 }

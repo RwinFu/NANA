@@ -716,26 +716,12 @@ dialog.video-sheet .memory-caption {
   border-radius: 2px;
 }
 
-.memory-frame-name {
-  margin: 10px 0 0;
-  color: var(--muted);
-  font-size: 13px;
-  letter-spacing: 0.02em;
-  text-align: center;
-}
-
 .memory-meta {
   display: flex;
-  justify-content: space-between;
   gap: 12px;
-  margin: 0 0 10px;
+  margin: 0 0 22px;
   font-size: 13px;
   letter-spacing: 0.06em;
-}
-
-.memory-meta > span:first-child {
-  color: var(--lamp);
-  font-weight: 700;
 }
 
 .meta-count {
@@ -1195,11 +1181,9 @@ dialog.memory-sheet .close:hover,
 dialog.letter-sheet .close:hover { background: rgba(107, 62, 76, .17); }
 dialog.memory-sheet h2,
 dialog.letter-sheet h2 { color: #553542; }
-dialog.memory-sheet .memory-frame-name,
 dialog.memory-sheet .meta-count,
 dialog.letter-sheet .letter-body p,
 dialog.letter-sheet .letter-sign { color: #70545a; }
-dialog.memory-sheet .memory-meta > span:first-child,
 dialog.letter-sheet .finale-kicker,
 dialog.letter-sheet .letter-sign strong { color: #9c5b60; }
 dialog.memory-sheet .memory-frame {

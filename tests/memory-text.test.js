@@ -21,6 +21,14 @@ test('the written names cover every photo in the house', () => {
   assert.deepEqual(written, ids, 'memory-text.js and memories.js list different photos');
 });
 
+test('the names are the frames\' own short names', () => {
+  // «لبخندِ شیرین», «آغوشِ امن», «سلفیِ دونفره»: the one line each frame is listed under. Two words is the
+  // shape of all of them, which is what keeps the card from reading as a caption.
+  for (const [id, { title }] of Object.entries(memoryText)) {
+    assert.ok(title.split(/\s+/).length <= 3, `${id} runs to ${title.split(/\s+/).length} words: ${title}`);
+  }
+});
+
 test('a name is a name, not a sentence', () => {
   for (const [id, { title }] of Object.entries(memoryText)) {
     // Four words at most: the title line is Lalezar at up to 46 px and has one line to spend.
@@ -30,10 +38,15 @@ test('a name is a name, not a sentence', () => {
   }
 });
 
-test('the names are about the two of them', () => {
-  // The house is theirs: «دونفره», «کنار هم», «همیشه». Not «من» narrating at «تو».
-  const joined = Object.values(memoryText).map((t) => t.title).join(' ');
-  assert.ok(/دونفره|کنار هم|با هم|همیشه|ما/.test(joined), 'not one name speaks for the pair');
+test('the card is the photograph, its name, and the pager -- nothing else', () => {
+  // The chapter line and the frame-material placard were removed with the caption; the test above holds the
+  // caption, these hold the other two.
+  const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  const card = html.slice(html.indexOf('id="memory-dialog"'), html.indexOf('id="video-dialog"'));
+  assert.doesNotMatch(card, /memory-chapter/, 'the chapter line is back');
+  assert.doesNotMatch(card, /memory-frame-name/, 'the frame-material placard is back');
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  assert.doesNotMatch(main, /memory-chapter|memory-frame-name/, 'main.js still writes one of them');
 });
 
 test('the memory card has no caption left in the document or the dialog', () => {

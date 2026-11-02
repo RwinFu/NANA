@@ -408,12 +408,11 @@ function showMemory(index) {
   const count = allMemories.length;
   memoryIndex = (index + count) % count;
   const memory = allMemories[memoryIndex];
-  // The frame's name only: the captions were removed from the card (see src/memory-text.js).
+  // The card shows one thing about the frame: its name. No caption, no chapter line, no frame-material
+  // placard -- the photograph, its name, and the pager (see src/memory-text.js).
   const text = textFor(memory);
   $('#memory-title').textContent = text.title;
-  $('#memory-chapter').textContent = memory.chapter;
   $('#memory-count').textContent = `${formatNumber(memoryIndex + 1)} از ${formatNumber(count)}`;
-  $('#memory-frame-name').textContent = `قاب ${memory.frame.name}`;
   memoryFrame.style.setProperty('--frame', memory.frame.color);
   memoryPhoto.alt = text.title;
   memoryPhoto.hidden = false;

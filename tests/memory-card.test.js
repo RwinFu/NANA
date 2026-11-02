@@ -42,12 +42,12 @@ test('showMemory uses only names it can actually resolve', () => {
   for (const m of fn.matchAll(/(?:const|let|var)\s+([A-Za-z_$][\w$]*)/g)) params.add(m[1]);
   params.add('$'); // the query helper
 
+  // A word inside a comment is not a name, so comment lines are dropped before anything is read.
+  const code = fn.replace(/\/\/.*$/gm, '');
   const used = new Set();
   // Identifiers that are followed by a property access or used as a value: `text.title`, `memory.image`.
-  for (const m of fn.matchAll(/(?<![.\w$])([A-Za-z_$][\w$]*)\s*(?=\.)/g)) used.add(m[1]);
-  // ... and the ones passed around bare (formatNumber(...), textFor(...)). A word at the start of a comment
-  // is not a name, so comment lines are dropped first.
-  const code = fn.replace(/\/\/.*$/gm, '');
+  for (const m of code.matchAll(/(?<![.\w$])([A-Za-z_$][\w$]*)\s*(?=\.)/g)) used.add(m[1]);
+  // ... and the ones passed around bare (formatNumber(...), textFor(...)).
   for (const m of code.matchAll(/(?<![.\w$])([A-Za-z_$][\w$]*)\s*\(/g)) used.add(m[1]);
 
   const keywords = new Set(['if', 'for', 'while', 'return', 'function', 'typeof', 'new', 'catch', 'switch', 'Math', 'String', 'Number', 'Object', 'window', 'document']);
@@ -59,7 +59,9 @@ test('the card still has every element showMemory writes to', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const fn = body('showMemory', main);
   const ids = [...fn.matchAll(/\$\('#([\w-]+)'\)/g)].map((m) => m[1]);
-  assert.ok(ids.length >= 4, 'showMemory stopped writing to the card');
+  // The card keeps its name, its count and the photograph; anything else it used to write is gone on purpose.
+  assert.ok(ids.length >= 2, 'showMemory stopped writing to the card');
+  assert.ok(ids.includes('memory-title'), 'showMemory no longer writes the name');
   for (const id of ids) {
     assert.match(html, new RegExp(`id="${id}"`), `#${id} is not in index.html`);
   }
