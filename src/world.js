@@ -244,7 +244,16 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
       });
     }
     const curve = new THREE.CatmullRomCurve3(run.map(([s, v]) => at(side, s, v, z)), closed, 'centripetal');
-    hinge.add(new THREE.Mesh(track(new THREE.TubeGeometry(curve, pts.length * 14, radius, 8, closed)), goldMat));
+    // How many segments this pipe needs. It used to be `pts.length * 14`, and the window frame is handed
+    // 160 points -- so it became a 2240-segment tube: 35,840 triangles for a gold line 2.5 cm across, four on
+    // each door. Eight of those were 286,720 of the scene's 356,480 tube triangles, all of them on the front
+    // door, which is why the game is heaviest exactly where the couple come out.
+    //
+    // Six segments per input point is still a segment every few millimetres on an outline this size -- far
+    // finer than a 55-degree camera can resolve on a 2.5 cm pipe -- and it keeps every corner in the point
+    // list. The point list itself was the other half of the problem, and it is now sampled to match.
+    const segments = pts.length * 6;
+    hinge.add(new THREE.Mesh(track(new THREE.TubeGeometry(curve, segments, radius, 8, closed)), goldMat));
   }
 
   [-1, 1].forEach((side) => {
@@ -318,7 +327,7 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
       winGeo.translate(0, 0, 0.09);
       face.add(new THREE.Mesh(winGeo, glassMat));
       // Evenly spaced points along the outline, so the gold frame follows the glass edge exactly (sharp bottom corners)
-      const winPts = win.getSpacedPoints(160).map((p) => [p.x, p.y]);
+      const winPts = win.getSpacedPoints(48).map((p) => [p.x, p.y]);
       const first = winPts[0];
       const last = winPts[winPts.length - 1];
       if (Math.abs(last[0] - first[0]) < 1e-6 && Math.abs(last[1] - first[1]) < 1e-6) winPts.pop();
