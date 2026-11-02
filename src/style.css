@@ -171,32 +171,27 @@ a {
   padding: 48px 0;
 }
 
-.intro h1 {
-  margin: 0 0 30px;
+/* The sentence is the whole start screen now, so it is set like a display line and not like a caption:
+   large, in the display face, and broken by the two halves of the sentence rather than by the box.
+   It is 96 characters, so the size is capped lower than a two-word title would be -- at 158px it would be
+   eight lines on a phone and five on a laptop. */
+.intro h1.intro-title-line {
+  margin: 0 0 34px;
+  max-width: 20ch;
   font-family: 'Lalezar', 'Vazirmatn Variable', Vazirmatn, system-ui, sans-serif;
   /* Lalezar has one weight and it is already heavy, so no font-weight: the browser must not fake a bolder one,
      which thickens the strokes and closes up the counters. */
   font-weight: 400;
-  font-size: clamp(76px, 12vw, 158px);
-  /* 1.15, not 0.86: Lalezar's ی and ج hang well below the baseline and its ک and ل rise above the x-height.
-     A tighter line-height than this clips the descenders against the next element. */
-  line-height: 1.15;
+  font-size: clamp(40px, 5.6vw, 78px);
+  /* 1.32: this is several lines of Lalezar, whose ی and ج hang well below the baseline. Anything tighter
+     than this collides the descenders with the line beneath. */
+  line-height: 1.32;
   letter-spacing: 0;
   color: var(--cream);
+  text-wrap: balance;
   text-shadow: 0 2px 0 rgba(0, 0, 0, 0.22), 0 22px 54px rgba(0, 0, 0, 0.5);
 }
 
-
-/* The one line under the title. Not an explanation of the game -- it is what the thing is for. Set in the
-   reading face at a size that can be read, with the line-height Persian needs for its descenders. */
-.intro-line {
-  margin: 0 0 38px;
-  max-width: 30ch;
-  color: var(--muted);
-  font-size: clamp(16px, 2vw, 20px);
-  line-height: 1.95;
-  text-wrap: balance; /* breaks the two halves where they read best, not where the box ends */
-}
 
 .setup {
   display: grid;
@@ -872,15 +867,11 @@ dialog h2 {
     padding: 32px 0 28px;
   }
 
-  .intro h1 {
-    font-size: clamp(64px, 22vw, 96px);
-    margin-bottom: 18px;
-  }
-
-  .intro-line {
-    margin-bottom: 28px;
-    font-size: 16px;
-    line-height: 1.85;
+  .intro h1.intro-title-line {
+    font-size: clamp(38px, 9.4vw, 54px);
+    line-height: 1.34;
+    margin-bottom: 26px;
+    max-width: none;
   }
 
   /* HUD: one compact block of 44px tap targets that wraps onto two rows */
