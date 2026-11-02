@@ -7,6 +7,9 @@ import { behindCastleBlocked } from './walk-rules.js';
 import { SHOP, stallCorners } from './flower-shop.js';
 
 const PLAYER_RADIUS = 0.3;
+// How quickly the *intended* walk direction follows the stick. The visible turning of the character is eased
+// separately, in characters.js, so this only has to keep the walk itself responsive.
+const TURN_EASE = 16;
 // The boy walks beside the princess, so the hall walls keep this extra distance
 const BOY_REACH = 1.5;
 const WALK_SPEED = 3.6;
@@ -145,6 +148,10 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   let pinchDistance = 0;
   let downAt = null;
   let benchSeated = false;
+  // While the gift film is running the player's movement is ignored: the film is framed against her throat
+  // and her front, frame by frame, and a few seconds of walking in any direction would take her out of it.
+  // The camera and the look controls stay live -- it is a cutscene, not a lockout of the whole game.
+  let filmRunning = false;
   const benchSeat = new THREE.Vector3(GARDEN_BENCH.x - 0.43, 0, GARDEN_BENCH.z);
   let jumpY = 0; // height above the ground
   let jumpVy = 0;
@@ -155,7 +162,7 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   const move = new THREE.Vector3();
 
   function onKeyDown(event) {
-    if (isBlocked() || benchSeated) return;
+    if (isBlocked() || benchSeated || filmRunning) return;
     if (event.target instanceof HTMLElement && event.target.closest('input, textarea, select, [contenteditable]')) return;
     if (MOVE_KEYS[event.code]) {
       keys.add(event.code);
@@ -286,7 +293,7 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   }
 
   function jump() {
-    if (isBlocked() || benchSeated) return;
+    if (isBlocked() || benchSeated || filmRunning) return;
     jumpBuf = JUMP_BUFFER;
   }
 
@@ -307,7 +314,7 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   }
 
   function update(dt) {
-    const [ix, iy] = isBlocked() || benchSeated ? [0, 0] : computeMoveInput();
+    const [ix, iy] = isBlocked() || benchSeated || filmRunning ? [0, 0] : computeMoveInput();
     if (benchSeated) {
       pos.lerp(benchSeat, 1 - Math.exp(-dt * 5));
       heading = lerpAngle(heading, Math.PI, 1 - Math.exp(-dt * 5));
@@ -328,11 +335,19 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
       move.normalize().multiplyScalar(speed * dt);
       tryMove(pos.x + move.x, pos.z + move.z);
       const targetHeading = Math.atan2(move.x, move.z);
-      heading = lerpAngle(heading, targetHeading, Math.min(1, dt * 12));
+      // `heading` is where she is really walking, and the game needs it exact. The *model* is not turned from
+      // here any more: hero.setFacing() takes the heading and the model eases its own body round to it, with the
+      // head leading and the skirt and hair trailing. Snapping body.rotation.y here was what made every change of
+      // direction look like a turntable -- 18 degrees in the first frame at 60 fps, 36 at 30.
+      heading = lerpAngle(heading, targetHeading, Math.min(1, dt * TURN_EASE));
     }
 
     player.position.set(pos.x, jumpY, pos.z);
-    playerModel.rotation.y = heading;
+    // The model owns how it is drawn, so it is handed the true heading and eases round to it. If a caller has
+    // no model object (the walk controls are also used on their own in tests), fall back to turning the object
+    // we were given, which is what this line used to do.
+    if (playerModel?.setFacing) playerModel.setFacing(heading);
+    else if (playerModel) playerModel.rotation.y = heading;
 
     // Touch flick momentum eases out; a new drag cancels it
     if (!dragging && (spin.yaw || spin.pitch)) {
@@ -405,6 +420,9 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   }
 
   function setJoystick(x, y, active) {
+    // A stick held through the film is ignored, and stays ignored when the film ends, until it is released and
+    // pushed again: the input the player gave was for a film they could not steer, so it is not replayed at them.
+    if (filmRunning) { joystick.x = 0; joystick.y = 0; joystick.active = false; return; }
     joystick.x = x;
     joystick.y = y;
     joystick.active = active;
@@ -427,6 +445,14 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
       return new THREE.Vector3(lookAt.x, lookAt.y + 0.2, lookAt.z);
     },
     setJoystick,
+    setFilmRunning(value) {
+      filmRunning = value;
+      // whatever was held down when the film started must not survive it
+      keys.clear();
+      running = false;
+      joystick.x = joystick.y = 0;
+      jumpBuf = 0;
+    },
     setBenchSeated(value) {
       benchSeated = value;
       keys.clear();
