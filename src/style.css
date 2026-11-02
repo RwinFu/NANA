@@ -117,8 +117,12 @@ a {
   position: fixed;
   inset: 0;
   display: flex;
-  align-items: center;
-  background: linear-gradient(to left, rgba(11, 12, 28, 0.94) 0%, rgba(11, 12, 28, 0.7) 38%, rgba(11, 12, 28, 0.08) 75%);
+  /* Not `center`: the sentence is three or four lines and it was landing in the middle of the frame, with
+     the castle's doorway behind it. Anchoring to the top keeps it in the same place whatever the wrap. */
+  align-items: flex-start;
+  background:
+    radial-gradient(120% 70% at 0% 30%, rgba(8, 8, 20, 0.88) 0%, rgba(8, 8, 20, 0.5) 45%, rgba(8, 8, 20, 0) 72%),
+    linear-gradient(to left, rgba(11, 12, 28, 0.92) 0%, rgba(11, 12, 28, 0.62) 42%, rgba(11, 12, 28, 0.06) 78%);
   transition: opacity 0.8s ease, transform 0.8s ease;
   overflow-y: auto;
 }
@@ -168,7 +172,8 @@ a {
   width: min(520px, calc(100vw - 40px));
   margin-inline-start: clamp(20px, 6vw, 96px);
   margin-inline-end: auto;
-  padding: 48px 0;
+  /* 12vh clears the letterbox bar and puts the sentence in the upper third, where a title belongs */
+  padding: max(12vh, 84px) 0 48px;
 }
 
 /* The sentence is the whole start screen now, so it is set like a display line and not like a caption:
@@ -182,7 +187,7 @@ a {
   /* Lalezar has one weight and it is already heavy, so no font-weight: the browser must not fake a bolder one,
      which thickens the strokes and closes up the counters. */
   font-weight: 400;
-  font-size: clamp(40px, 5.6vw, 78px);
+  font-size: clamp(40px, 5.4vw, 74px);
   /* 1.32: this is several lines of Lalezar, whose ی and ج hang well below the baseline. Anything tighter
      than this collides the descenders with the line beneath. */
   line-height: 1.32;
@@ -857,14 +862,16 @@ dialog h2 {
 
 @media (max-width: 760px) {
   .intro {
-    background: linear-gradient(to top, rgba(11, 12, 28, 0.97) 35%, rgba(11, 12, 28, 0.55) 100%);
-    align-items: flex-end;
+    background:
+      radial-gradient(110% 55% at 50% 0%, rgba(8, 8, 20, 0.9) 0%, rgba(8, 8, 20, 0.55) 55%, rgba(8, 8, 20, 0.1) 100%),
+      linear-gradient(to top, rgba(11, 12, 28, 0.9) 0%, rgba(11, 12, 28, 0.3) 60%);
+    align-items: flex-start;
   }
 
   .intro-inner {
     width: calc(100vw - 36px);
     margin: 0 auto;
-    padding: 32px 0 28px;
+    padding: max(10vh, 64px) 0 24px;
   }
 
   .intro h1.intro-title-line {
