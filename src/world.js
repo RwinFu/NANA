@@ -1006,6 +1006,79 @@ export function buildWorld(scene, camera) {
   const facadeArch = new THREE.Mesh(archGeo, facadeMat);
   facadeArch.position.set(0, 0, -0.3);
   scene.add(facadeArch);
+
+  // The vault's front end, closed.
+  //
+  // The front wall stops at `facadeHeight` (8 m) but the barrel vault carries on to the crown of the round
+  // ceiling (10 m). Nothing filled the difference, so standing in the hall above the front door there was a
+  // two-metre opening the shape of the cap of a circle -- and through it you saw the outside: the keep on
+  // its plinth and the flank towers, sitting on the ceiling. It read as a hole in the roof with the castle
+  // floating above it.
+  //
+  // So the cap is walled in: the exact piece of the vault's cross-section that the facade does not reach,
+  // with the hall's own stone on the inside face and the outside ashlar on the other, so it is a lunette
+  // above the door from within and part of the front wall from without.
+  {
+    const R = LAYOUT.hallHalfWidth;
+    const S = LAYOUT.hallSpring;
+    const top = facadeHeight;
+    const tEdge = Math.asin(THREE.MathUtils.clamp((top - S) / R, -1, 1)); // where the vault passes 8 m
+    const cap = new THREE.Shape();
+    cap.moveTo(R * Math.cos(tEdge), S + R * Math.sin(tEdge));
+    for (let i = 1; i <= 28; i += 1) {
+      const t = tEdge + ((Math.PI - 2 * tEdge) * i) / 28;
+      cap.lineTo(R * Math.cos(t), S + R * Math.sin(t)); // over the crown
+    }
+    cap.closePath();
+    const capGeo = track(new THREE.ShapeGeometry(cap, 4));
+    // inside: the same dressed stone as the hall, facing down the corridor
+    // Both sides are drawn, because this piece is seen from inside the hall *and* from the garden, and a
+    // ShapeGeometry's front face depends on the winding of the path above. Two-sided is one extra draw and
+    // removes a whole class of "the patch is there but invisible" bug.
+    const inner = new THREE.Mesh(capGeo, new THREE.MeshStandardMaterial({
+      color: hallInterior.wall, map: wallMat.map, bumpMap: wallMat.bumpMap, bumpScale: 0.035, roughness: 0.88,
+      side: THREE.DoubleSide,
+    }));
+    inner.position.set(0, 0, -0.27);
+    scene.add(inner);
+    // outside: the facade's own ashlar, so from the garden the front wall simply carries on to the roof
+    const outer = new THREE.Mesh(capGeo, new THREE.MeshStandardMaterial({
+      color: castleStone.hallWall, map: facadeMat.map, bumpMap: facadeMat.bumpMap, bumpScale: 0.04,
+      roughness: 0.85, side: THREE.DoubleSide,
+    }));
+    outer.position.set(0, 0, 0.29);
+    scene.add(outer);
+  }
+
+  // The front wall's own top, up to the roof's profile.
+  //
+  // Closing the vault's mouth was not enough on its own: the wall still stopped at 8 m while the barrel
+  // roof over it rises to 10.5 m across 4.35 m of width. Above the wall, either side of the arch, that band
+  // was open air -- and from inside the hall you looked over the top of the front wall at the flank towers
+  // standing out in the garden. A front wall that stops short of its own roof is a hole however you look at
+  // it, so the wall now carries on to the roof's silhouette: the tympanum of the gable, in the same ashlar.
+  {
+    const roofR = LAYOUT.hallHalfWidth + 0.5; // the roof barrel's radius, see buildCastleOuter
+    const S = LAYOUT.hallSpring;
+    const base = facadeHeight;
+    const tEdge = Math.asin(THREE.MathUtils.clamp((base - S) / roofR, -1, 1));
+    const shape = new THREE.Shape();
+    shape.moveTo(roofR * Math.cos(tEdge), S + roofR * Math.sin(tEdge));
+    for (let i = 1; i <= 28; i += 1) {
+      const t = tEdge + ((Math.PI - 2 * tEdge) * i) / 28;
+      shape.lineTo(roofR * Math.cos(t), S + roofR * Math.sin(t));
+    }
+    shape.closePath();
+    const geo = track(new THREE.ExtrudeGeometry(shape, { depth: 0.6, bevelEnabled: false }));
+    {
+      const uv = geo.attributes.uv;
+      for (let i = 0; i < uv.count; i += 1) uv.setXY(i, uv.getX(i) / 1.6, uv.getY(i) / 1.6);
+      uv.needsUpdate = true;
+    }
+    const tympanum = new THREE.Mesh(geo, facadeMat);
+    tympanum.position.set(0, 0, -0.3);
+    scene.add(tympanum);
+  }
   // Pink moulding and gold piping over the doors, with a rosette at each springline and a crown on top
   const archPinkMat = track(new THREE.MeshStandardMaterial({ color: '#f6c3d6', roughness: 0.45, normalMap: ribbonNormal(12, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
   const archGoldMat = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3, normalMap: giltNormal(4, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));

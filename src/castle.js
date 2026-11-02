@@ -15,7 +15,15 @@ export const TOWERS = [
   { x: -6.8, z: FLANK_Z, r: 1.5, h: 15.5 }, // flank left
   { x: 6.8, z: FLANK_Z, r: 1.5, h: 15.5 }, // flank right
 ];
-export const KEEP = { x: 0, z: -0.6, r: 2.3, base: 8, top: 19 };
+// The keep stands ON the hall's roof, not inside it.
+//
+// `base` was 8 m, which is where the front wall stops -- but the hall's barrel vault carries on to 10.5 m
+// and its ridge to 10.72 m, and the keep is at x 0, z -0.6, which is straight over the front of the hall.
+// So 2.3 m of its drum, and the plinth band around it, hung *inside* the building: standing in the hall and
+// looking up at the front door you saw the outside of the keep through the ceiling, with its stone courses
+// and its eave, as if the roof had a hole in it. It starts just above the ridge now, so the first thing the
+// hall sees of it is the spire over the roof, which is what the garden sees too.
+export const KEEP = { x: 0, z: -0.6, r: 2.3, base: 10.9, top: 19 };
 // Where the front wall of the facade is, so bunting can be hung across it from world.js
 export const FACADE_Z = 0.335;
 export const FACADE_HALF_WIDTH = 9.4;
