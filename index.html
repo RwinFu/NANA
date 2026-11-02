@@ -46,37 +46,16 @@
       <div class="vignette" aria-hidden="true"></div>
       <div class="flash" id="flash" aria-hidden="true"></div>
 
-      <!-- Start screen. No lede: the title, the two names and the door. -->
+      <!-- Start screen. The title, her dress colour, and the door. No other text. -->
       <section class="intro" id="intro" aria-labelledby="intro-title">
         <div class="intro-inner">
-          <p class="intro-kicker">یک سال عاشقی و یک ولنتاین</p>
           <h1 id="intro-title">خانه‌ی ما</h1>
 
           <form id="setup" class="setup" novalidate>
-            <div class="row">
-              <label class="field">
-                <span>از طرفِ</span>
-                <input id="from-name" name="fromName" maxlength="24" autocomplete="off" />
-              </label>
-              <label class="field">
-                <span>برای</span>
-                <input id="to-name" name="toName" maxlength="24" autocomplete="off" />
-              </label>
-            </div>
-            <label class="field">
-              <span>متن پلاک سردر خانه</span>
-              <input id="dedication" name="dedication" maxlength="90" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>پیام تبریک سالگرد</span>
-              <input id="anniversary-msg" name="anniversaryMsg" maxlength="120" autocomplete="off" />
-            </label>
-            <div class="row row-end">
-              <fieldset class="swatches">
-                <legend>رنگ لباسش</legend>
-                <div class="swatch-row" id="swatch-row"></div>
-              </fieldset>
-            </div>
+            <fieldset class="swatches">
+              <legend>رنگ لباسش</legend>
+              <div class="swatch-row" id="swatch-row"></div>
+            </fieldset>
             <p class="form-error" id="form-error" role="alert" hidden></p>
             <button class="enter" id="enter-btn" type="submit">
               <span>وارد خانه شو</span>

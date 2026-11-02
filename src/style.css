@@ -187,112 +187,40 @@ a {
 }
 
 
-/* The kicker sits above the title as a small gold line, with a rule that ties it to the title */
-.intro-kicker {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  margin: 0 0 10px;
-  color: var(--lamp);
-  font-size: 15px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
-}
-.intro-kicker::before {
-  content: '';
-  width: 26px;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(to left, var(--lamp), rgba(255, 207, 138, 0));
-}
-
 .setup {
   display: grid;
-  gap: 26px;
+  gap: 28px;
+  justify-items: start;
   margin: 0;
   border: 0;
   padding: 0;
-  max-width: 480px;
 }
 
-.row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 26px;
-}
-
-.row-end {
-  grid-template-columns: 1fr auto;
-  align-items: end;
-  gap: 18px;
-}
-
-.field {
-  display: grid;
-  gap: 8px;
+/* Her dress colour is the only thing asked for on this screen, so it gets the size and the light: a small
+   gold caption, then a row of swatches worth tapping. */
+.swatches {
+  margin: 0;
+  border: 0;
+  padding: 0;
   min-width: 0;
 }
 
-.field > span,
 .swatches legend {
-  color: var(--muted);
-  font-size: 15px;
-  font-weight: 500;
+  color: var(--lamp);
+  font-size: 14px;
+  font-weight: 600;
   padding: 0;
-}
-
-/* seven words, no more: the form is on the start screen and must not read as paperwork */
-.setup .field > span {
-  opacity: 0.85;
-}
-
-.field input {
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  border-bottom: 1px solid rgba(255, 241, 225, 0.24);
-  border-radius: 0;
-  background: transparent;
-  padding: 6px 0 12px;
-  font-size: 20px;
-  font-weight: 500;
-  color: var(--cream);
-  transition: border-color 0.25s ease, box-shadow 0.25s ease;
-}
-
-.field input::placeholder {
-  color: rgba(255, 241, 225, 0.35);
-}
-
-.field input:focus {
-  outline: none;
-  border-bottom-color: var(--lamp);
-}
-
-/* the two names are the point of this screen: give them the most light */
-.row .field input {
-  font-size: 22px;
-}
-
-.field input:focus-visible {
-  outline: none;
-  box-shadow: 0 1px 0 var(--lamp);
-}.swatches {
-  margin: 0;
-  border: 0;
-  padding: 0;
-  min-width: 0;
+  margin-bottom: 14px;
 }
 
 .swatch-row {
   display: flex;
-  gap: 10px;
-  padding-block: 8px 6px;
+  gap: 12px;
 }
 
 .swatch {
-  width: 30px;
-  height: 30px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   border: 0;
   padding: 0;
@@ -936,16 +864,6 @@ dialog h2 {
   .intro h1 {
     font-size: clamp(64px, 22vw, 96px);
     margin-bottom: 20px;
-  }
-
-  .row,
-  .row-end {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-
-  .field input {
-    font-size: 17px;
   }
 
   /* HUD: one compact block of 44px tap targets that wraps onto two rows */

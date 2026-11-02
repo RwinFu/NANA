@@ -80,13 +80,6 @@ const coarse = window.matchMedia('(pointer: coarse)').matches;
 // ---------- form ---------------------------------------------------------
 
 let selectedColor = store.get().avatarColor;
-function fillForm(state) {
-  $('#from-name').value = state.fromName;
-  $('#to-name').value = state.toName;
-  $('#dedication').value = state.dedication;
-  $('#anniversary-msg').value = state.anniversaryMsg;
-}
-fillForm(store.get());
 
 SWATCHES.forEach(([color, label]) => {
   const btn = document.createElement('button');
@@ -107,13 +100,17 @@ SWATCHES.forEach(([color, label]) => {
   dom.swatchRow.appendChild(btn);
 });
 
+// The start screen asks one thing: her dress colour. The names and the two messages are not asked for any
+// more -- they live in `defaults` in src/memories.js, which is where they were always meant to be edited.
+// They are still patched through unchanged, so a value stored from an older version is not lost.
 function readForm() {
+  const state = store.get();
   return {
     patch: {
-      fromName: $('#from-name').value,
-      toName: $('#to-name').value,
-      dedication: $('#dedication').value,
-      anniversaryMsg: $('#anniversary-msg').value,
+      fromName: state.fromName,
+      toName: state.toName,
+      dedication: state.dedication,
+      anniversaryMsg: state.anniversaryMsg,
       avatarColor: selectedColor,
     },
   };
