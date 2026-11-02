@@ -1006,6 +1006,46 @@ export function buildWorld(scene, camera) {
   const facadeArch = new THREE.Mesh(archGeo, facadeMat);
   facadeArch.position.set(0, 0, -0.3);
   scene.add(facadeArch);
+
+  // The vault's front end, closed.
+  //
+  // The front wall stops at `facadeHeight` (8 m) but the barrel vault carries on to the crown of the round
+  // ceiling (10 m). Nothing filled the difference, so standing in the hall above the front door there was a
+  // two-metre opening the shape of the cap of a circle -- and through it you saw the outside: the keep on
+  // its plinth and the flank towers, sitting on the ceiling. It read as a hole in the roof with the castle
+  // floating above it.
+  //
+  // So the cap is walled in: the exact piece of the vault's cross-section that the facade does not reach,
+  // faced with the hall's own dressed stone, so from the corridor it is the lunette above the door.
+  //
+  // Inside only, and on purpose. A first attempt carried the front wall up to the roof's profile on the
+  // outside too, and from the garden that read as a new pale stone half-dome stuck on the facade -- the
+  // client's own screenshot. From outside, the front wall and the slot between it and the roof stay exactly
+  // as they always were; this piece is only ever looked at from the hall side of it.
+  {
+    const R = LAYOUT.hallHalfWidth;
+    const S = LAYOUT.hallSpring;
+    const top = facadeHeight;
+    const tEdge = Math.asin(THREE.MathUtils.clamp((top - S) / R, -1, 1)); // where the vault passes 8 m
+    const cap = new THREE.Shape();
+    cap.moveTo(R * Math.cos(tEdge), S + R * Math.sin(tEdge));
+    for (let i = 1; i <= 28; i += 1) {
+      const t = tEdge + ((Math.PI - 2 * tEdge) * i) / 28;
+      cap.lineTo(R * Math.cos(t), S + R * Math.sin(t)); // over the crown
+    }
+    cap.closePath();
+    const capGeo = track(new THREE.ShapeGeometry(cap, 4));
+    // The same dressed stone as the hall, facing down the corridor. Two-sided: a ShapeGeometry's front face
+    // depends on the winding of the path above, and one extra draw beats a patch that is there but invisible.
+    const inner = new THREE.Mesh(capGeo, new THREE.MeshStandardMaterial({
+      color: hallInterior.wall, map: wallMat.map, bumpMap: wallMat.bumpMap, bumpScale: 0.035, roughness: 0.88,
+      side: THREE.DoubleSide,
+    }));
+    inner.position.set(0, 0, -0.27);
+    scene.add(inner);
+  }
+
+
   // Pink moulding and gold piping over the doors, with a rosette at each springline and a crown on top
   const archPinkMat = track(new THREE.MeshStandardMaterial({ color: '#f6c3d6', roughness: 0.45, normalMap: ribbonNormal(12, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
   const archGoldMat = track(new THREE.MeshStandardMaterial({ color: '#d9a441', metalness: 0.8, roughness: 0.3, normalMap: giltNormal(4, 1), normalScale: new THREE.Vector2(0.8, 0.8) }));
