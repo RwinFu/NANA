@@ -328,7 +328,9 @@ if (renderer) {
     camera,
     canvas: renderer.domElement,
     player: hero.root,
-    playerModel: hero.root,
+    // Not hero.root: the model object is what carries setFacing(), which is how a heading becomes a drawn
+    // facing. Passing the root meant the call was skipped and she was never turned at all.
+    playerModel: hero,
     isBlocked: () => !started || anyDialogOpen(),
     onTapFrame: tapFrame,
   });

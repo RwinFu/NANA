@@ -1,6 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import * as THREE from 'three';
 import { createCouple } from '../src/characters.js';
+import { createControls } from '../src/controls.js';
 
 // What went wrong before: the walk controls snapped `playerModel.rotation.y` at `dt * 12`, which is 18 degrees
 // in the very first frame at 60 fps (36 at 30), at a constant rate, with the turn finished in 183 ms. Every
@@ -146,4 +148,123 @@ test('the boy turns with the same ease, and still stands beside her', () => {
     prev = boy.rotation.y;
   }
   assert.ok(worst < 12, `his own facing is eased too: peak ${worst.toFixed(1)} deg/frame`);
+});
+
+// The bug this catches: controls.js was handed hero.root as its model, so setFacing was never called and she
+// was never turned at all -- she walked in the direction the sticks pointed with the model still facing the way
+// it started. The guard clause made that silent, so it has to be tested by walking her, not by reading source.
+test('the walk controls really turn her: setFacing is reached from the model they are given', () => {
+  const hero = withCanvas(() => createCouple('#ff758f'));
+  assert.equal(typeof hero.setFacing, 'function', 'the model object carries setFacing');
+  assert.equal(typeof hero.root.setFacing, 'undefined', 'the bare Object3D does not -- passing it is the bug');
+  // what the game passes as playerModel must be the object with the method, so drive her the way it does
+  hero.root.position.set(0, 0, 0);
+  for (let i = 0; i < 10; i++) { hero.setFacing(0); hero.animate(step, i * step, false, false); }
+  for (let i = 0; i < 40; i++) { hero.setFacing(Math.PI); hero.animate(step, (10 + i) * step, false, false); }
+  assert.ok(deg(arc(Math.PI, hero.root.rotation.y)) < 1,
+    `after being handed a new facing her model is drawn on it: ${deg(arc(Math.PI, hero.root.rotation.y)).toFixed(1)} deg off`);
+  assert.equal(hero.root.rotation.y.toFixed(3), hero.drawnFacing().toFixed(3), 'and the drawn object follows the rig');
+});
+
+test('the boy leans into his own turn and leads it with his head', () => {
+  const hero = withCanvas(() => createCouple('#ff758f'));
+  hero.root.position.set(0, 0, 0);
+  const boy = hero.root.getObjectByName('boy');
+  // his body group is the one the head sphere is parented to
+  let boyBody = null;
+  boy.traverse((o) => { if (o.isMesh && Math.abs(o.position.y - 1.75) < 1e-6) boyBody = o.parent; });
+  assert.ok(boyBody && boyBody.isGroup, 'found the boy body group');
+  const head = boyBody.children.find((o) => o.isMesh && o.geometry?.type === 'SphereGeometry');
+  assert.ok(head, 'and his head');
+
+  let lean = 0;
+  let headMax = 0;
+  for (let i = 0; i < 100; i++) {
+    hero.setFacing(i < 10 ? 0 : Math.PI);
+    hero.animate(step, i * step, false, false);
+    if (i > 10) {
+      lean = Math.max(lean, Math.abs(boyBody.rotation.z));
+      headMax = Math.max(headMax, Math.abs(head.rotation.y));
+    }
+    assert.ok(Number.isFinite(boyBody.rotation.z) && Number.isFinite(head.rotation.y), `frame ${i} is finite`);
+  }
+  assert.ok(lean > 0.01, `he leans into the turn: ${lean.toFixed(3)} rad`);
+  assert.ok(lean < 0.2, `and not over: ${lean.toFixed(3)} rad`);
+  assert.ok(headMax > 0.02, `his head leads it: ${headMax.toFixed(3)} rad`);
+});
+
+// End to end, through the real walk controls and the real rig, wired exactly as main.js wires them. Written
+// because the first attempt at the turn shipped with `playerModel: hero.root`: setFacing lives on the model
+// object, not on its root, so the guard clause swallowed it and she was never turned at all.
+function wired() {
+  const hero = withCanvas(() => createCouple('#ff758f'));
+  // the controls walk her from the level's spawn, so displacement is measured from wherever she starts
+  const camera = new THREE.PerspectiveCamera(55, 16 / 9, 0.05, 400);
+  camera.position.set(0, 3, 12);
+  const canvas = {
+    addEventListener() {}, removeEventListener() {},
+    getBoundingClientRect: () => ({ left: 0, top: 0, width: 1600, height: 900 }),
+    setPointerCapture() {}, releasePointerCapture() {}, style: {},
+  };
+  // the controls listen on window for the keyboard
+  const previousWindow = globalThis.window;
+  globalThis.window = { addEventListener() {}, removeEventListener() {} };
+  let controls;
+  try {
+    controls = createControls({
+      camera, canvas, player: hero.root, playerModel: hero, isBlocked: () => false, onTapFrame: () => {},
+    });
+  } finally {
+    globalThis.window = previousWindow;
+  }
+  const run = (frames, from, moving = true) => {
+    for (let i = 0; i < frames; i++) {
+      controls.update(step);
+      hero.animate(step, (from + i) * step, moving && controls.moving, controls.airborne);
+    }
+  };
+  return { hero, controls, run };
+}
+
+test('given the model object, the walk controls turn her and she goes where the stick points', () => {
+  const { hero, controls, run } = wired();
+  controls.setJoystick(0, 0, false);
+  run(1, 0);                       // one frame first: the controls place her at the level's spawn
+  const start = hero.root.position.clone();
+  controls.setJoystick(1, 1, true);
+  run(90, 1);
+  assert.ok(controls.moving, 'she is walking');
+  const walkedBy = hero.root.position.clone().sub(start);
+  const heading = hero.facing();
+  // the true heading, what the object is drawn at, and what the game reads for the camera must agree
+  assert.ok(deg(arc(heading, hero.root.rotation.y)) < 1, 'the drawn facing is the true heading');
+  // she walked, and she walked the way she is facing: the displacement and the heading agree
+  const walked = Math.hypot(walkedBy.x, walkedBy.z);
+  assert.ok(walked > 3, `she walked ${walked.toFixed(1)} m`);
+  const alongHeading = walkedBy.x * Math.sin(heading) + walkedBy.z * Math.cos(heading);
+  assert.ok(alongHeading / walked > 0.95,
+    `her path is along her heading, not sideways: ${(alongHeading / walked).toFixed(3)}`);
+  assert.equal(hero.root.rotation.y.toFixed(3), hero.drawnFacing().toFixed(3));
+});
+
+test('the film lock freezes her, and a stick held through it is not replayed at her', () => {
+  const { hero, controls, run } = wired();
+  controls.setJoystick(1, 1, true);
+  run(60, 0);
+  controls.setJoystick(0, 0, false);
+  const at = hero.root.position.clone();
+
+  controls.setFilmRunning(true);
+  controls.setJoystick(1, 1, true); // pushed during the film
+  run(60, 60);
+  assert.ok(hero.root.position.distanceTo(at) < 1e-6, 'she does not move during the film');
+
+  controls.setFilmRunning(false);
+  run(30, 120);
+  assert.ok(hero.root.position.distanceTo(at) < 1e-6, 'and the stale stick is not replayed when it ends');
+
+  controls.setJoystick(0, 0, false);
+  controls.setJoystick(1, 1, true); // a fresh push
+  run(40, 150);
+  assert.ok(hero.root.position.distanceTo(at) > 0.5, `a fresh push walks her again: ${hero.root.position.distanceTo(at).toFixed(2)} m`);
 });

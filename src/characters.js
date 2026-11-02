@@ -720,9 +720,6 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
     if (Math.abs(shortestArc(boyYaw, yaw + faceHer)) < 0.004) { boyYaw = yaw + faceHer; boyVel = 0; }
     boy.position.copy(root.worldToLocal(boyWorld.clone()));
     boy.rotation.y = shortestArc(0, boyYaw - turnYaw);
-    // he leans into the turn and his head leads it a little, the same way hers does
-    boyBody.rotation.z = (boyBody.rotation.z ?? 0) - boyVel * 0.012;
-    boyHead.rotation.y = lookYaw + clamp(boyVel * 0.03, -0.2, 0.2);
   }
 
   function animate(dt, t, moving, airborne = false) {
@@ -810,6 +807,10 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
     const toPrincess = Math.atan2(rootPos.x - boyWorld.x, rootPos.z - boyWorld.z) - boyYaw;
     const lookWant = clamp(toPrincess, -0.5, 0.5) * (1 - 0.5 * amount) * (1 - d);
     lookYaw += (lookWant - lookYaw) * Math.min(1, dt * 3);
+    // He glances at her, idles, and leads his own turn with his head -- all in one place, after lookYaw is
+    // current. (This used to be split: the glance set here, the head lead set earlier in followPrincess from
+    // the previous frame's value, which meant his head was a frame behind his body and often not set at all.)
+    boyHead.rotation.y = lookYaw - Math.sin(t * 0.6) * 0.05 * idle + clamp(boyVel * 0.05, -0.2, 0.2);
 
     // Princess: body bobs twice per stride and sways; her feet step under the skirt
     bodice.scale.y = 1 + 0.012 * Math.sin(t * 1.9) * idle;
@@ -853,7 +854,7 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
       shins[i].rotation.x = THREE.MathUtils.lerp(shins[i].rotation.x, Math.PI * 0.48, sitAmount);
     });
     boyBody.position.y = Math.abs(s) * 0.035 * amount * walk + Math.sin(t * 1.4 + 1) * 0.01 * idle + bounce - 0.06 * sitAmount;
-    boyBody.rotation.z = s * 0.025 * amount * walk + m.roll * d;
+    boyBody.rotation.z = s * 0.025 * amount * walk + m.roll * d + clamp(-boyVel * 0.045, -0.12, 0.12);
     const wave = waveAmount;
     freeArm.rotation.x = -s * 0.5 * amount * (1 - wave) * walk;
     freeArm.rotation.z = wave * (-2.4 + Math.sin(t * 7) * 0.25) + freeZ * d;

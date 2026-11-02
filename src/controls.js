@@ -162,7 +162,7 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   const move = new THREE.Vector3();
 
   function onKeyDown(event) {
-    if (isBlocked() || benchSeated) return;
+    if (isBlocked() || benchSeated || filmRunning) return;
     if (event.target instanceof HTMLElement && event.target.closest('input, textarea, select, [contenteditable]')) return;
     if (MOVE_KEYS[event.code]) {
       keys.add(event.code);
@@ -293,7 +293,7 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   }
 
   function jump() {
-    if (isBlocked() || benchSeated) return;
+    if (isBlocked() || benchSeated || filmRunning) return;
     jumpBuf = JUMP_BUFFER;
   }
 
@@ -343,7 +343,11 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
     }
 
     player.position.set(pos.x, jumpY, pos.z);
-    if (playerModel.setFacing) playerModel.setFacing(heading);
+    // The model owns how it is drawn, so it is handed the true heading and eases round to it. If a caller has
+    // no model object (the walk controls are also used on their own in tests), fall back to turning the object
+    // we were given, which is what this line used to do.
+    if (playerModel?.setFacing) playerModel.setFacing(heading);
+    else if (playerModel) playerModel.rotation.y = heading;
 
     // Touch flick momentum eases out; a new drag cancels it
     if (!dragging && (spin.yaw || spin.pitch)) {
@@ -416,6 +420,9 @@ export function createControls({ camera, canvas, player, playerModel, isBlocked,
   }
 
   function setJoystick(x, y, active) {
+    // A stick held through the film is ignored, and stays ignored when the film ends, until it is released and
+    // pushed again: the input the player gave was for a film they could not steer, so it is not replayed at them.
+    if (filmRunning) { joystick.x = 0; joystick.y = 0; joystick.active = false; return; }
     joystick.x = x;
     joystick.y = y;
     joystick.active = active;
