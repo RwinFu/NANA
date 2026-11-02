@@ -1,6 +1,8 @@
 import { defaults } from './memories.js';
 
-const STORAGE_KEY = 'our-home-v8';
+// v9: the couple's names changed (فائقه, آروین), and the stored names win over the defaults -- which is
+// right for a name the owner typed and wrong for a name we got wrong. Bumping the key retires the old pair.
+const STORAGE_KEY = 'our-home-v9';
 const HEX = /^#[0-9a-f]{6}$/i;
 
 function clampText(value, fallback, max) {
