@@ -46,44 +46,19 @@
       <div class="vignette" aria-hidden="true"></div>
       <div class="flash" id="flash" aria-hidden="true"></div>
 
-      <!-- Start screen -->
+      <!-- Start screen. The line, her dress colour, and the door. No other text. -->
       <section class="intro" id="intro" aria-labelledby="intro-title">
         <div class="intro-inner">
-          <p class="intro-kicker">یک سال عاشقی و یک ولنتاین</p>
-          <h1 id="intro-title">خانه‌ی ما</h1>
-          <p class="intro-lede">
-            از حیاط وارد شو، راهروی خاطره‌ها را قدم بزن و دوازده عکس ما را از نزدیک ببین.
-            در انتهای راهرو یک جشن کوچک منتظرته.
-          </p>
+          <h1 id="intro-title" class="intro-title-line">خاطره‌ها یه جایی زندگی می‌کنن؛ برات خونه‌ای ساختم که توش بمونن.</h1>
 
           <form id="setup" class="setup" novalidate>
-            <div class="row">
-              <label class="field">
-                <span>از طرفِ</span>
-                <input id="from-name" name="fromName" maxlength="24" autocomplete="off" />
-              </label>
-              <label class="field">
-                <span>برای</span>
-                <input id="to-name" name="toName" maxlength="24" autocomplete="off" />
-              </label>
-            </div>
-            <label class="field">
-              <span>متن پلاک سردر خانه</span>
-              <input id="dedication" name="dedication" maxlength="90" autocomplete="off" />
-            </label>
-            <label class="field">
-              <span>پیام تبریک سالگرد</span>
-              <input id="anniversary-msg" name="anniversaryMsg" maxlength="120" autocomplete="off" />
-            </label>
-            <div class="row row-end">
-              <fieldset class="swatches">
-                <legend>رنگ لباسش</legend>
-                <div class="swatch-row" id="swatch-row"></div>
-              </fieldset>
-            </div>
+            <fieldset class="swatches">
+              <legend>رنگ لباس‌تو انتخاب کن پرنسس</legend>
+              <div class="swatch-row" id="swatch-row"></div>
+            </fieldset>
             <p class="form-error" id="form-error" role="alert" hidden></p>
             <button class="enter" id="enter-btn" type="submit">
-              <span>وارد خانه شو</span>
+              <span>پاشو بریم</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" /></svg>
             </button>
           </form>

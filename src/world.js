@@ -17,6 +17,7 @@ import { skyLight, horizonColor } from './night-light.js';
 import { castleStone, hallInterior } from './palette.js';
 import { masonryMap, masonryBump } from './castle-stone.js';
 import { photoImage, startPhotos } from './photo-cache.js';
+import { createSign } from './sign.js';
 
 // Layout (metres). The garden sits at z > 0, the house front is at z = 0,
 // and the gallery hall runs from z = 0 to z = -40 with the finale at its end.
@@ -102,75 +103,6 @@ export function wrapText(ctx, text, maxWidth, maxLines) {
 }
 
 const FONT = '"Vazirmatn Variable", Vazirmatn, sans-serif';
-
-// A heart outline, centred on (x, y) with half-width `size`
-function drawHeartPath(ctx, x, y, size) {
-  ctx.beginPath();
-  for (let i = 0; i <= 48; i += 1) {
-    const t = (i / 48) * Math.PI * 2;
-    const px = x + size * Math.sin(t) ** 3;
-    const py = y - (size / 16) * (13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t));
-    if (i === 0) ctx.moveTo(px, py);
-    else ctx.lineTo(px, py);
-  }
-  ctx.closePath();
-}
-
-// The plaque uses a playful display face; Lalezar is loaded in main.js
-const PLAQUE_FONT = '"Lalezar", "Vazirmatn Variable", sans-serif';
-
-function drawPlaque(ctx, w, h, text) {
-  // A rose-cream card with a double gold border, gold hearts in the corners, and a plum title
-  const grad = ctx.createLinearGradient(0, 0, 0, h);
-  grad.addColorStop(0, '#fff8fb');
-  grad.addColorStop(1, '#f5c2d8');
-  ctx.fillStyle = grad;
-  ctx.fillRect(0, 0, w, h);
-  ctx.strokeStyle = '#d9a441';
-  ctx.lineWidth = 12;
-  ctx.strokeRect(24, 24, w - 48, h - 48);
-  ctx.strokeStyle = '#f5d78e';
-  ctx.lineWidth = 4;
-  ctx.strokeRect(48, 48, w - 96, h - 96);
-  ctx.fillStyle = '#e9b96a';
-  [[74, 74], [w - 74, 74], [74, h - 74], [w - 74, h - 74]].forEach(([x, y]) => {
-    drawHeartPath(ctx, x, y, 16);
-    ctx.fill();
-  });
-  ctx.fillStyle = '#6b2d5c';
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.font = `400 96px ${PLAQUE_FONT}`;
-  ctx.fillText('خانه‌ی ما', w / 2, h * 0.28);
-  // A divider with a heart in the middle
-  ctx.fillStyle = '#d9a441';
-  ctx.fillRect(w / 2 - 190, h * 0.45, 140, 4);
-  ctx.fillRect(w / 2 + 50, h * 0.45, 140, 4);
-  ctx.fillStyle = '#ff7fae';
-  drawHeartPath(ctx, w / 2, h * 0.45 + 2, 14);
-  ctx.fill();
-  ctx.fillStyle = '#7a3a63';
-  ctx.font = `400 44px ${PLAQUE_FONT}`;
-  const lines = wrapText(ctx, text, w - 240, 2);
-  lines.forEach((line, i) => ctx.fillText(line, w / 2, h * 0.58 + i * 46));
-}
-
-// A rounded rectangle centred on the origin, as a Shape (used for the plaque frame)
-function roundedRect(w, h, r) {
-  const shape = new THREE.Shape();
-  const x = -w / 2;
-  const y = -h / 2;
-  shape.moveTo(x + r, y);
-  shape.lineTo(x + w - r, y);
-  shape.quadraticCurveTo(x + w, y, x + w, y + r);
-  shape.lineTo(x + w, y + h - r);
-  shape.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
-  shape.lineTo(x + r, y + h);
-  shape.quadraticCurveTo(x, y + h, x, y + h - r);
-  shape.lineTo(x, y + r);
-  shape.quadraticCurveTo(x, y, x + r, y);
-  return shape;
-}
 
 // ---------- world ----------------------------------------------------------
 
@@ -1126,43 +1058,15 @@ export function buildWorld(scene, camera) {
   spill.position.set(0, 0.03, 2.2);
   scene.add(spill);
 
-  // Plaque above the door with the dedication text (redrawn when text changes), in a raised gold frame
-  const plaqueCanvas = document.createElement('canvas');
-  plaqueCanvas.width = 1024;
-  plaqueCanvas.height = 300;
-  const plaqueTex = new THREE.CanvasTexture(plaqueCanvas);
-  plaqueTex.colorSpace = THREE.SRGBColorSpace;
-  const plaque = track(
-    new THREE.Mesh(
-      new THREE.PlaneGeometry(3.4, 1.0),
-      new THREE.MeshBasicMaterial({ map: plaqueTex, toneMapped: false })
-    )
-  );
-  plaque.position.set(0, 7.38, 0.4);
-  scene.add(plaque);
-  const plaqueFrameShape = roundedRect(3.6, 1.2, 0.2);
-  plaqueFrameShape.holes.push(roundedRect(3.4, 1.0, 0.1));
-  const plaqueFrame = new THREE.Mesh(
-    track(
-      new THREE.ExtrudeGeometry(plaqueFrameShape, {
-        depth: 0.05,
-        bevelEnabled: true,
-        bevelThickness: 0.02,
-        bevelSize: 0.02,
-        bevelSegments: 2,
-        curveSegments: 12,
-      })
-    ),
-    archGoldMat
-  );
-  plaqueFrame.position.set(0, 7.38, 0.31);
-  scene.add(plaqueFrame);
+  // The house's name over the door: cut acrylic letters, from the font's own outlines. See src/sign.js for how
+  // the shapes get here, and tools/make-sign.mjs for where the outline file comes from. Built after the
+  // facade so the letters are the last thing over it; the tracer that used to build them from a canvas is
+  // gone, which is also why this no longer has to wait for a font to load.
+  createSign({ scene, track });
 
-  function setDedication(text) {
-    const ctx = plaqueCanvas.getContext('2d');
-    drawPlaque(ctx, plaqueCanvas.width, plaqueCanvas.height, text);
-    plaqueTex.needsUpdate = true;
-  }
+  // The sign says the house's name, so the dedication the couple typed at the start is not drawn on the
+  // building at all. The hook stays: the HUD and the letter read it, and callers still call this.
+  function setDedication() {}
 
   // Garden: path, trees, bushes, lamps, flowers
   const stoneGeo = track(new THREE.CylinderGeometry(0.5, 0.55, 0.08, 10));
@@ -1966,7 +1870,6 @@ export function buildWorld(scene, camera) {
       frame.photo.material.map?.dispose();
       frame.photo.material.dispose();
     });
-    plaqueTex.dispose();
     videoPlayback.dispose();
     posterMesh.material.map?.dispose();
     roomVideo.removeAttribute('src');

@@ -117,8 +117,12 @@ a {
   position: fixed;
   inset: 0;
   display: flex;
-  align-items: center;
-  background: linear-gradient(to left, rgba(11, 12, 28, 0.94) 0%, rgba(11, 12, 28, 0.7) 38%, rgba(11, 12, 28, 0.08) 75%);
+  /* Not `center`: the sentence is three or four lines and it was landing in the middle of the frame, with
+     the castle's doorway behind it. Anchoring to the top keeps it in the same place whatever the wrap. */
+  align-items: flex-start;
+  background:
+    radial-gradient(120% 70% at 0% 30%, rgba(8, 8, 20, 0.88) 0%, rgba(8, 8, 20, 0.5) 45%, rgba(8, 8, 20, 0) 72%),
+    linear-gradient(to left, rgba(11, 12, 28, 0.92) 0%, rgba(11, 12, 28, 0.62) 42%, rgba(11, 12, 28, 0.06) 78%);
   transition: opacity 0.8s ease, transform 0.8s ease;
   overflow-y: auto;
 }
@@ -168,105 +172,69 @@ a {
   width: min(520px, calc(100vw - 40px));
   margin-inline-start: clamp(20px, 6vw, 96px);
   margin-inline-end: auto;
-  padding: 48px 0;
+  /* 12vh clears the letterbox bar and puts the sentence in the upper third, where a title belongs */
+  padding: max(12vh, 84px) 0 48px;
 }
 
-.intro-kicker {
-  margin: 0 0 6px;
-  color: var(--lamp);
-  font-size: 16px;
-  font-weight: 600;
+/* The sentence is the whole start screen now, so it is set like a display line and not like a caption:
+   large, in the display face, and broken by the two halves of the sentence rather than by the box.
+   It is 96 characters, so the size is capped lower than a two-word title would be -- at 158px it would be
+   eight lines on a phone and five on a laptop. */
+.intro h1.intro-title-line {
+  margin: 0 0 34px;
+  max-width: 20ch;
+  font-family: 'Lalezar', 'Vazirmatn Variable', Vazirmatn, system-ui, sans-serif;
+  /* Lalezar has one weight and it is already heavy, so no font-weight: the browser must not fake a bolder one,
+     which thickens the strokes and closes up the counters. */
+  font-weight: 400;
+  font-size: clamp(40px, 5.4vw, 74px);
+  /* 1.32: this is several lines of Lalezar, whose ی and ج hang well below the baseline. Anything tighter
+     than this collides the descenders with the line beneath. */
+  line-height: 1.32;
+  letter-spacing: 0;
+  color: var(--cream);
+  text-wrap: balance;
+  text-shadow: 0 2px 0 rgba(0, 0, 0, 0.22), 0 22px 54px rgba(0, 0, 0, 0.5);
 }
 
-.intro h1 {
-  margin: 0 0 22px;
-  font-size: clamp(64px, 11vw, 148px);
-  font-weight: 900;
-  line-height: 0.95;
-  letter-spacing: -0.02em;
-}
-
-.intro-lede {
-  margin: 0 0 30px;
-  max-width: 44ch;
-  color: var(--muted);
-  font-size: 17px;
-  line-height: 2;
-}
 
 .setup {
   display: grid;
-  gap: 18px;
+  gap: 28px;
+  justify-items: start;
   margin: 0;
   border: 0;
   padding: 0;
 }
 
-.row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 22px;
-}
-
-.row-end {
-  grid-template-columns: 1fr auto;
-  align-items: end;
-}
-
-.field {
-  display: grid;
-  gap: 4px;
+/* Her dress colour is the only thing asked for on this screen, so it gets the size and the light: a small
+   gold caption, then a row of swatches worth tapping. */
+.swatches {
+  margin: 0;
+  border: 0;
+  padding: 0;
   min-width: 0;
 }
 
-.field > span,
 .swatches legend {
-  color: var(--muted);
-  font-size: 14px;
+  color: var(--lamp);
+  /* Five words now instead of two, so it is set at the size of a spoken line rather than a field label -- it
+     is the only instruction on the screen, and the one place the page talks to her directly. */
+  font-size: 17px;
+  font-weight: 600;
+  line-height: 1.6;
   padding: 0;
-}
-
-.field input {
-  width: 100%;
-  min-width: 0;
-  border: 0;
-  border-bottom: 1px solid rgba(255, 241, 225, 0.3);
-  border-radius: 0;
-  background: transparent;
-  padding: 8px 0 10px;
-  font-size: 18px;
-  color: var(--cream);
-  transition: border-color 0.2s ease;
-}
-
-.field input::placeholder {
-  color: rgba(255, 241, 225, 0.35);
-}
-
-.field input:focus {
-  outline: none;
-  border-bottom-color: var(--lamp);
-}
-
-.field input:focus-visible {
-  outline: none;
-  box-shadow: 0 1px 0 var(--lamp);
-}.swatches {
-  margin: 0;
-  border: 0;
-  padding: 0;
-  min-width: 0;
+  margin-bottom: 16px;
 }
 
 .swatch-row {
   display: flex;
-  gap: 10px;
-  padding-block: 8px 6px;
+  gap: 12px;
 }
 
 .swatch {
-  width: 30px;
-  height: 30px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   border: 0;
   padding: 0;
@@ -897,34 +865,23 @@ dialog h2 {
 
 @media (max-width: 760px) {
   .intro {
-    background: linear-gradient(to top, rgba(11, 12, 28, 0.97) 35%, rgba(11, 12, 28, 0.55) 100%);
-    align-items: flex-end;
+    background:
+      radial-gradient(110% 55% at 50% 0%, rgba(8, 8, 20, 0.9) 0%, rgba(8, 8, 20, 0.55) 55%, rgba(8, 8, 20, 0.1) 100%),
+      linear-gradient(to top, rgba(11, 12, 28, 0.9) 0%, rgba(11, 12, 28, 0.3) 60%);
+    align-items: flex-start;
   }
 
   .intro-inner {
     width: calc(100vw - 36px);
     margin: 0 auto;
-    padding: 32px 0 28px;
+    padding: max(10vh, 64px) 0 24px;
   }
 
-  .intro h1 {
-    font-size: clamp(56px, 19vw, 84px);
-  }
-
-  .intro-lede {
-    font-size: 15px;
-    line-height: 1.85;
-    margin-bottom: 20px;
-  }
-
-  .row,
-  .row-end {
-    grid-template-columns: 1fr;
-    gap: 14px;
-  }
-
-  .field input {
-    font-size: 17px;
+  .intro h1.intro-title-line {
+    font-size: clamp(38px, 9.4vw, 54px);
+    line-height: 1.34;
+    margin-bottom: 26px;
+    max-width: none;
   }
 
   /* HUD: one compact block of 44px tap targets that wraps onto two rows */
@@ -1010,12 +967,6 @@ dialog h2 {
 
   .stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-height: 560px) and (min-width: 761px) {
-  .intro-lede {
-    display: none;
   }
 }
 
