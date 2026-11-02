@@ -1126,42 +1126,187 @@ export function buildWorld(scene, camera) {
   spill.position.set(0, 0.03, 2.2);
   scene.add(spill);
 
-  // Plaque above the door with the dedication text (redrawn when text changes), in a raised gold frame
-  const plaqueCanvas = document.createElement('canvas');
-  plaqueCanvas.width = 1024;
-  plaqueCanvas.height = 300;
-  const plaqueTex = new THREE.CanvasTexture(plaqueCanvas);
-  plaqueTex.colorSpace = THREE.SRGBColorSpace;
-  const plaque = track(
-    new THREE.Mesh(
-      new THREE.PlaneGeometry(3.4, 1.0),
-      new THREE.MeshBasicMaterial({ map: plaqueTex, toneMapped: false })
-    )
-  );
-  plaque.position.set(0, 7.38, 0.4);
-  scene.add(plaque);
-  const plaqueFrameShape = roundedRect(3.6, 1.2, 0.2);
-  plaqueFrameShape.holes.push(roundedRect(3.4, 1.0, 0.1));
-  const plaqueFrame = new THREE.Mesh(
-    track(
-      new THREE.ExtrudeGeometry(plaqueFrameShape, {
-        depth: 0.05,
-        bevelEnabled: true,
-        bevelThickness: 0.02,
-        bevelSize: 0.02,
-        bevelSegments: 2,
-        curveSegments: 12,
-      })
-    ),
-    archGoldMat
-  );
-  plaqueFrame.position.set(0, 7.38, 0.31);
-  scene.add(plaqueFrame);
+  // The sign above the door: raised acrylic letters, not a printed board.
+  //
+  // It used to be a painted plaque -- a canvas map with a gold frame around it -- and from the garden it read
+  // as a notice pinned to the castle rather than as part of it. This is the thing a real facade has: letters
+  // cut from a sheet, standing a little proud of the wall, catching light on their edges.
+  //
+  // How it is built, and why each part:
+  //   * the glyphs come from the browser's own Persian shaping, measured once into outlines, so "خانه‌ی ما"
+  //     keeps its joins and its ی and ک forms. Lalezar is a display face and the letters read at 8 m.
+  //   * each glyph is an ExtrudeGeometry: a flat front face with a bevel all round. The bevel is what makes
+  //     the edges catch the light -- a flat extrusion looks like a sticker, a bevelled one looks like acrylic.
+  //   * the front is a translucent pale-pink plastic with a faint glow of its own, so it still reads at night.
+  //   * a matching spacer behind each glyph lifts it off the wall, the way the acrylic stand-offs on a real
+  //     sign do. Between them they cast the small shadow that makes the letters look attached, not painted.
+  const SIGN_LINE = 'خانه‌ی ما';
+  // The doorway's crown is at doorHeight + doorHalfWidth = 6.4 m and the front wall runs to 8.0, so the band
+  // the sign has to live in is 1.6 m tall. Letters of 0.62 m centred in it read from the garden and clear the
+  // moulding over the arch.
+  const SIGN_GLYPH_H = 0.62;
+  const SIGN_DEPTH = 0.09; // how far the acrylic stands off the wall
+  const SIGN_BASE_Y = 6.86;
+  const SIGN_Z = 0.42; // just proud of the facade at 0.3
 
-  function setDedication(text) {
-    const ctx = plaqueCanvas.getContext('2d');
-    drawPlaque(ctx, plaqueCanvas.width, plaqueCanvas.height, text);
-    plaqueTex.needsUpdate = true;
+  const acrylic = new THREE.MeshStandardMaterial({
+    color: '#ffd9e8',
+    roughness: 0.18,
+    metalness: 0.0,
+    // a little light of its own, so the sign does not go dark with the rest of the facade at night
+    emissive: '#ff9cc0',
+    emissiveIntensity: 0.45,
+    // low opacity + transmission would be the real plastic, but transmission costs a second render of the
+    // whole scene per frame. Translucency by opacity is a tenth of the cost and reads the same at this size.
+    transparent: true,
+    opacity: 0.92,
+  });
+  const spacerMat = track(new THREE.MeshStandardMaterial({ color: '#8b8390', roughness: 0.55, metalness: 0.35 }));
+
+  const signGroup = new THREE.Group();
+  signGroup.name = 'sign-letters';
+  signGroup.position.set(0, SIGN_BASE_Y, SIGN_Z);
+  scene.add(signGroup);
+  const signMeshes = [];
+  track(signGroup);
+
+  // Everything that came before this point has been tracked for disposal; the sign's own geometries are added
+  // to that list as they are built (see `track(signGroup)` above and the per-glyph disposal in `buildSign`).
+
+  function clearSign() {
+    for (const m of signMeshes.splice(0)) {
+      m.parent?.remove(m);
+      m.geometry.dispose();
+    }
+  }
+
+  /**
+   * Turn a string into a set of rectangles that cover the letters, using the browser's own text shaping.
+   *
+   * There is no path API that returns glyph outlines, and `measureText` gives boxes, not shapes. So the text is
+   * drawn once into an offscreen canvas and its alpha channel is read back; the ink is then covered with
+   * rectangles. The one thing that matters is the *number* of those rectangles: the first version emitted one
+   * per scanline run, which for this line was about fifteen thousand of them, and ExtrudeGeometry with a bevel
+   * builds a box for each -- 1.9 million triangles for a sign 90 cm wide.
+   *
+   * So the runs are not emitted as they are read. Neighbouring runs are merged into vertical strips: a strip is
+   * a column of ink whose extent stays roughly the same from one row to the next. A Persian letter is mostly a
+   * few such strips (a stem, a bowl, the dots), so the whole line comes out in the low hundreds of rectangles
+   * instead of the low tens of thousands, and the silhouette is the same silhouette.
+   */
+  function traceGlyphs(text, font, px) {
+    const probe = document.createElement('canvas').getContext('2d');
+    probe.font = `${px}px ${font}`;
+    const metrics = probe.measureText(text);
+    const width = Math.ceil(metrics.width) + 8;
+    const height = Math.ceil(px * 1.9);
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+    const ctx = canvas.getContext('2d');
+    ctx.font = `${px}px ${font}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.fillStyle = '#fff';
+    ctx.fillText(text, width / 2, height / 2);
+    const data = ctx.getImageData(0, 0, width, height).data;
+    const ink = (x, y) => x >= 0 && x < width && y >= 0 && y < height && data[(y * width + x) * 4 + 3] > 127;
+
+    const strips = [];
+    let open = [];
+    for (let y = 0; y < height; y += 1) {
+      const runs = [];
+      let start = -1;
+      for (let x = 0; x <= width; x += 1) {
+        const on = ink(x, y);
+        if (on && start < 0) start = x;
+        if (!on && start >= 0) { runs.push([start, x]); start = -1; }
+      }
+      const next = [];
+      const free = open.slice();
+      for (const [x0, x1] of runs) {
+        const i = free.findIndex((strip) => strip.x0 <= x1 && x0 <= strip.x1);
+        if (i >= 0) {
+          const strip = free.splice(i, 1)[0];
+          strip.y1 = y + 1;
+          strip.x0 = Math.min(strip.x0, x0);
+          strip.x1 = Math.max(strip.x1, x1);
+          next.push(strip);
+        } else {
+          next.push({ x0, x1, y0: y, y1: y + 1 });
+        }
+      }
+      strips.push(...free); // ran out of ink: those strips are finished
+      open = next;
+    }
+    strips.push(...open);
+    return { strips, width, height };
+  }
+
+  /** Build the extruded letters from a traced bitmap, at a scale that makes the text SIGN_GLYPH_H tall. */
+  function buildSign(text) {
+    clearSign();
+    const font = '"Lalezar", "Vazirmatn Variable", sans-serif';
+    const px = 160;
+    const { strips, width, height } = traceGlyphs(text, font, px);
+    if (!strips.length) return;
+
+    let top = height, bottom = 0, left = width, right = 0;
+    for (const r of strips) {
+      if (r.y0 < top) top = r.y0;
+      if (r.y1 > bottom) bottom = r.y1;
+      if (r.x0 < left) left = r.x0;
+      if (r.x1 > right) right = r.x1;
+    }
+    const scale = SIGN_GLYPH_H / (bottom - top);
+    const cx = (left + right) / 2;
+
+    const shape = new THREE.Shape();
+    for (const r of strips) {
+      const y0 = (height - r.y1 - top) * scale;
+      const y1 = (height - r.y0 - top) * scale;
+      const x0 = (r.x0 - cx) * scale;
+      const x1 = (r.x1 - cx) * scale;
+      shape.moveTo(x0, y0);
+      shape.lineTo(x1, y0);
+      shape.lineTo(x1, y1);
+      shape.lineTo(x0, y1);
+      shape.closePath();
+    }
+
+    const geo = new THREE.ExtrudeGeometry(shape, {
+      depth: SIGN_DEPTH,
+      bevelEnabled: true,
+      bevelThickness: 0.01,
+      bevelSize: 0.01,
+      bevelSegments: 1,
+      curveSegments: 1,
+      steps: 1,
+    });
+    const letters = new THREE.Mesh(geo, acrylic);
+    signMeshes.push(letters);
+    signGroup.add(letters);
+
+    const pinGeo = track(new THREE.CylinderGeometry(0.022, 0.022, SIGN_DEPTH + 0.03, 10));
+    const halfW = ((right - left) * scale) / 2;
+    [-1, 1].forEach((side) => {
+      const pin = new THREE.Mesh(pinGeo, spacerMat);
+      pin.rotation.x = Math.PI / 2;
+      pin.position.set(side * (halfW - 0.16), SIGN_GLYPH_H * 0.28, -(SIGN_DEPTH + 0.03) / 2 + 0.01);
+      signGroup.add(pin);
+    });
+  }
+
+  // Wait for Lalezar before cutting the letters: an unloaded font traces the browser's fallback, and the
+  // sign would be built from the wrong shapes and never re-cut. `document.fonts.load` resolves immediately if
+  // it is already there.
+  buildSign(SIGN_LINE);
+  document.fonts?.load('400 160px "Lalezar"')
+    .then(() => { clearSign(); buildSign(SIGN_LINE); })
+    .catch(() => {});
+
+  function setDedication() {
+    // The sign says the house's name; the dedication moved to the HUD and the letter, where it can be read.
   }
 
   // Garden: path, trees, bushes, lamps, flowers
@@ -1966,7 +2111,6 @@ export function buildWorld(scene, camera) {
       frame.photo.material.map?.dispose();
       frame.photo.material.dispose();
     });
-    plaqueTex.dispose();
     videoPlayback.dispose();
     posterMesh.material.map?.dispose();
     roomVideo.removeAttribute('src');
