@@ -675,10 +675,9 @@ dialog.video-sheet h2 {
   text-wrap: balance;
 }
 
-dialog.memory-sheet .memory-caption,
+/* The room's video keeps its one line of context; the photograph does not need one. */
 dialog.video-sheet .memory-caption {
   font-size: clamp(16px, 1.35vw, 19px);
-  /* 2.05: Persian needs the air, and a caption of two or three lines should not read as a block. */
   line-height: 2.05;
   max-width: 42ch;
   text-wrap: pretty;
@@ -744,7 +743,7 @@ dialog.video-sheet .memory-caption {
   font-variant-numeric: tabular-nums;
 }
 
-.memory-caption {
+.video-copy .memory-caption {
   margin: 0 0 26px;
   color: var(--muted);
   font-size: 18px;
@@ -1196,7 +1195,6 @@ dialog.memory-sheet .close:hover,
 dialog.letter-sheet .close:hover { background: rgba(107, 62, 76, .17); }
 dialog.memory-sheet h2,
 dialog.letter-sheet h2 { color: #553542; }
-dialog.memory-sheet .memory-caption,
 dialog.memory-sheet .memory-frame-name,
 dialog.memory-sheet .meta-count,
 dialog.letter-sheet .letter-body p,
