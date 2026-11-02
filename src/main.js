@@ -9,6 +9,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { allMemories, defaults, letterParagraphs, soloVideo } from './memories.js';
 import { createStore, formatNumber } from './state.js';
 import { buildWorld, LAYOUT } from './world.js';
+import { findMovable, mergeStatic, createBatchCuller } from './batch.js';
 import { createCouple } from './characters.js';
 import { createEnvelope } from './envelope.js';
 import { createControls, isSolid } from './controls.js';
@@ -163,6 +164,8 @@ const camera = new THREE.PerspectiveCamera(
   220
 );
 let world = null;
+// per-piece culling for the merged stone, set up once the world is built (see src/batch.js)
+let batchCuller = null;
 let hero = null;
 let photoTick = 0; // seconds since the clip's trigger was last checked
 let cats = null;
@@ -348,6 +351,34 @@ if (renderer) {
   // Nothing in the world is hidden at this point except the props above, so they are made visible for a
   // moment, compiled, and put back exactly as they were.
   warmUpShaders();
+
+  // Merge the world's static stone, by material.
+  //
+  // The scene is 2,055 opaque meshes sharing 444 materials, so three.js was submitting a couple of thousand
+  // draw calls a frame to shade the same handful of materials over and over -- driver and CPU work that has
+  // nothing to do with how many pixels there are. Merging what cannot move takes the draw calls from about
+  // 2,217 to 990 without changing a single triangle: same geometry, same materials, transforms baked in.
+  //
+  // What may not be merged is worked out empirically rather than from a list: the world is ticked forward,
+  // the objects whose transforms changed are recorded, and only the ones that did not move are merged. A door
+  // or a lamp added later is excluded automatically, which is the only way this stays safe.
+  //
+  // It runs after warmUpShaders() on purpose: the warm-up hides the props to compile them, and a mesh that is
+  // hidden at that moment would be skipped by the merge.
+  if (world) {
+    try {
+      const { movable, movingAncestors } = findMovable(scene, (t, dt) => {
+        world.update(t, dt, -1, null, []);
+      });
+      const report = mergeStatic(scene, { movable, movingAncestors });
+      batchCuller = createBatchCuller(camera);
+      batchCuller.add(scene);
+      if (import.meta.env.DEV) console.log('[batch]', report);
+    } catch (err) {
+      // Merging is an optimisation. If anything about it fails, the game still has every mesh it had.
+      console.warn('[batch] skipped:', err);
+    }
+  }
 }
 
 function warmUpShaders() {
@@ -1474,6 +1505,8 @@ function frame() {
   if (started) checkGift();
   if (started) updateGift(dt);
 
+  // the merged stone is culled per piece, so it is drawn only where one of its pieces can be seen
+  batchCuller?.update();
   adaptQuality(dt);
   renderer.render(scene, camera);
 }
