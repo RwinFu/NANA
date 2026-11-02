@@ -27,6 +27,7 @@ import {
 import { giftCamera, giftCameraBlend, keepCameraClear } from './gift-camera.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
 import { createRescueGame, showHowTo } from './rescue.js';
+import { createQuality } from './quality.js';
 import { createCats } from './cats.js';
 import { buildDecor, GARDEN_BENCH } from './decor.js';
 import { createBouquet, buyLine, SHOP_EMPTY_LINE, flowerArmPose, ROSE_COLOURS } from './flower-shop.js';
@@ -122,7 +123,11 @@ function readForm() {
 
 let renderer = null;
 try {
-  renderer = new THREE.WebGLRenderer({ canvas: $('#scene'), antialias: true, powerPreference: 'high-performance' });
+  // Multisampling is cheap on a 1x screen and expensive everywhere else: on a 2x or 3x display the pixels
+  // are already small, and MSAA multiplies the fragment work on top of a canvas that is already drawing four
+  // to nine times as many pixels. The scene is smooth at high density without it.
+  const dense = (window.devicePixelRatio || 1) >= 2;
+  renderer = new THREE.WebGLRenderer({ canvas: $('#scene'), antialias: !dense, powerPreference: 'high-performance' });
 } catch {
   renderer = null;
 }
@@ -266,18 +271,20 @@ function finishRescue(quick) {
   rescue.reveal(quick); // the night veil lifts into the castle flight
 }
 
-// Render scale the loop is allowed to fall back to when frames get slow.
-// A slower GPU then draws fewer pixels instead of the video losing frames.
-const MAX_SCALE = 1.5;
-let qualityScale = MAX_SCALE;
-let qualityCooldown = 0; // seconds to wait before lowering the scale again
+// Render scale, from src/quality.js: it starts at 1 (the old 1.5 was 2.25x the pixels on a 3x phone),
+// climbs only on a display with room to spare, and may fall as far as 0.5.
+const quality = createQuality(window.devicePixelRatio || 1);
 
 if (renderer) {
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, qualityScale));
+  renderer.setPixelRatio(quality.scale);
   renderer.setSize(window.innerWidth, window.innerHeight, false);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
   renderer.toneMappingExposure = 1.05;
+  // The transparent list held 35 objects and cost a depth sort of every one of them each frame, plus a state
+  // change that puts the sorted transparents back on top. The blended things in this game are additive
+  // glows and sprites (order-independent) or a flat decal, so the sort buys nothing.
+  renderer.sortObjects = false;
 
   world = buildWorld(scene, camera);
   introSparkles = createSparkles(scene);
@@ -334,6 +341,30 @@ if (renderer) {
     isBlocked: () => !started || anyDialogOpen(),
     onTapFrame: tapFrame,
   });
+
+  // Compile every shader now, while the loading screen is still up. Left to itself, three.js compiles a
+  // material the first time it is *drawn*, which is why the game hitches when the couple first reach the
+  // castle, or when the fairy's box appears: that is a shader being built on the frame it is first seen.
+  // Nothing in the world is hidden at this point except the props above, so they are made visible for a
+  // moment, compiled, and put back exactly as they were.
+  warmUpShaders();
+}
+
+function warmUpShaders() {
+  if (!renderer) return;
+  // the props that are hidden at start-up, so their first draw is not also their first compile
+  const props = [giftBox && giftBox.group, necklace && necklace.worn, necklace && necklace.group]
+    .filter((o) => o && o.isObject3D);
+  const was = props.map((o) => o.visible);
+  props.forEach((o) => { o.visible = true; });
+  try {
+    renderer.compile(scene, camera);
+  } catch {
+    // A compile failure here is not fatal: a material still compiles when it is first drawn, exactly as it
+    // used to. Never let the warm-up stop the game from starting.
+  } finally {
+    props.forEach((o, i) => { o.visible = was[i]; });
+  }
 }
 
 function anyDialogOpen() {
@@ -1311,41 +1342,12 @@ window.addEventListener('resize', onResize);
 
 // ---------- adaptive resolution --------------------------------------------
 
-const QUALITY_STEPS = [1.5, 1.25, 1, 0.8, 0.65];
-let qualityStep = 0;
-let slowTime = 0;
-let fastTime = 0;
-
-// Watch the frame rate and trade pixels for smoothness. It only steps down when frames are
-// consistently slow (two seconds of them), and climbs back slowly once things are calm again.
 function adaptQuality(dt) {
-  if (dt <= 0) return;
-  qualityCooldown = Math.max(0, qualityCooldown - dt);
-  // A frame that took this long was a hitch (a tab switch, a decode), not a slow GPU.
-  if (dt > 0.25) return;
-  if (dt > 1 / 40) {
-    slowTime += dt;
-    fastTime = 0;
-  } else if (dt < 1 / 52) {
-    fastTime += dt;
-    slowTime = 0;
-  } else {
-    slowTime = 0;
-    fastTime = 0;
-  }
-  if (slowTime > 2 && qualityStep < QUALITY_STEPS.length - 1 && qualityCooldown === 0) {
-    qualityStep += 1;
-    qualityScale = QUALITY_STEPS[qualityStep];
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, qualityScale));
-    slowTime = 0;
-    qualityCooldown = 4; // give the new scale time to show up in the timings
-  } else if (fastTime > 8 && qualityStep > 0) {
-    qualityStep -= 1;
-    qualityScale = QUALITY_STEPS[qualityStep];
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, qualityScale));
-    fastTime = 0;
-    qualityCooldown = 4;
-  }
+  // The decision itself is in src/quality.js, where it can be tested: it targets 60 fps, steps down after
+  // 0.6 s of slow frames and up after 2.5 s of fast ones, and ignores a single long frame as a hitch.
+  const scale = quality.update(dt);
+  if (scale === null) return;
+  renderer.setPixelRatio(scale);
 }
 
 const clock = new THREE.Clock();
