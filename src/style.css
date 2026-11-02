@@ -187,6 +187,17 @@ a {
 }
 
 
+/* The one line under the title. Not an explanation of the game -- it is what the thing is for. Set in the
+   reading face at a size that can be read, with the line-height Persian needs for its descenders. */
+.intro-line {
+  margin: 0 0 38px;
+  max-width: 30ch;
+  color: var(--muted);
+  font-size: clamp(16px, 2vw, 20px);
+  line-height: 1.95;
+  text-wrap: balance; /* breaks the two halves where they read best, not where the box ends */
+}
+
 .setup {
   display: grid;
   gap: 28px;
@@ -863,7 +874,13 @@ dialog h2 {
 
   .intro h1 {
     font-size: clamp(64px, 22vw, 96px);
-    margin-bottom: 20px;
+    margin-bottom: 18px;
+  }
+
+  .intro-line {
+    margin-bottom: 28px;
+    font-size: 16px;
+    line-height: 1.85;
   }
 
   /* HUD: one compact block of 44px tap targets that wraps onto two rows */
