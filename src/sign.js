@@ -4,26 +4,29 @@ import outline from './sign-outline.js';
 
 // The house's name, in acrylic letters above the front door.
 //
-// The letterforms are not drawn here. `tools/make-sign.mjs` reads them out of Lalezar's own glyph outlines and
+// The letterforms are not drawn here. `tools/make-sign.mjs` reads them out of Baloo 2's own glyph outlines and
 // writes src/sign-outline.js; this module turns those outlines into geometry. That is the whole point: the
-// sign is made of the curves the type designer drew -- a round O, an R with a leg -- instead of being
-// approximated from pixels, which is what it used to be. The old sign drew the line into a canvas, read the
-// alpha channel back, and fitted rectangles over the ink; at any rectangle count cheap enough to render, the
-// silhouette was wrong (the O came out a diamond) and the sign read as broken.
+// sign is made of the curves the type designer drew -- a round O, a soft U -- instead of being approximated
+// from pixels, which is what it used to be. The old sign drew the line into a canvas, read the alpha channel
+// back, and fitted rectangles over the ink; at any rectangle count cheap enough to render, the silhouette was
+// wrong (the O came out a diamond) and the sign read as broken.
 //
-// Lalezar is a dependency of the page already, so the outline file is generated from the very font the
-// headings use, and the two can never drift apart.
+// The face is a plump rounded display face, and the line that comes out of the generator is not set straight:
+// the letters bounce up and down and the whole line bows in the middle, so it reads hand-lettered rather than
+// typeset. Both of those live in the outline file, not here -- this module only extrudes what it is given.
 
 // Tall capitals, in metres. The band between the top of the arch's crown (6.6 m) and the top of the front wall
-// (8.0 m) is where the name can live; at 0.46 m the line is a little wider than the doorway and reads from
-// the gate, without crowding the moulding.
-export const SIGN_CAP_HEIGHT = 0.46;
+// (8.0 m) is where the name can live; at 0.5 m the line is wider than the doorway, bows a little, and reads
+// from the gate without crowding the moulding.
+export const SIGN_CAP_HEIGHT = 0.5;
 // Centre of the letter band, measured up from the doorstep.
 export const SIGN_CENTRE_Y = 7.16;
 // Thickness of the acrylic. The letters are solid pieces standing on the stone, so their sides catch the
 // light and they throw their own small shadows -- a sign painted flat on the wall reads as a decal.
 const THICKNESS = 0.085;
-const BEVEL = 0.009;
+// A generous bevel: the edges round over like moulded plastic, which is most of what makes the letters read as
+// playful rather than as sheets of stock. Bevel-sized, not chamfer-sized.
+const BEVEL = 0.014;
 
 const ACRYLIC = {
   // Pearl, not pink: a pale warm white with a hint of rose, so it belongs to the castle's cream and gold
@@ -113,7 +116,7 @@ export function createSignGeometry(data = outline) {
     bevelEnabled: true,
     bevelThickness: BEVEL,
     bevelSize: BEVEL,
-    bevelSegments: 1,
+    bevelSegments: 2,
     curveSegments: 6,
     steps: 1,
   }));

@@ -15,13 +15,15 @@ import { createSignGeometry, shapesFromOutline, SIGN_CAP_HEIGHT, SIGN_CENTRE_Y }
 test('the name is OUR HOUSE, in capitals', () => {
   assert.equal(outline.text, 'OUR HOUSE');
   assert.equal(outline.text, outline.text.toUpperCase());
-  // Eight letters and a space; Lalezar's caps all have ink, so eight shapes.
+  // Eight letters and a space; every cap has ink, and O, R and O have a counter each.
   assert.equal(outline.subpaths.length, 8 + 3, '8 letters plus the 3 counters of O, R and O');
 });
 
 test('the outline file records where it came from', () => {
   assert.match(outline.generated, /tools\/make-sign\.mjs/);
-  assert.match(outline.font, /lalezar-latin/);
+  // A rounded display face, not the condensed grotesque the sign started with: the owner's complaint about
+  // that one was that it was stiff.
+  assert.match(outline.font, /baloo-2/);
   assert.equal(outline.unitsPerEm, 1000);
   assert.ok(outline.capHeight > 400 && outline.capHeight < 800, `cap height ${outline.capHeight}`);
 });
@@ -47,13 +49,14 @@ test('the line is scaled to a real cap height and centred on the doorway', () =>
   geometry.computeBoundingBox();
   const box = geometry.boundingBox;
   const height = box.max.y - box.min.y;
-  // Round letterforms overshoot the cap line slightly, so the ink is a few percent taller than the capitals.
-  assert.ok(height > SIGN_CAP_HEIGHT * 0.95 && height < SIGN_CAP_HEIGHT * 1.1, `ink height ${height}`);
+  // Round letterforms overshoot the cap line and the line bounces and bows, so the ink is taller than one
+  // capital: it has to stay inside the band without the letters growing out of it.
+  assert.ok(height > SIGN_CAP_HEIGHT * 0.95 && height < SIGN_CAP_HEIGHT * 1.5, `ink height ${height}`);
   assert.ok(Math.abs(box.max.y + box.min.y) < 0.02, 'vertically centred on its own ink');
   assert.ok(Math.abs(box.max.x + box.min.x) < 0.02, 'horizontally centred on the door');
   // Wider than the 3 m doorway but well inside the 20 m front wall.
   const width = box.max.x - box.min.x;
-  assert.ok(width > 3 && width < 9, `width ${width}`);
+  assert.ok(width > 3 && width < 11, `width ${width}`);
 });
 
 test('the letters stand proud of the wall, growing outwards', () => {
