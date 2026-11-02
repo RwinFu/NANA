@@ -409,7 +409,8 @@ function showMemory(index) {
   memoryIndex = (index + count) % count;
   const memory = allMemories[memoryIndex];
   // The frame's name only: the captions were removed from the card (see src/memory-text.js).
-  $('#memory-title').textContent = textFor(memory).title;
+  const text = textFor(memory);
+  $('#memory-title').textContent = text.title;
   $('#memory-chapter').textContent = memory.chapter;
   $('#memory-count').textContent = `${formatNumber(memoryIndex + 1)} از ${formatNumber(count)}`;
   $('#memory-frame-name').textContent = `قاب ${memory.frame.name}`;
