@@ -75,12 +75,12 @@ const SETTLE_END = 10.6;
 const BACK_KEYS = [[0, 0], [0.30, 0.14], [0.66, 0.62], [1, 1]];
 // Metres out from her. The tightest point is at the settle (9.8 - 11.6), not after it: the close-up has to
 // happen while the necklace is going on, which is the whole point of the shot.
-const RADIUS = [[0, 5.6], [2.6, 5.6], [5.4, 4.1], [7.6, 2.9], [9.8, 1.5], [10.7, 0.9], [11.6, 1.9], [12.15, 3.9], [GIFT_SECONDS, 4.93]];
+const RADIUS = [[0, 5.6], [2.6, 5.6], [5.4, 4.1], [7.6, 2.9], [9.8, 1.35], [10.7, 0.70], [11.6, 1.8], [12.15, 3.9], [GIFT_SECONDS, 4.93]];
 // Height above her throat: a low, looking-up opening, rising with the gold, then level with the gold itself.
 const HEIGHT = [[0, -0.55], [2.6, -0.52], [5.4, -0.34], [7.6, -0.06], [9.8, 0.24], [10.7, 0.26], [11.6, 0.55], [12.15, 2.2], [GIFT_SECONDS, 2.56]];
 // What it is pointed at, in the same terms: how far in front of her and how high above her throat.
 const LOOK_FORWARD = [[0, 0.6], [2.6, 0.55], [5.4, 0.55], [7.6, 0.4], [9.8, 0.14], [10.7, 0.17], [11.6, 0.14], [GIFT_SECONDS, 0]];
-const LOOK_ABOVE = [[0, 0.50], [2.6, 0.22], [5.4, 0.26], [7.6, 0.18], [9.8, -0.05], [10.7, -0.09], [11.6, 0.06], [GIFT_SECONDS, 0.56]];
+const LOOK_ABOVE = [[0, 0.50], [2.6, 0.22], [5.4, 0.26], [7.6, 0.18], [9.8, 0.0], [10.7, 0.02], [11.6, 0.12], [GIFT_SECONDS, 0.56]];
 // How close the shot is, for the vignette: 0 is the walking camera's own view.
 const CLOSENESS = [[0, 0], [5.4, 0], [7.6, 0.35], [9.8, 0.7], [10.7, 0.95], [11.6, 0.8], [12.2, 0.1], [GIFT_SECONDS, 0]];
 // A whisper of tilt for the close shot, in radians, eased to zero at both ends.

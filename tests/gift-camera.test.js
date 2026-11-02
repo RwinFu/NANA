@@ -187,8 +187,9 @@ test('the camera never passes through her, and never loses her', () => {
   for (let t = 0; t <= GIFT_SECONDS; t += 1 / 30) {
     const shot = at(t);
     const fromHer = Math.hypot(shot.position.x - HERE.x, shot.position.z - HERE.z);
-    // the tight close-up is 0.9 m out, which is a shoulder-and-neck shot, not a camera inside her head
-    assert.ok(fromHer > 0.75, `the camera is ${fromHer.toFixed(2)} m from her at t=${t.toFixed(2)}`);
+    // the tightest is 0.70 m from her spine, but her chest reaches 0.35 m out, so it is 0.35 m clear of her
+    // clothes: a tight neck-and-shoulder shot, still well outside her body
+    assert.ok(fromHer > 0.55, `the camera is ${fromHer.toFixed(2)} m from her at t=${t.toFixed(2)}`);
     const height = shot.position.y;
     // low enough to feel like a hand-held shot of a small character, never underground
     assert.ok(height > 0.25 && height < 5, `camera height ${height.toFixed(2)} at t=${t.toFixed(2)}`);

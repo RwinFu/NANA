@@ -174,9 +174,9 @@ test('the necklace sits exactly where her gold choker is', () => {
   // just outside it, so the two read as two pieces rather than fighting for the same few millimetres
   assert.ok(NECK.y < 1.68 && NECK.y > 1.64, `the chain hangs a hair below her choker (y ${NECK.y})`);
   assert.ok(NECK.pendantY < NECK.y, 'the pendant hangs below the chain');
-  // her throat is 0.113 at that height and her choker's outer edge is 0.137, so the chain has to be outside it
-  assert.ok(NECK.chainRadius > 0.137 && NECK.chainRadius < 0.18,
-    `a chain that clears her choker (radius ${NECK.chainRadius}), not one that sits inside her neck`);
+  // There is deliberately no ring radius any more: a ring of any width either sits inside the flare of her
+  // collar (and is hidden) or exactly on her choker (and looks like part of it). The strand is laid on her
+  // chest instead -- see the occlusion test below, which is the one that actually matters.
   assert.equal(NECK_POSE.y, NECK.y, 'and the flight lands on the same height it is worn at');
 });
 
@@ -374,4 +374,71 @@ test('the pendant hangs outside her bodice, not inside her dress', () => {
   // and it faces the front: a heart tipped flat onto a cone is a U from the front
   assert.ok(Math.abs(n.heart.rotation.x) < 0.5, `it is tipped ${n.heart.rotation.x} rad, which foreshortens the heart`);
   assert.ok(box.min.y < NECK_POSE.y * 0.68, 'and it still hangs below the chain');
+});
+
+// ---------- the necklace has to be *visible*, not merely present -----------------
+//
+// This is the test that was missing, and its absence is why the necklace kept "disappearing into the dress":
+// every previous check measured where the gold *was*, and none measured whether her own bodice was in front of
+// it from where the camera actually stands. It does now: a ray from the film's camera to each part of the
+// jewellery, and nothing of hers may be in the way.
+
+test('nothing of hers is in front of the necklace, from any shot of the film', async () => {
+  const { giftCamera } = await import('../src/gift-camera.js');
+  const hero = withCanvas(() => createCouple('#ff758f'));
+  hero.root.position.set(0, 0, 0);
+  // let the rig settle first: her braids' tip scales and the cloth are set while it animates, and reading the
+  // scene before that gives nonsense occluders a metre across
+  for (let i = 0; i < 120; i += 1) hero.animate(1 / 60, i / 60, false, false);
+  hero.root.updateMatrixWorld(true);
+  const n = withCanvas(() => createNecklace((o) => o));
+  hero.dressSpace.add(n.worn);
+  n.group.position.set(0, NECK_POSE.y, NECK_POSE.z);
+  n.worn.visible = true;
+  hero.root.updateMatrixWorld(true);
+
+  const occluders = [];
+  hero.dressSpace.traverse((o) => { if (o.isMesh && !n.worn.getObjectById(o.id)) occluders.push(o); });
+  assert.ok(occluders.length > 100, 'her body and clothes are all there to block the view');
+
+  const neck = new THREE.Vector3(0, NECK_POSE.y, 0);
+  hero.dressSpace.localToWorld(neck);
+  const couple = { x: 0, z: 0, yaw: 0, neckY: neck.y, focusY: 1.70, follow: { x: 0, y: 3.70, z: -4.93 } };
+  const ray = new THREE.Raycaster();
+  const visibleFrom = (from, to) => {
+    const dir = to.clone().sub(from).normalize();
+    ray.set(from, dir);
+    ray.far = from.distanceTo(to) - 0.008;
+    return ray.intersectObjects(occluders, false).filter((h) => h.object.visible).length === 0;
+  };
+
+  // the three things a viewer must see: the white stone, the heart it is set in, and the chain it hangs from
+  const parts = {
+    stone: n.group.getObjectByName('necklace-stone').getWorldPosition(new THREE.Vector3()),
+    heart: n.group.getObjectByName('necklace-heart-plate').getWorldPosition(new THREE.Vector3()),
+    strand: hero.dressSpace.localToWorld(new THREE.Vector3(0, NECK_POSE.y - 0.05, 0.262)),
+  };
+  for (const t of [2.6, 5.4, 7.6, 9.8, 10.0, 10.4, 10.7, 11.0, 11.2, 11.6]) {
+    const shot = giftCamera(t, couple, null, neck, {});
+    const cam = new THREE.Vector3(shot.position.x, shot.position.y, shot.position.z);
+    for (const [name, at] of Object.entries(parts)) {
+      assert.ok(visibleFrom(cam, at), `the ${name} is hidden by her own clothes at t=${t} (${shot.shot})`);
+    }
+  }
+});
+
+test('the stone is a white brilliant, not a pink bead', () => {
+  withCanvas(() => {
+    const n = createNecklace((o) => o);
+    const stone = n.group.getObjectByName('necklace-stone');
+    assert.ok(stone, 'there is a stone');
+    assert.equal(stone.material.color.getHexString(), 'ffffff', 'it is white');
+    assert.ok(stone.material.emissiveIntensity > 0.2, 'and lit from within, so it is not a dull grey chip');
+    assert.ok(stone.material.clearcoat > 0.8 && stone.material.roughness < 0.1, 'cut, not matte');
+    // a white gem reads as bright through one hard highlight: check the glint exists and is not tinted
+    const glint = n.group.getObjectByName('necklace-glint');
+    assert.ok(glint, 'there is a sparkle on the face of the stone');
+    assert.equal(glint.children[0].material.color.getHexString(), 'ffffff');
+    assert.equal(glint.children[0].material.toneMapped, false, 'and tone mapping cannot roll it off to grey');
+  });
 });

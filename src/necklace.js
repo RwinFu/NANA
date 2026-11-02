@@ -22,31 +22,55 @@ export function createNecklace(track = (o) => o) {
   }));
   // MeshPhysicalMaterial (not Standard) for the stone: the clearcoat is what gives a cut gem its wet
   // highlight, and Standard silently drops it.
+  // A white brilliant, not a pink bead. A gem reads as "bright" through contrast: almost no diffuse colour of
+  // its own, a very hard specular, and a touch of self-light so it still glitters in shadow. `toneMapped:
+  // false` on the sparkle keeps the highlight from being rolled off to a dull grey by the tone mapping.
   const stone = track(new THREE.MeshPhysicalMaterial({
-    color: '#ff6f9d', roughness: 0.06, metalness: 0.1,
-    clearcoat: 1, clearcoatRoughness: 0.03,
-    emissive: '#7a1230', emissiveIntensity: 0.5,
+    color: '#ffffff', roughness: 0.02, metalness: 0.0,
+    clearcoat: 1, clearcoatRoughness: 0.0,
+    emissive: '#ffffff', emissiveIntensity: 0.42,
+    envMapIntensity: 1.6,
   }));
-  const stoneLight = track(new THREE.MeshBasicMaterial({ color: '#ffd3e2', toneMapped: false }));
+  const stoneLight = track(new THREE.MeshBasicMaterial({ color: '#ffffff', toneMapped: false }));
 
   const group = new THREE.Group();
   group.name = 'necklace';
 
   // ---- the chain ------------------------------------------------------------
-  // A ring of small links: one torus would look like a wire hoop, so the chain is a thin torus for its
-  // body plus a row of tiny beads, which is what makes it catch the light as it turns.
-  // A little thicker than jewellery-scale, because at the size these characters are drawn a true-scale chain
-  // is a hairline that reads as a drawing artefact rather than as gold.
-  const chain = new THREE.Mesh(track(new THREE.TorusGeometry(NECK.chainRadius, 0.0098, 10, 64)), gold);
-  chain.rotation.x = Math.PI / 2;
+  // A necklace, not a hoop. Her neck is only about five millimetres tall as a cylinder (radius 0.113 at
+  // body y 1.68) and flares out to 0.20 immediately below, into the pearl collar of her bodice. A ring of any
+  // visible width therefore cannot encircle her neck at all: it either sits inside the flare, where the dress
+  // hides it, or exactly on her own gold choker, where it looks like part of the collar.
+  //
+  // So it is built the way a real necklace looks from the front: a strand that goes round the back of her neck
+  // (thin, and hidden behind her hair and collar, as it is on a real person) and then *lies on her chest* --
+  // out over the collar and down to the pendant in a shallow V. The strand is placed a few millimetres proud
+  // of the fabric at every point, so it lies on her rather than in her.
+  const STRAND = [
+    [0, 0.006, -0.124],      // behind her neck
+    [0.104, 0.004, -0.068],
+    [0.126, 0.0, 0.012],     // the side of her throat, just outside her choker
+    [0.108, -0.010, 0.155],
+    [0.074, -0.026, 0.238],  // out over the pearl collar
+    [0, -0.050, 0.262],      // the bottom of the V, where the pendant hangs
+    [-0.074, -0.026, 0.238],
+    [-0.108, -0.010, 0.155],
+    [-0.126, 0.0, 0.012],
+    [-0.104, 0.004, -0.068],
+  ].map(([x, y, z]) => new THREE.Vector3(x, y, z));
+  const strandCurve = new THREE.CatmullRomCurve3(STRAND, true, 'catmullrom', 0.35);
+  // A little thicker than jewellery-scale: at the size these characters are drawn, a true-scale chain is a
+  // hairline that reads as a drawing artefact rather than as gold.
+  const chain = new THREE.Mesh(track(new THREE.TubeGeometry(strandCurve, 110, 0.0076, 8, true)), gold);
+  chain.name = 'necklace-strand';
   group.add(chain);
-  const beadGeo = track(new THREE.SphereGeometry(0.0105, 8, 6));
-  const beads = new THREE.InstancedMesh(beadGeo, goldLight, 24);
+  // links, so it catches the light the way a chain does instead of reading as a smooth wire
+  const beads = new THREE.InstancedMesh(track(new THREE.SphereGeometry(0.0108, 8, 6)), goldLight, 34);
   {
     const dummy = new THREE.Object3D();
-    for (let i = 0; i < 24; i += 1) {
-      const a = (i / 24) * Math.PI * 2;
-      dummy.position.set(Math.cos(a) * NECK.chainRadius, 0, Math.sin(a) * NECK.chainRadius);
+    for (let i = 0; i < 34; i += 1) {
+      const at = strandCurve.getPointAt(i / 34);
+      dummy.position.copy(at);
       dummy.updateMatrix();
       beads.setMatrixAt(i, dummy.matrix);
     }
@@ -57,7 +81,7 @@ export function createNecklace(track = (o) => o) {
   // ---- the clasp, at the back ------------------------------------------------
   // A small knot at the nape, so the ring does not read as a closed loop with no way in.
   const clasp = new THREE.Mesh(track(new THREE.SphereGeometry(0.018, 10, 8)), goldLight);
-  clasp.position.set(0, 0, -NECK.chainRadius);
+  clasp.position.set(0, 0.006, -0.124);
   group.add(clasp);
 
   // ---- the heart ------------------------------------------------------------
@@ -74,7 +98,7 @@ export function createNecklace(track = (o) => o) {
   {
     // A proper heart in a 1 x 1 box, point down: two lobes over a notch, then down to the point. (The first
     // version's control points flattened the lobes into a blob, which is what it looked like on her chest.)
-    const s = 0.062;
+    const s = 0.070;
     heartShape.moveTo(0, -0.5 * s);
     heartShape.bezierCurveTo(-0.42 * s, -0.22 * s, -0.62 * s, 0.22 * s, -0.30 * s, 0.34 * s);
     heartShape.bezierCurveTo(-0.12 * s, 0.42 * s, 0, 0.24 * s, 0, 0.16 * s); // the notch
@@ -99,10 +123,29 @@ export function createNecklace(track = (o) => o) {
     heart.add(new THREE.Mesh(track(new THREE.TubeGeometry(curve, 48, 0.005, 6, true)), goldLight));
   }
   // the stone, a faceted drop set into the middle of the gold
-  const gem = new THREE.Mesh(track(new THREE.OctahedronGeometry(0.019, 1)), stone);
+  const gem = new THREE.Mesh(track(new THREE.OctahedronGeometry(0.023, 1)), stone);
   gem.name = 'necklace-stone';
-  gem.position.set(0, 0.004, 0.012);
+  gem.position.set(0, 0.004, 0.013);
   heart.add(gem);
+  // A four-point glint on the face of the stone. A white gem at this size reads as "bright" through one hard
+  // highlight far more than through its own colour, and a real sparkle has arms rather than a round dot.
+  {
+    const arm = new THREE.PlaneGeometry(0.058, 0.006);
+    const armV = new THREE.PlaneGeometry(0.006, 0.058);
+    const glintMat = track(new THREE.MeshBasicMaterial({
+      color: '#ffffff', toneMapped: false, transparent: true, opacity: 0.9, depthWrite: false,
+    }));
+    const star = new THREE.Group();
+    star.name = 'necklace-glint';
+    star.position.set(0, 0.005, 0.026);
+    const h = new THREE.Mesh(arm, glintMat);
+    const v = new THREE.Mesh(armV, glintMat);
+    star.add(h, v);
+    heart.add(star);
+    const spark = new THREE.Mesh(track(new THREE.SphereGeometry(0.008, 8, 6)), stoneLight);
+    spark.position.set(0, 0.005, 0.028);
+    heart.add(spark);
+  }
   const spark = new THREE.Mesh(track(new THREE.SphereGeometry(0.0055, 8, 6)), stoneLight);
   spark.position.set(-0.004, 0.008, 0.012);
   heart.add(spark);
@@ -112,7 +155,7 @@ export function createNecklace(track = (o) => o) {
   pendantPivot.name = 'necklace-pendant-pivot';
   // The pendant hangs from the *front* of the ring, not from its centre: hung from the middle it drops
   // straight into her bodice.
-  pendantPivot.position.set(0, -0.012, NECK.chainRadius * 0.94);
+  pendantPivot.position.set(0, -0.052, 0.262);
   group.add(pendantPivot);
   // It hangs down the *front*: her bodice surface is at z ~= 0.21 here, so the pendant is offset forward of
   // the chain's own ring and tipped to lie on the fabric. Hung straight down from the ring it ended up
@@ -122,8 +165,8 @@ export function createNecklace(track = (o) => o) {
   // always inside the fabric. Hanging it outside the chain (which is how the gold actually lies on a neck) and
   // tipping it only ~20 degrees keeps the heart's face toward the camera, so it reads as a heart and not as a
   // foreshortened U.
-  heart.position.set(0, -0.105, 0.185);
-  heart.rotation.x = -0.34;
+  heart.position.set(0, -0.062, 0.004);
+  heart.rotation.x = -0.3;
   pendantPivot.add(heart);
 
   // A tiny gold hook where the pendant meets the chain
@@ -149,7 +192,9 @@ export function createNecklace(track = (o) => o) {
   function update(t, dt, wornLevel = 1, swing = null) {
     gold.emissiveIntensity = 0.12 + wornLevel * (0.1 + Math.sin(t * 1.7) * 0.05);
     stone.emissiveIntensity = 0.5 + wornLevel * (0.25 + Math.sin(t * 2.3 + 1) * 0.15);
-    stoneLight.color.setRGB(1, 0.83 + Math.sin(t * 3.1) * 0.05, 0.89);
+    // a white sparkle: the small variation keeps it alive without tinting it
+    const glint = 0.94 + Math.sin(t * 3.1) * 0.06;
+    stoneLight.color.setRGB(glint, glint, glint);
     glitter = sparkBase * wornLevel;
     spark.scale.setScalar(1 + glitter * Math.abs(Math.sin(t * 2.7)) * 0.9);
     // The pendant swings out from her throat and back, and a settled one only sways a hair with her
