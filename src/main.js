@@ -7,6 +7,7 @@ import './style.css';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { allMemories, defaults, letterParagraphs, soloVideo } from './memories.js';
+import { textFor } from './memory-text.js';
 import { createStore, formatNumber } from './state.js';
 import { buildWorld, LAYOUT } from './world.js';
 import { createCouple } from './characters.js';
@@ -317,7 +318,7 @@ if (renderer) {
   envelope = createEnvelope(scene, {
     fromName: store.get().fromName,
     toName: store.get().toName,
-    paragraph: letterParagraphs[1],
+    paragraphs: letterParagraphs,
     audio,
     // each beat fires its own burst of light where the envelope is, so the opening is not silent
     onBeat: (beat) => {
@@ -407,13 +408,13 @@ function showMemory(index) {
   const count = allMemories.length;
   memoryIndex = (index + count) % count;
   const memory = allMemories[memoryIndex];
-  $('#memory-title').textContent = memory.title;
-  $('#memory-caption').textContent = memory.caption;
-  $('#memory-chapter').textContent = memory.chapter;
+  // The card shows one thing about the frame: its name. No caption, no chapter line, no frame-material
+  // placard -- the photograph, its name, and the pager (see src/memory-text.js).
+  const text = textFor(memory);
+  $('#memory-title').textContent = text.title;
   $('#memory-count').textContent = `${formatNumber(memoryIndex + 1)} از ${formatNumber(count)}`;
-  $('#memory-frame-name').textContent = `قاب ${memory.frame.name}`;
   memoryFrame.style.setProperty('--frame', memory.frame.color);
-  memoryPhoto.alt = memory.title;
+  memoryPhoto.alt = text.title;
   memoryPhoto.hidden = false;
   memoryPhoto.src = memory.image;
   memoryPhoto.onerror = () => {
@@ -555,7 +556,7 @@ async function openPostcard() {
     const canvas = await composePostcard({
       snapshot,
       title: 'خانه‌ی ما',
-      names: `${s.fromName} & ${s.toName}`,
+      names: `${s.fromName} & ${s.toNameJoint ?? s.toName}`,
       subtitle: '۳۶۵ روز خاطره‌ی قشنگ · تا ابد در قلبم',
     });
     const blob = await canvasToBlob(canvas);
@@ -1234,7 +1235,7 @@ function start(state) {
   hero?.setDress(state.avatarColor);
   fillLetter(state);
   if (envelope) {
-    const redraw = () => envelope.setNames(state.fromName, state.toName, letterParagraphs[1]);
+    const redraw = () => envelope.setNames(state.fromName, state.toName, letterParagraphs);
     redraw();
   }
 
@@ -1260,7 +1261,7 @@ store.subscribe((state) => {
 if (world) {
   const draw = () => {
     world.setDedication(store.get().dedication);
-    if (envelope) envelope.setNames(store.get().fromName, store.get().toName, letterParagraphs[1]);
+    if (envelope) envelope.setNames(store.get().fromName, store.get().toName, letterParagraphs);
   };
   document.fonts.ready.then(draw);
   document.fonts.load('800 96px "Vazirmatn Variable"').then(draw, draw);

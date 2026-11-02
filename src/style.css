@@ -658,6 +658,31 @@ dialog h2 {
   line-height: 1.15;
 }
 
+/* The memory card's own type: a display face for the title, the text face for the sentence.
+   The title in Vazirmatn 900 was the same voice as the caption, one size up, and a caption under a
+   photograph should not read as body copy. Lalezar ('our' Persian display face, already loaded for the
+   start screen) is round and even in weight 400 -- a title face at title size, not a bolded paragraph. */
+dialog.memory-sheet h2,
+dialog.video-sheet h2 {
+  font-family: 'Lalezar', 'Vazirmatn Variable', Vazirmatn, system-ui, sans-serif;
+  font-weight: 400;
+  /* Lalezar's ی and ج hang below the baseline far more than Vazirmatn's; at 1.15 a two-line title
+     clips its own descenders. */
+  line-height: 1.36;
+  letter-spacing: 0;
+  margin: 2px 0 12px;
+  font-size: clamp(32px, 4.4vw, 46px);
+  text-wrap: balance;
+}
+
+/* The room's video keeps its one line of context; the photograph does not need one. */
+dialog.video-sheet .memory-caption {
+  font-size: clamp(16px, 1.35vw, 19px);
+  line-height: 2.05;
+  max-width: 42ch;
+  text-wrap: pretty;
+}
+
 .pager {
   display: flex;
   gap: 8px;
@@ -691,24 +716,12 @@ dialog h2 {
   border-radius: 2px;
 }
 
-.memory-frame-name {
-  margin: 12px 0 0;
-  color: var(--muted);
-  font-size: 14px;
-  text-align: center;
-}
-
 .memory-meta {
   display: flex;
-  justify-content: space-between;
   gap: 12px;
-  margin: 0 0 14px;
-  font-size: 14px;
-}
-
-.memory-meta > span:first-child {
-  color: var(--lamp);
-  font-weight: 700;
+  margin: 0 0 22px;
+  font-size: 13px;
+  letter-spacing: 0.06em;
 }
 
 .meta-count {
@@ -716,7 +729,7 @@ dialog h2 {
   font-variant-numeric: tabular-nums;
 }
 
-.memory-caption {
+.video-copy .memory-caption {
   margin: 0 0 26px;
   color: var(--muted);
   font-size: 18px;
@@ -795,11 +808,17 @@ dialog h2 {
 }
 
 .letter-body p {
-  margin: 0 0 16px;
+  margin: 0 0 18px;
   color: var(--cream);
-  font-size: 18px;
+  font-size: clamp(17px, 1.5vw, 20px);
+  /* 2.1: a letter is read line by line, and Persian sits low in its own line box. */
   line-height: 2.1;
+  text-wrap: pretty;
 }
+
+/* The letter is the one piece of prose in the house, so it gets a measure: lines that stop short of the
+   card's edges are easier to read back to themselves than lines that run the full width. */
+dialog.letter-sheet .letter-body p { max-width: 46ch; margin-inline: auto; }
 
 .letter-sign {
   display: grid;
@@ -1168,12 +1187,9 @@ dialog.memory-sheet .close:hover,
 dialog.letter-sheet .close:hover { background: rgba(107, 62, 76, .17); }
 dialog.memory-sheet h2,
 dialog.letter-sheet h2 { color: #553542; }
-dialog.memory-sheet .memory-caption,
-dialog.memory-sheet .memory-frame-name,
 dialog.memory-sheet .meta-count,
 dialog.letter-sheet .letter-body p,
 dialog.letter-sheet .letter-sign { color: #70545a; }
-dialog.memory-sheet .memory-meta > span:first-child,
 dialog.letter-sheet .finale-kicker,
 dialog.letter-sheet .letter-sign strong { color: #9c5b60; }
 dialog.memory-sheet .memory-frame {

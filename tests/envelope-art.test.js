@@ -79,7 +79,7 @@ test('setBreak opens the cracks first and then parts the halves', () => {
   shell.dispose();
 });
 
-test('anniversary letter wording stays unchanged apart from the ring emoji', () => {
+test('the anniversary letter is the letter the owner wrote', () => {
   const source = readFileSync(new URL('../src/memories.js', import.meta.url), 'utf8');
   const match = source.match(/export const letterParagraphs = \[([\s\S]*?)\];/);
   assert.ok(match);
@@ -87,8 +87,9 @@ test('anniversary letter wording stays unchanged apart from the ring emoji', () 
   const lines = [...match[1].matchAll(/'([^']*)'/g)].map((m) => m[1]);
   assert.deepEqual(lines, [
     'سلام مهربون‌ترین دختر دنیا،',
-    'درست یک سال پیش، تو وارد زندگیم شدی و از همون روز اول، همه‌چیز رنگ و بوی دیگه‌ای گرفت. تک‌تک این ۱۲ قابی که توی این خونه می‌بینی، گوشه‌ای از زیباترین لحظه‌هایی هستن که با هم ساختیم.',
-    'از خنده‌هامون توی ماشین و قرارهای دونفره‌مون گرفته تا آرامشِ بودنت کنارم، همه‌شون باارزش‌ترین گنجینه‌ی زندگی منن.',
-    'اولین سالگردمون و ولنتاین مبارک عشقم؛ قول میدم هر روز بیشتر از دیروز دوستت داشته باشم و کنارت باشم. ❤️',
+    'درست یک سال پیش، تو وارد زندگیم شدی و از همون روز اول، همه‌چیز رنگ و بوی دیگه‌ای گرفت. تک‌تک این قاب‌ها که توی این خونه می‌بینی، گوشه‌ای از زیباترین لحظه‌هایی هستن که کنار هم ساختیم.',
+    'از خنده‌ها و بحث‌هامون گرفته تا آرامشِ بودنت کنارم، همه‌شون باارزش‌ترین گنجینه‌ی زندگی منن.',
+    'اولین سالگردمون مبارک، فائقم؛ قول میدم هر روز بیشتر از دیروز دوستت داشته باشم و کنارت باشم. ❤️',
   ]);
+  assert.ok(!lines.some((line) => line === 'آروین'), 'the signature is not a paragraph');
 });
