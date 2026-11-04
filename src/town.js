@@ -558,6 +558,10 @@ export function buildTown(scene, track) {
   const lanterns = [];
   for (let i = 0; i < 16; i += 1) {
     const group = new THREE.Group();
+    // Drifts up over the castle and fades at both ends of its flight: the whole group is animated, and
+    // says so in the flag the weld itself checks.
+    group.userData.animating = true;
+    markDynamic(group);
     group.add(new THREE.Mesh(lanternBulbGeo, lanternMat));
     const glow = new THREE.Sprite(lanternGlowMat.clone());
     track(glow.material);
