@@ -7,7 +7,6 @@ import './style.css';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { allMemories, defaults, letterParagraphs, soloVideo } from './memories.js';
-import { textFor } from './memory-text.js';
 import { createStore, formatNumber } from './state.js';
 import { perf, showPerfBadge } from './perf.js';
 import { createFrameCost } from './frame-cost.js';
@@ -410,13 +409,12 @@ function showMemory(index) {
   const count = allMemories.length;
   memoryIndex = (index + count) % count;
   const memory = allMemories[memoryIndex];
-  // The card shows one thing about the frame: its name. No caption, no chapter line, no frame-material
-  // placard -- the photograph, its name, and the pager (see src/memory-text.js).
-  const text = textFor(memory);
-  $('#memory-title').textContent = text.title;
+  // The card is the photograph and the pager. No name, no line, no caption -- what the frame shows is the
+  // picture, as large as the window allows (see the memory-sheet rules in src/style.css). The photo still
+  // needs an accessible name, so the fallback title it has always carried is what `alt` gets.
   $('#memory-count').textContent = `${formatNumber(memoryIndex + 1)} از ${formatNumber(count)}`;
   memoryFrame.style.setProperty('--frame', memory.frame.color);
-  memoryPhoto.alt = text.title;
+  memoryPhoto.alt = memory.title;
   memoryPhoto.hidden = false;
   memoryPhoto.src = memory.image;
   memoryPhoto.onerror = () => {

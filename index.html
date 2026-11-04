@@ -123,22 +123,20 @@
       <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
       <!-- Memory dialog -->
-      <dialog class="sheet memory-sheet" id="memory-dialog" aria-labelledby="memory-title">
+      <dialog class="sheet memory-sheet" id="memory-dialog" aria-label="قاب‌های خاطره">
         <button class="close" type="button" data-close aria-label="بستن">×</button>
+        <!-- The card is the photograph. There is no text on it -- not a name, not a line, not a caption:
+             the picture is the thing, and it is shown as large as the window allows. The pager sits over
+             the bottom of the frame, the way a photo viewer's does, so nothing takes width from the photo. -->
         <div class="memory-media">
           <figure class="memory-frame" id="memory-frame">
             <img id="memory-photo" alt="" />
           </figure>
         </div>
-        <div class="memory-copy">
-          <h2 id="memory-title"></h2>
-          <p class="memory-meta"><span class="meta-count" id="memory-count"></span></p>
-          <div class="memory-actions">
-            <div class="pager">
-              <button class="chip" id="memory-prev" type="button">قبلی</button>
-              <button class="chip" id="memory-next" type="button">بعدی</button>
-            </div>
-          </div>
+        <div class="memory-bar">
+          <button class="chip memory-step" id="memory-prev" type="button" aria-label="قبلی">‹ قبلی</button>
+          <span class="meta-count" id="memory-count"></span>
+          <button class="chip memory-step" id="memory-next" type="button" aria-label="بعدی">بعدی ›</button>
         </div>
       </dialog>
 
