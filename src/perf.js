@@ -9,6 +9,8 @@
 //   (no parameter)  the weld, as shipped
 //   ?perf=0         the plain scene, every mesh on its own -- the old build
 //   ?perf=merge     the same as no parameter, said out loud
+//   ?perf=hud       the frame-cost overlay, on the shipped build
+//   ?perf=half      the overlay, also comparing full and half resolution
 //
 // A link keeps every other parameter, so `?pref=...` style links elsewhere in the game survive.
 // Read without assuming a browser: the tests import this module in Node, where there is no window.
@@ -20,6 +22,10 @@ export const perf = {
   merge: choice !== '0',
   // true only when a parameter overrode the default, which is when the badge is worth showing
   overridden: choice === '0',
+  // The frame-cost overlay: where the frame goes, measured on the machine that is running it.
+  hud: choice === 'hud' || choice === 'half',
+  // ...and whether it also measures the same scene at half the resolution, for the comparison.
+  half: choice === 'half',
 };
 
 // The link that would build the scene the other way, keeping every other parameter as it is.

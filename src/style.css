@@ -1299,3 +1299,26 @@ dialog.video-sheet .video-frame {
   border-bottom: 1px solid currentColor;
   padding-bottom: 2px;
 }
+
+/* The frame-cost overlay (src/frame-cost.js). Only on screen when a URL asks for `?perf=hud`. */
+.frame-cost {
+  position: fixed;
+  top: 10px;
+  right: 10px;
+  z-index: 40;
+  max-width: 46ch;
+  padding: 10px 12px;
+  border: 1px solid var(--faint);
+  border-radius: 12px;
+  background: rgba(12, 10, 26, 0.9);
+  color: var(--cream);
+  font: 12px/1.6 ui-monospace, SFMono-Regular, Menlo, monospace;
+  direction: ltr;
+  pointer-events: none;
+  white-space: pre;
+}
+
+.frame-cost pre {
+  margin: 0;
+  font: inherit;
+}

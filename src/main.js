@@ -9,7 +9,8 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { allMemories, defaults, letterParagraphs, soloVideo } from './memories.js';
 import { textFor } from './memory-text.js';
 import { createStore, formatNumber } from './state.js';
-import { showPerfBadge } from './perf.js';
+import { perf, showPerfBadge } from './perf.js';
+import { createFrameCost } from './frame-cost.js';
 import { buildWorld, LAYOUT } from './world.js';
 import { createCouple } from './characters.js';
 import { createEnvelope } from './envelope.js';
@@ -1342,6 +1343,10 @@ window.addEventListener('resize', onResize);
 // The A/B switch for the frame-rate work (see src/perf.js). It does nothing unless the URL asks for it.
 showPerfBadge();
 
+// `?perf=hud` / `?perf=half`: where the frame actually goes, measured on the machine that is running it.
+// Null (and free) unless the URL asks.
+const frameCost = perf.hud ? createFrameCost() : null;
+
 // ---------- adaptive resolution --------------------------------------------
 
 function adaptQuality(dt) {
@@ -1362,8 +1367,14 @@ const grassCatPositions = [new THREE.Vector3(), new THREE.Vector3()];
 const grassActors = [];
 function frame() {
   requestAnimationFrame(frame);
-  const dt = Math.min(0.05, clock.getDelta());
+  const realDt = clock.getDelta();
+  const dt = Math.min(0.05, realDt);
   const t = clock.elapsedTime;
+  // Before any early return: the overlay measures the loop as it is, whether or not this frame draws the
+  // world (the rescue game and the gate have their own screens). It is given the *unclamped* interval, so a
+  // frame that took 200 ms is reported as 200 ms.
+  const frameStart = performance.now();
+  if (frameCost) frameCost.end(realDt * 1000);
   if (!renderer) return;
   if (rescueActive) return; // the rescue game is on screen
 
@@ -1477,7 +1488,14 @@ function frame() {
   if (started) updateGift(dt);
 
   adaptQuality(dt);
-  renderer.render(scene, camera);
+  if (frameCost) frameCost.measureDraw(() => renderer.render(scene, camera), frameStart);
+  else renderer.render(scene, camera);
+}
+
+if (renderer && frameCost) {
+  frameCost.mount();
+  frameCost.attach(renderer, quality);
+  if (perf.half) frameCost.startComparing();
 }
 
 if (renderer) {
