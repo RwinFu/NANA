@@ -141,7 +141,9 @@
       </dialog>
 
       <!-- The room's video, played large with its own sound -->
-      <dialog class="sheet video-sheet" id="video-dialog" aria-labelledby="video-title">
+      <!-- The clip, and nothing else: no title, no caption. The same rule as the frame cards -- the picture
+           is the thing, and it is shown as large as the window allows (see .video-sheet in src/style.css). -->
+      <dialog class="sheet video-sheet" id="video-dialog" aria-label="ویدیوی اتاق">
         <button class="close" type="button" data-close aria-label="بستن">×</button>
         <div class="video-media">
           <figure class="memory-frame video-frame">
@@ -149,11 +151,6 @@
              the screen plays at once instead of starting a 1 MB download. Silent, as always. -->
             <video id="video-player" controls playsinline preload="auto" muted></video>
           </figure>
-        </div>
-        <div class="video-copy">
-          <p class="memory-meta"><span>ویدیوی اتاق</span><span class="meta-count">بی‌صدا</span></p>
-          <h2 id="video-title">همون ویدیویی که تو اتاقه</h2>
-          <p class="memory-caption">این‌جا بزرگ‌تر می‌بینی‌اش؛ برای دیدن دوباره، دکمه‌ی پخش را بزن.</p>
         </div>
       </dialog>
 

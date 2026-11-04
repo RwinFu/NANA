@@ -56,3 +56,25 @@ test('the pager sits under the photograph, not beside it', () => {
   assert.doesNotMatch(sheet, /grid-template-columns:\s*minmax\(0, 1\.1fr\)/, 'the card is two columns again');
   assert.match(sheet, /grid-template-rows/, 'the card is not stacked photo-over-pager');
 });
+
+// The room's clip is shown the same way: no title, no caption, no «بی‌صدا» tag, and the clip as large as
+// the window allows. It used to sit in the same two-column sheet as the photographs, capped at 58vh, with
+// three lines of copy taking the other half of the card.
+const videoCard = html.slice(html.indexOf('id="video-dialog"'), html.indexOf('</dialog>', html.indexOf('id="video-dialog"')));
+
+test('the video card carries no text either', () => {
+  assert.doesNotMatch(videoCard, /video-title|video-copy|memory-caption|memory-meta/, 'the clip has copy again');
+  const texts = [...videoCard.matchAll(/>([^<>]+)</g)].map((m) => m[1].trim()).filter(Boolean);
+  assert.deepEqual(texts, ['×'], `the clip card shows the text ${texts.join(', ')}`);
+});
+
+test('the clip is sized like the photographs', () => {
+  const sheet = css.slice(css.indexOf('dialog.video-sheet[open] {'), css.indexOf('.video-media {'));
+  assert.match(sheet, /width:\s*fit-content/, 'the video card no longer hugs the clip');
+  assert.match(sheet, /max-height:\s*calc\(100dvh - 20px\)/, 'the video card no longer fills the screen height');
+  assert.doesNotMatch(sheet, /grid-template-columns/, 'the video card is two columns again');
+  const video = (css.match(/\.video-frame video \{([^}]*)\}/) || [, ''])[1];
+  // The 1 before the digits was a literal «1», not part of the pattern: the rule is 196px.
+  assert.match(video, /max-height:\s*calc\(100dvh - \d{3}px\)/, 'the clip does not take the window height');
+  assert.doesNotMatch(video, /max-height:\s*58vh/, 'the 58vh cap is back on the clip');
+});
