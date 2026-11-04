@@ -1,5 +1,6 @@
 // Content for the house. Edit text here; photos live in /public/memories/.
 // Every photo path goes through memoryImage() so it also works on GitHub Pages subpaths.
+import { assetUrl } from './guest.js';
 
 export const defaults = {
   // The two names the house is for. `fromName` is the signature under the letter and the "from" line on the
@@ -26,8 +27,9 @@ export const letterParagraphs = [
   // `defaults.fromName` (see fillLetter() and drawPaper()), so the name lives in one place.
 ];
 
+// `assetUrl` keeps the paths right on both pages (see src/guest.js).
 // `?.` so the module can also be imported outside Vite (the tests do, for the letter's timing)
-export const memoryImage = (filename) => `${import.meta.env?.BASE_URL || '/'}memories/${filename}`;
+export const memoryImage = (filename) => assetUrl(`memories/${filename}`);
 
 // tone: the frame's metal/wood color and the glow color of its lamp (hex).
 export const memories = [

@@ -29,6 +29,7 @@ import {
 import { giftCamera, giftCameraBlend, keepCameraClear } from './gift-camera.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
 import { createRescueGame, showHowTo } from './rescue.js';
+import { house } from './guest.js';
 import { createQuality } from './quality.js';
 import { createCats } from './cats.js';
 import { buildDecor, GARDEN_BENCH } from './decor.js';
@@ -97,10 +98,18 @@ SWATCHES.forEach(([color, label]) => {
     dom.swatchRow.querySelectorAll('.swatch').forEach((el) => {
       el.setAttribute('aria-pressed', String(el.dataset.color === color));
     });
-    hero?.setDress(color);
+    setHerDress(color);
   });
   dom.swatchRow.appendChild(btn);
 });
+
+// A guest's dress is hers, not the player's: the stored avatar colour is the family's pink, and painting it
+// over the guest's plain dress was exactly what happened the first time this page was run. `GUEST_LOOK` owns
+// that colour, so nothing the visitor's browser remembers can change it.
+function setHerDress(color) {
+  if (!hero) return;
+  hero.setDress(house.form ? color : undefined);
+}
 
 // The start screen asks one thing: her dress colour. The names and the two messages are not asked for any
 // more -- they live in `defaults` in src/memories.js, which is where they were always meant to be edited.
@@ -241,6 +250,29 @@ function beginRescue() {
   // drawn on the CPU, and nothing on screen needs them until the tour begins. Built inside the rescue
   // canvas' first idle moment, so they cannot cost the game a frame.
   scheduleWarmUp(() => cats?.warm());
+  if (!house.rescue) {
+    // The guest house has no 2-D game: no instructions card, no rescue, no camera flight. The gate is
+    // already there (world.js builds it), so the guest walks straight in. The garage behind the flow is the
+    // same one the rescue ends in, so nothing else has to change.
+    dom.intro.hidden = true;
+    started = true;
+    townVisited = false;
+    audio.unlock();
+    setMusicUi();
+    dom.hudSub.textContent = 'خانه‌ی خاطره‌ها';
+    if (world) world.setDedication(store.get().dedication);
+    setHerDress(store.get().avatarColor);
+    dom.hud.hidden = false;
+    dom.hint.hidden = coarse;
+    dom.joystick.hidden = !coarse;
+    dom.jump.hidden = !coarse;
+    // The HUD's and the help card's buttons for the letter and the anniversary are not offered in a house
+    // that has neither (see hideGuestButtons()).
+    hideGuestButtons();
+    audio.startSong();
+    toast(coarse ? 'با جوی‌استیک پایین صفحه حرکت کن' : 'با W A S D حرکت کن و با E نزدیک قاب‌ها بشو', 4200);
+    return;
+  }
   rescue = createRescueGame({
     onDone: finishRescue,
     autoStart: true,
@@ -287,15 +319,19 @@ if (renderer) {
 
   world = buildWorld(scene, camera);
   introSparkles = createSparkles(scene);
-  introFairy = createFairy(scene);
+  // The fairy is the present's courier: a guest gets neither.
+  if (house.present) introFairy = createFairy(scene);
   // The present's own props: the box the fairy carries, and the necklace inside it. The necklace is built
-  // once and lives on her neck afterwards, so there is one necklace and not one per scene.
-  giftBox = createGiftBox((o) => o);
-  giftBox.visible = false;
-  scene.add(giftBox.group);
-  necklace = createNecklace((o) => o);
-  necklace.worn.visible = false;
-  introFairy.attachGiftBox(giftBox, giftBox.setOpen);
+  // once and lives on her neck afterwards, so there is one necklace and not one per scene. A guest has no
+  // present and no fairy (see src/guest.js), so neither is built -- and nothing downstream can show them.
+  if (house.present) {
+    giftBox = createGiftBox((o) => o);
+    giftBox.visible = false;
+    scene.add(giftBox.group);
+    necklace = createNecklace((o) => o);
+    necklace.worn.visible = false;
+    introFairy.attachGiftBox(giftBox, giftBox.setOpen);
+  }
   hero = createCouple(store.get().avatarColor);
   syncBouquet(); // hangs her bouquet on her free arm (empty until she buys a rose)
   scene.add(hero.root);
@@ -303,7 +339,7 @@ if (renderer) {
   // which is what NECK's 1.68 is measured in (the body is scaled to 0.68, so it lands at chest height in
   // the world). Parenting it to the root instead would leave it unscaled and half a metre above her throat.
   // It still walks with her, because the body does.
-  hero.dressSpace.add(necklace.worn);
+  if (necklace) hero.dressSpace.add(necklace.worn);
   // Start in the garden, not at the origin: the origin is the middle of the door, and the couple sank into it before the walk began
   hero.root.position.copy(LAYOUT.spawn);
   // A soft studio reflection for the characters' glossy parts (hair, eyes, gold, shoes)
@@ -316,7 +352,8 @@ if (renderer) {
   houseSparkles = createHouseSparkles(scene);
   footprints = createFootprints(scene);
 
-  envelope = createEnvelope(scene, {
+  // No letter in the guest house: no envelope standing at the end of the hall, and nothing to read.
+  if (house.letter) envelope = createEnvelope(scene, {
     fromName: store.get().fromName,
     toName: store.get().toName,
     paragraphs: letterParagraphs,
@@ -1144,6 +1181,23 @@ dom.danceBtn.addEventListener('click', cycleDance);
 $('#finale-btn').addEventListener('click', () => openFinale());
 $('#letter-btn').addEventListener('click', () => openDialog(dom.letter));
 
+// What the guest house does not have, it does not offer. The anniversary note is somebody's own message and
+// the letter is theirs to read; a guest gets the house, its photographs, its clip and its music.
+function hideGuestButtons() {
+  if (house.letter) return;
+  // The help card lists E as "the frames and the envelope at the end of the hall"; a guest has no envelope.
+  const envelopeLine = [...document.querySelectorAll('#help-dialog .help-list li')]
+    .find((li) => li.textContent.includes('پاکت'));
+  if (envelopeLine) {
+    envelopeLine.innerHTML = '<kbd>E</kbd> نزدیک قاب‌ها، تعامل را شروع می‌کند';
+  }
+  ['#finale-btn', '#letter-btn'].forEach((sel) => {
+    const btn = $(sel);
+    if (btn) btn.hidden = true;
+  });
+}
+hideGuestButtons();
+
 function setMusicUi() {
   dom.musicBtn.setAttribute('aria-pressed', String(audio.musicOn));
   dom.musicBtn.classList.toggle('is-off', !audio.musicOn);
@@ -1232,12 +1286,9 @@ function start(state) {
 
   dom.hudSub.textContent = `از طرف ${state.fromName} برای ${state.toName}`;
   if (world) world.setDedication(state.dedication);
-  hero?.setDress(state.avatarColor);
+  setHerDress(state.avatarColor);
   fillLetter(state);
-  if (envelope) {
-    const redraw = () => envelope.setNames(state.fromName, state.toName, letterParagraphs);
-    redraw();
-  }
+  if (envelope) envelope.setNames(state.fromName, state.toName, letterParagraphs);
 
   // Glide from the intro view into the follow camera: both the position and the look target
   transition = { from: camera.position.clone(), lookFrom: introLook.clone(), elapsed: 0, duration: 1.8 };
@@ -1460,7 +1511,7 @@ function frame() {
   world?.rugGlint?.update(dt, t, hero.root.position, walking);
   world?.stoneGlint?.update(dt, t, hero.root.position, walking);
   footprints?.update(dt, hero, walking);
-  envelope.update(t, dt);
+  envelope?.update(t, dt);
   grassActors.length = 0;
   if (started) {
     grassActors.push(hero.root.position);
@@ -1504,12 +1555,17 @@ if (renderer) {
 
 // The how-to page opens first. Its start button begins the rescue straight away;
 // the intro, then the names form and the enter button come after the rescue.
-showHowTo({
-  onStart() {
-    audio.unlock();
-    beginRescue();
-  },
-});
+if (house.rescue) {
+  showHowTo({
+    onStart() {
+      audio.unlock();
+      beginRescue();
+    },
+  });
+} else {
+  // The guest house opens at the gate: no instructions card, no tap to start, no 2-D game.
+  beginRescue();
+}
 
 // Dev-only hook for automated checks
 if (import.meta.env.DEV) {

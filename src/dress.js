@@ -106,7 +106,10 @@ function embroideryMap() {
 // The pleated skirt. Its vertices are pushed out and in around the circle, so it has folds, and
 // it carries the embroidery as its colour map. Lace ruffles and crystals are children of it, so they
 // move with the skirt.
-export function createSkirt(dressMat, laceMat) {
+// `embroidery` and `crystals` are the princess's dress: three lace ruffles and four rows of gems. A guest's
+// dress is the same silhouette with none of it -- the caller passes false (see src/guest.js), and the fabric
+// keeps its own weave instead of taking the embroidered map.
+export function createSkirt(dressMat, laceMat, { embroidery = true, crystals = true } = {}) {
   const geo = new THREE.LatheGeometry(skirtProfile(), LATHE_SEGS);
   const pos = geo.attributes.position;
   for (let i = 0; i < pos.count; i += 1) {
@@ -118,12 +121,14 @@ export function createSkirt(dressMat, laceMat) {
     pos.setZ(i, z * f);
   }
   geo.computeVertexNormals();
-  dressMat.map = embroideryMap();
-  dressMat.needsUpdate = true;
+  if (embroidery) {
+    dressMat.map = embroideryMap();
+    dressMat.needsUpdate = true;
+  }
   const skirt = new THREE.Mesh(geo, dressMat);
 
   // Three lace ruffles, each a wavy ring that follows the folds just outside the skirt
-  [0.3, 0.62, 0.9].forEach((y) => {
+  if (embroidery && laceMat) [0.3, 0.62, 0.9].forEach((y) => {
     const pts = [];
     const N = 96;
     for (let k = 0; k < N; k += 1) {
@@ -149,7 +154,7 @@ export function createSkirt(dressMat, laceMat) {
   const up = new THREE.Vector3(0, 1, 0);
   const n = new THREE.Vector3();
   const q = new THREE.Quaternion();
-  rows.forEach((row, ri) => {
+  if (crystals) rows.forEach((row, ri) => {
     for (let k = 0; k < row.n; k += 1) {
       const th = ((k + (ri % 2) * 0.5) / row.n) * Math.PI * 2;
       const y = row.y;

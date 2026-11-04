@@ -1,5 +1,6 @@
 // Small Web Audio synth: a soft arpeggiated loop plus a few sound effects.
 // Everything is generated in code, so there are no audio files to download.
+import { assetUrl } from './guest.js';
 
 // The loop is in C# minor, the key of the family song. The melody opens on C# then G#,
 // the first two notes of the song, and moves through its E, D# and F# colour.
@@ -15,7 +16,8 @@ const BPM = 86;
 const STEP = 60 / BPM / 2; // eighth notes
 const LOOKAHEAD_S = 0.25;
 // The song from the family folder. Starts at the gate and keeps playing through the tour.
-const SONG_URL = `${import.meta.env.BASE_URL}music/khooneye-man.mp3`;
+// assetUrl, not BASE_URL: the guest page sits one level deeper (see src/guest.js).
+const SONG_URL = assetUrl('music/khooneye-man.mp3');
 
 export function createAudio() {
   let ctx = null;
