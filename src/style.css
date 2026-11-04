@@ -658,29 +658,6 @@ dialog h2 {
   line-height: 1.15;
 }
 
-/* The room's video keeps a display title; the memory card's sentence has its own rule below (the card no
-   longer has a heading at all). Lalezar -- 'our' Persian display face, already loaded for the start screen
-   -- is round and even in weight 400: a title face at title size, not a bolded paragraph. */
-dialog.video-sheet h2 {
-  font-family: 'Lalezar', 'Vazirmatn Variable', Vazirmatn, system-ui, sans-serif;
-  font-weight: 400;
-  /* Lalezar's ی and ج hang below the baseline far more than Vazirmatn's; at 1.15 a two-line title
-     clips its own descenders. */
-  line-height: 1.36;
-  letter-spacing: 0;
-  margin: 2px 0 12px;
-  font-size: clamp(32px, 4.4vw, 46px);
-  text-wrap: balance;
-}
-
-/* The room's video keeps its one line of context; the photograph does not need one. */
-dialog.video-sheet .memory-caption {
-  font-size: clamp(16px, 1.35vw, 19px);
-  line-height: 2.05;
-  max-width: 42ch;
-  text-wrap: pretty;
-}
-
 .pager {
   display: flex;
   gap: 8px;
@@ -760,13 +737,6 @@ dialog.video-sheet .memory-caption {
 .meta-count {
   color: var(--muted);
   font-variant-numeric: tabular-nums;
-}
-
-.video-copy .memory-caption {
-  margin: 0 0 26px;
-  color: var(--muted);
-  font-size: 18px;
-  line-height: 1.95;
 }
 
 .memory-actions {
@@ -1278,34 +1248,45 @@ dialog.letter-sheet::after {
 
 /* The room's video, played large */
 
+/* The room's clip gets the same card the photographs get: no text beside it, and the clip as large as the
+   window allows. It used to be a two-column sheet with a title, a caption and a «بی‌صدا» tag on the other
+   half, which capped the picture at 58vh and left it small. */
 dialog.video-sheet[open] {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-  gap: 36px;
-  align-items: center;
-  padding-top: 44px;
+  grid-template-rows: minmax(0, 1fr);
+  width: fit-content;
+  max-width: calc(100vw - 20px);
+  max-height: calc(100dvh - 20px);
+  padding: 16px;
+  padding-top: 54px; /* the strip the close button sits on, same as the photo card */
+}
+
+.video-media {
+  display: grid;
+  place-items: center;
+  min-height: 0;
 }
 
 .video-frame {
   --frame: #d9a441;
   display: flex;
   justify-content: center;
+  margin: 0;
 }
 
 .video-frame video {
   display: block;
   width: auto;
-  max-width: 100%;
-  max-height: 58vh; /* portrait clip: let the height decide */
+  height: auto;
+  max-width: calc(100vw - 92px);
+  /* The height the clip can have: the window, less the card's paper, the frame's matting, the close
+     button's strip and the play controls under the picture. A portrait clip gets the height. */
+  max-height: calc(100dvh - 196px);
   aspect-ratio: 9 / 16;
   background: #0b0a12;
-  border-radius: 2px;
+  border-radius: 3px;
 }
 
-.video-copy h2 { margin: 6px 0 10px; }
-.video-copy .memory-meta { display: flex; gap: 12px; flex-wrap: wrap; }
-
-dialog.video-sheet .memory-meta > span:first-child { color: #9c5b60; }
 dialog.video-sheet .video-frame {
   padding: 12px;
   border: 7px solid #fffaf0;
@@ -1313,8 +1294,14 @@ dialog.video-sheet .video-frame {
 }
 
 @media (max-width: 760px) {
-  dialog.video-sheet[open] { grid-template-columns: 1fr; gap: 20px; }
-  .video-frame video { max-height: 46vh; }
+  dialog.video-sheet[open] {
+    max-width: calc(100vw - 8px);
+    max-height: calc(100dvh - 8px);
+    padding: 10px;
+    padding-top: 46px;
+  }
+  dialog.video-sheet .video-frame { padding: 8px; border-width: 5px; }
+  .video-frame video { max-width: calc(100vw - 60px); max-height: calc(100dvh - 168px); }
 }
 
 /* The A/B switch for the frame-rate work (src/perf.js). Only on screen when a URL asks for it. */
