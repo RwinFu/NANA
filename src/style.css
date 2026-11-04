@@ -658,11 +658,9 @@ dialog h2 {
   line-height: 1.15;
 }
 
-/* The memory card's own type: a display face for the title, the text face for the sentence.
-   The title in Vazirmatn 900 was the same voice as the caption, one size up, and a caption under a
-   photograph should not read as body copy. Lalezar ('our' Persian display face, already loaded for the
-   start screen) is round and even in weight 400 -- a title face at title size, not a bolded paragraph. */
-dialog.memory-sheet h2,
+/* The room's video keeps a display title; the memory card's sentence has its own rule below (the card no
+   longer has a heading at all). Lalezar -- 'our' Persian display face, already loaded for the start screen
+   -- is round and even in weight 400: a title face at title size, not a bolded paragraph. */
 dialog.video-sheet h2 {
   font-family: 'Lalezar', 'Vazirmatn Variable', Vazirmatn, system-ui, sans-serif;
   font-weight: 400;
@@ -690,31 +688,66 @@ dialog.video-sheet .memory-caption {
 
 /* Memory */
 
+/* The card is the photograph. It used to be a two-column sheet -- the picture on one side, words on the
+   other -- which spent nearly half the card on text and capped the photo at 58vh. There is no text on it
+   now, so it takes the window: the sheet grows to almost the whole viewport, the photograph is measured
+   against the height that is left after the frame's padding and the pager bar, and the pager lies under
+   it instead of beside it. Choosing a frame now means looking at the frame. */
 .memory-sheet[open] {
   display: grid;
-  grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
-  gap: 36px;
-  align-items: center;
-  padding-top: 44px;
+  grid-template-rows: minmax(0, 1fr) auto;
+  gap: 10px;
+  /* The card hugs the photograph instead of being a wide panel with a small picture in it: a portrait
+     photo makes a tall card and a landscape one a wide card, and the pager bar takes the same width. */
+  width: fit-content;
+  max-width: calc(100vw - 20px);
+  max-height: calc(100dvh - 20px);
+  /* The extra top padding is a strip of the card's own paper for the close button to sit on: over a
+     photograph, a light button on a bright corner of someone's face is a smudge. */
+  padding: 16px;
+  padding-top: 54px;
+}
+
+.memory-media {
+  display: grid;
+  place-items: center;
+  min-height: 0;
 }
 
 .memory-frame {
   --frame: #9e7346;
   margin: 0;
-  padding: 16px;
-  border-radius: 6px;
+  padding: 14px;
+  border-radius: 8px;
   background: var(--frame);
   box-shadow: 0 18px 50px rgba(0, 0, 0, 0.45), inset 0 0 0 1px rgba(255, 255, 255, 0.15);
 }
 
 .memory-frame img {
   display: block;
-  width: 100%;
-  max-height: 58vh;
+  width: auto;
+  height: auto;
+  /* Everything the card can give the picture: the viewport, less the sheet's padding, the frame's own
+     matting, the pager bar and the gaps. A portrait photo gets the height, a landscape one the width. */
+  max-width: calc(100vw - 92px);
+  max-height: calc(100dvh - 206px);
   object-fit: contain;
   background: #0b0a12;
-  border-radius: 2px;
+  border-radius: 3px;
 }
+
+/* The pager, under the photograph. */
+.memory-bar {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 18px;
+}
+
+.memory-step {
+  min-width: 92px;
+}
+
 
 .memory-meta {
   display: flex;
@@ -1185,7 +1218,7 @@ dialog.letter-sheet .close {
 }
 dialog.memory-sheet .close:hover,
 dialog.letter-sheet .close:hover { background: rgba(107, 62, 76, .17); }
-dialog.memory-sheet h2,
+dialog.memory-sheet .meta-count,
 dialog.letter-sheet h2 { color: #553542; }
 dialog.memory-sheet .meta-count,
 dialog.letter-sheet .letter-body p,
@@ -1230,7 +1263,17 @@ dialog.letter-sheet::after {
   dialog.letter-sheet[open] { animation: none !important; }
 }
 @media (max-width: 760px) {
-  dialog.memory-sheet[open] { grid-template-columns: 1fr; gap: 20px; }
+  /* On a phone the card is the full width of the screen and the photo keeps the height it can get. */
+  dialog.memory-sheet[open] {
+    max-width: calc(100vw - 8px);
+    max-height: calc(100dvh - 8px);
+    padding: 10px;
+    padding-top: 46px;
+  }
+  dialog.memory-sheet .memory-frame { padding: 8px; border-width: 5px; }
+  .memory-frame img { max-width: calc(100vw - 60px); max-height: calc(100dvh - 168px); }
+  .memory-bar { gap: 10px; }
+  .memory-step { min-width: 78px; }
 }
 
 /* The room's video, played large */

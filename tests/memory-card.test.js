@@ -47,7 +47,7 @@ test('showMemory uses only names it can actually resolve', () => {
   const used = new Set();
   // Identifiers that are followed by a property access or used as a value: `text.title`, `memory.image`.
   for (const m of code.matchAll(/(?<![.\w$])([A-Za-z_$][\w$]*)\s*(?=\.)/g)) used.add(m[1]);
-  // ... and the ones passed around bare (formatNumber(...), textFor(...)).
+  // ... and the ones passed around bare (formatNumber(...), openDialog(...)).
   for (const m of code.matchAll(/(?<![.\w$])([A-Za-z_$][\w$]*)\s*\(/g)) used.add(m[1]);
 
   const keywords = new Set(['if', 'for', 'while', 'return', 'function', 'typeof', 'new', 'catch', 'switch', 'Math', 'String', 'Number', 'Object', 'window', 'document']);
@@ -59,9 +59,15 @@ test('the card still has every element showMemory writes to', () => {
   const html = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
   const fn = body('showMemory', main);
   const ids = [...fn.matchAll(/\$\('#([\w-]+)'\)/g)].map((m) => m[1]);
-  // The card keeps its name, its count and the photograph; anything else it used to write is gone on purpose.
+  // ... plus the elements showMemory reaches through a module-level binding (`memoryPhoto`, `memoryFrame`).
+  for (const m of main.matchAll(/const\s+([A-Za-z_$][\w$]*)\s*=\s*\$\('#([\w-]+)'\)/g)) {
+    if (new RegExp(`\\b${m[1]}\\b`).test(fn)) ids.push(m[2]);
+  }
+  // The card keeps its count and the photograph. There is no text on it any more, so there is no
+  // memory-title for showMemory to write (see tests/memory-card-layout.test.js).
   assert.ok(ids.length >= 2, 'showMemory stopped writing to the card');
-  assert.ok(ids.includes('memory-title'), 'showMemory no longer writes the name');
+  assert.ok(ids.includes('memory-count'), 'showMemory no longer writes the count');
+  assert.ok(!ids.includes('memory-title'), 'showMemory writes a title again');
   for (const id of ids) {
     assert.match(html, new RegExp(`id="${id}"`), `#${id} is not in index.html`);
   }
