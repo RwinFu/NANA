@@ -5,6 +5,7 @@ import { physMat, charMats } from './charmats.js';
 import { blinkFactor, addPrincessFace, addBoyFace } from './faces.js';
 import { createSkirt, addBodiceDetail, addHemPearls, dressMaterials } from './dress.js';
 import { addPrincessHairDetail, addBoyHair } from './hairdetail.js';
+import { guest, GUEST_LOOK } from './guest.js';
 
 // The colours themselves live in charpalette.js, as one family; see the note there.
 const SKIN = CHAR.skin;
@@ -215,6 +216,11 @@ function addTiara(head, goldMat) {
 // The walking princess (you) and the boy who follows her and holds her hand.
 // Her front is +z; her two braids hang down her back (-z).
 export function createCouple(dressColor) {
+  // A guest is not the princess, so she is not dressed as one: see src/guest.js. The two differences are
+  // made here, at the two places that build them, rather than by a setting of colours alone -- a tiara is
+  // geometry, not a colour, and so is a bow tie.
+  const herDress = guest ? GUEST_LOOK.her.dress : dressColor;
+  const herHair = guest ? GUEST_LOOK.her.hair : HAIR;
   const root = new THREE.Group();
   const body = new THREE.Group(); // bobs and sways while walking
   body.scale.setScalar(PRINCESS_SCALE);
@@ -224,9 +230,11 @@ export function createCouple(dressColor) {
   // so the bell of the skirt is not one flat tone, and a fine jacquard on the normal slot so the fabric
   // catches the chandeliers as cloth.
   const dressMat = physMat({
-    color: dressColor, map: clothWeave('satin', 3), roughness: 0.44, side: THREE.DoubleSide,
-    sheen: 1, sheenColor: new THREE.Color(CHAR.dressLight), sheenRoughness: 0.3,
-    normalMap: surfaceNormal('satin', 5), normalScale: new THREE.Vector2(0.34, 0.34),
+    // A guest's dress is one plain colour: no satin weave, no jacquard, so it reads as a dress and not as a
+    // costume. The family's satin is kept exactly as it was.
+    color: herDress, map: guest ? null : clothWeave('satin', 3), roughness: guest ? 0.62 : 0.44, side: THREE.DoubleSide,
+    sheen: guest ? 0.3 : 1, sheenColor: new THREE.Color(guest ? GUEST_LOOK.her.dressDeep : CHAR.dressLight), sheenRoughness: 0.3,
+    normalMap: guest ? null : surfaceNormal('satin', 5), normalScale: new THREE.Vector2(0.34, 0.34),
   });
   const pinkGemMatBody = physMat({ color: '#ff6f9d', roughness: 0.08, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.03, emissive: '#4a1226', emissiveIntensity: 0.35 });
   // Skin: warm, a little subsurface-looking. Clearcoat alone made it plasticky; a low sheen and a
@@ -236,7 +244,7 @@ export function createCouple(dressColor) {
     clearcoat: 0.06, clearcoatRoughness: 0.55,
   });
   const hairMat = physMat({
-    color: HAIR, roughness: 0.34, clearcoat: 0.45, clearcoatRoughness: 0.3,
+    color: herHair, roughness: 0.34, clearcoat: 0.45, clearcoatRoughness: 0.3,
     sheen: 0.5, sheenColor: new THREE.Color(CHAR.hairSheen), sheenRoughness: 0.45,
     normalMap: surfaceNormal('strands', 2), normalScale: new THREE.Vector2(0.4, 0.4),
   });
@@ -251,8 +259,10 @@ export function createCouple(dressColor) {
     new THREE.Vector2(0.38, 0.98),
     new THREE.Vector2(0.3, 1.1),
   ];
+  // A guest's dress is plain: no lace, no pearls, no sash -- those are the princess's trim. The materials are
+  // still made (the skirt asks for them), but nothing is added to the dress.
   const dressDet = dressMaterials();
-  const skirt = createSkirt(dressMat, dressDet.lace);
+  const skirt = createSkirt(dressMat, guest ? null : dressDet.lace, { embroidery: !guest, crystals: !guest });
   skirt.position.y = 0.12;
   body.add(skirt);
 
@@ -264,9 +274,11 @@ export function createCouple(dressColor) {
   petticoat.position.y = 0.1;
   body.add(petticoat);
   const petLaceMat = physMat({ color: CHAR.lace, roughness: 0.55, sheen: 1, sheenColor: new THREE.Color('#ffffff'), sheenRoughness: 0.45 });
-  const hem = part(new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.024, 12, 120), petLaceMat), body, 0, 0.13, 0);
-  hem.rotation.x = Math.PI / 2;
-  addHemPearls(body, dressDet.pearl);
+  if (!guest) {
+    const hem = part(new THREE.Mesh(new THREE.TorusGeometry(0.72, 0.024, 12, 120), petLaceMat), body, 0, 0.13, 0);
+    hem.rotation.x = Math.PI / 2;
+    addHemPearls(body, dressDet.pearl);
+  }
 
   // Gather the entire skirt, lace and hem under one waist-level pivot. This lets
   // the dress settle onto the seat without squashing her head and torso.
@@ -280,16 +292,18 @@ export function createCouple(dressColor) {
     skirtPose.add(part);
   });
 
-  // A sash at the waist with a bow at the back
+  // A sash at the waist with a bow at the back -- the princess's, not the guest's.
   // A warm, saturated sash: it has to separate from the dress, which is already pink-red.
-  const sashMat = physMat({ color: CHAR.sash, roughness: 0.26, sheen: 0.9, sheenColor: new THREE.Color('#ffe0ec'), sheenRoughness: 0.35, map: clothWeave('satin', 2) });
-  const sash = part(new THREE.Mesh(new THREE.TorusGeometry(0.275, 0.034, 10, 40), sashMat), body, 0, 1.19, 0);
-  sash.rotation.x = Math.PI / 2;
-  [-1, 1].forEach((side) => {
-    const loop = part(new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), sashMat), body, side * 0.06, 1.19, -0.3);
-    loop.scale.set(0.9, 0.6, 0.45);
-  });
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), sashMat), body, 0, 1.19, -0.31);
+  if (!guest) {
+    const sashMat = physMat({ color: CHAR.sash, roughness: 0.26, sheen: 0.9, sheenColor: new THREE.Color('#ffe0ec'), sheenRoughness: 0.35, map: clothWeave('satin', 2) });
+    const sash = part(new THREE.Mesh(new THREE.TorusGeometry(0.275, 0.034, 10, 40), sashMat), body, 0, 1.19, 0);
+    sash.rotation.x = Math.PI / 2;
+    [-1, 1].forEach((side) => {
+      const loop = part(new THREE.Mesh(new THREE.SphereGeometry(0.06, 12, 10), sashMat), body, side * 0.06, 1.19, -0.3);
+      loop.scale.set(0.9, 0.6, 0.45);
+    });
+    part(new THREE.Mesh(new THREE.SphereGeometry(0.03, 10, 8), sashMat), body, 0, 1.19, -0.31);
+  }
 
   const feet = [];
   const shoeRest = [-0.14, 0.14];
@@ -302,12 +316,15 @@ export function createCouple(dressColor) {
 
   const bodice = part(new THREE.Mesh(new THREE.CylinderGeometry(0.26, 0.31, 0.55, 20), dressMat), body, 0, 1.38, 0);
   bodice.scale.z = 0.8;
-  addBodiceDetail(body, dressDet);
+  if (!guest) addBodiceDetail(body, dressDet);
   part(new THREE.Mesh(new THREE.CylinderGeometry(0.1, 0.13, 0.12, 12), skinMat), body, 0, 1.72, 0);
-  // A gold choker with a pink pendant
-  const choker = part(new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.012, 8, 28), goldMat), body, 0, 1.68, 0);
-  choker.rotation.x = Math.PI / 2;
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.024, 10, 8), pinkGemMatBody), body, 0, 1.56, 0.22);
+  // A gold choker with a pink pendant: hers, not the guest's (the guest's only jewellery is the earrings,
+  // which are part of the face rather than the dress).
+  if (!guest) {
+    const choker = part(new THREE.Mesh(new THREE.TorusGeometry(0.125, 0.012, 8, 28), goldMat), body, 0, 1.68, 0);
+    choker.rotation.x = Math.PI / 2;
+    part(new THREE.Mesh(new THREE.SphereGeometry(0.024, 10, 8), pinkGemMatBody), body, 0, 1.56, 0.22);
+  }
 
   // How far her flower arm is swung out from her side (0 = the normal walk, 1 = holding a bouquet).
   // Set from the game when she buys roses; see flowerArmPose() in src/flower-shop.js.
@@ -359,7 +376,8 @@ export function createCouple(dressColor) {
   part(new THREE.Mesh(new THREE.SphereGeometry(0.252, 40, 28, Math.PI, Math.PI, 0, Math.PI * 0.62), hairMat), head, 0, 0, 0);
   addPrincessHairDetail(head, hairMat, 0.245);
   const princessBlinks = addPrincessFace(head);
-  addTiara(head, goldMat);
+  // A guest wears no tiara: the crown is what makes her the princess of this story, and the guests are not.
+  if (!guest) addTiara(head, goldMat);
 
   // Earrings: gold studs with a pink drop
   const pinkGemMat = physMat({ color: '#ff5f8f', roughness: 0.08, metalness: 0.1, clearcoat: 1, clearcoatRoughness: 0.03, emissive: '#3a0f1f' });
@@ -367,14 +385,16 @@ export function createCouple(dressColor) {
     part(new THREE.Mesh(new THREE.SphereGeometry(0.017, 10, 8), goldMat), head, side * 0.216, -0.03, 0);
     part(new THREE.Mesh(new THREE.SphereGeometry(0.02, 10, 8), pinkGemMat), head, side * 0.222, -0.075, 0);
   });
-  // A small pink bow on the side of the hair
-  const bowMat = physMat({ color: '#ffa8c4', roughness: 0.32, sheen: 0.7, sheenColor: new THREE.Color('#ffe0ec'), clearcoat: 0.5, clearcoatRoughness: 0.2 });
-  [-1, 1].forEach((side) => {
-    const loop = part(new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), bowMat), head, 0.2 + side * 0.03, 0.13, 0.12);
-    loop.scale.set(1, 0.6, 0.5);
-    loop.rotation.z = side * 0.5;
-  });
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 8), bowMat), head, 0.2, 0.13, 0.125);
+  // A small pink bow on the side of the hair. A guest has her hair down and plain, so no bow.
+  if (!guest) {
+    const bowMat = physMat({ color: '#ffa8c4', roughness: 0.32, sheen: 0.7, sheenColor: new THREE.Color('#ffe0ec'), clearcoat: 0.5, clearcoatRoughness: 0.2 });
+    [-1, 1].forEach((side) => {
+      const loop = part(new THREE.Mesh(new THREE.SphereGeometry(0.04, 10, 8), bowMat), head, 0.2 + side * 0.03, 0.13, 0.12);
+      loop.scale.set(1, 0.6, 0.5);
+      loop.rotation.z = side * 0.5;
+    });
+    part(new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 8), bowMat), head, 0.2, 0.13, 0.125);
+  }
 
   // Two braids down her back. Each is a physics chain with a braided ribbon and a pink tie at the end
   const tieMat = physMat({ color: '#ffa8c4', roughness: 0.32, sheen: 0.7, sheenColor: new THREE.Color('#ffe0ec'), clearcoat: 0.5, clearcoatRoughness: 0.2 });
@@ -404,10 +424,16 @@ export function createCouple(dressColor) {
   root.add(boy);
   // His coat: a slate blue with a real tweed on both slots, so it is cloth at arm's length and does not
   // read as a silhouette beside her.
-  const coatMat = physMat({ color: COAT, roughness: 0.54, sheen: 0.85, sheenColor: new THREE.Color(CHAR.coatLight), sheenRoughness: 0.42, map: clothWeave('tweed', 5), normalMap: surfaceNormal('tweed', 4), normalScale: new THREE.Vector2(0.5, 0.5) });
-  const pantsMat = physMat({ color: PANTS, roughness: 0.62, sheen: 0.5, sheenColor: new THREE.Color('#55608c'), sheenRoughness: 0.5, map: clothWeave('tweed', 9), normalMap: surfaceNormal('tweed', 8), normalScale: new THREE.Vector2(0.35, 0.35) });
-  const boyHairMat = physMat({ color: CHAR.boyHair, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.3, sheen: 0.4, sheenColor: new THREE.Color('#8a5a44'), sheenRoughness: 0.5, normalMap: surfaceNormal('curl', 1), normalScale: new THREE.Vector2(0.42, 0.42) });
-  const boyHairLightMat = physMat({ color: CHAR.boyHairLight, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.3, sheen: 0.45, sheenColor: new THREE.Color('#c08464'), sheenRoughness: 0.5, normalMap: surfaceNormal('curl', 1), normalScale: new THREE.Vector2(0.42, 0.42) });
+  // A guest wears a suit: coat and trousers in one cloth, no tweed, no epaulettes, a plain tie instead of a
+  // bow tie. Everything below reads `guest` and leaves the family's boy exactly as he was.
+  const coatMat = physMat(guest
+    ? { color: GUEST_LOOK.him.suit, roughness: 0.52, sheen: 0.5, sheenColor: new THREE.Color(GUEST_LOOK.him.suitLight), sheenRoughness: 0.4 }
+    : { color: COAT, roughness: 0.54, sheen: 0.85, sheenColor: new THREE.Color(CHAR.coatLight), sheenRoughness: 0.42, map: clothWeave('tweed', 5), normalMap: surfaceNormal('tweed', 4), normalScale: new THREE.Vector2(0.5, 0.5) });
+  const pantsMat = physMat(guest
+    ? { color: GUEST_LOOK.him.suit, roughness: 0.58, sheen: 0.4, sheenColor: new THREE.Color(GUEST_LOOK.him.suitLight), sheenRoughness: 0.45 }
+    : { color: PANTS, roughness: 0.62, sheen: 0.5, sheenColor: new THREE.Color('#55608c'), sheenRoughness: 0.5, map: clothWeave('tweed', 9), normalMap: surfaceNormal('tweed', 8), normalScale: new THREE.Vector2(0.35, 0.35) });
+  const boyHairMat = physMat({ color: guest ? GUEST_LOOK.him.hair : CHAR.boyHair, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.3, sheen: 0.4, sheenColor: new THREE.Color('#8a5a44'), sheenRoughness: 0.5, normalMap: surfaceNormal('curl', 1), normalScale: new THREE.Vector2(0.42, 0.42) });
+  const boyHairLightMat = physMat({ color: guest ? '#3a2a22' : CHAR.boyHairLight, roughness: 0.42, clearcoat: 0.35, clearcoatRoughness: 0.3, sheen: 0.45, sheenColor: new THREE.Color('#c08464'), sheenRoughness: 0.5, normalMap: surfaceNormal('curl', 1), normalScale: new THREE.Vector2(0.42, 0.42) });
   const boyBody = new THREE.Group();
   boy.add(boyBody);
   const torso = part(new THREE.Mesh(new THREE.CapsuleGeometry(0.27, 0.55, 12, 32), coatMat), boyBody, 0, 1.05, 0);
@@ -415,8 +441,8 @@ export function createCouple(dressColor) {
   addBoyHair(boyHead, boyHairMat, boyHairLightMat, 0.235);
   const boyBlinks = addBoyFace(boyHead, skinMat);
   // Neck, a white collar with a pink bow tie, a dark vest with gold buttons, lapels and a belt
-  const boyShirtMat = physMat({ color: CHAR.shirt, roughness: 0.48, sheen: 0.4, sheenColor: new THREE.Color('#ffffff'), map: clothWeave('tweed', 8) });
-  const vestMat = physMat({ color: CHAR.vest, roughness: 0.55, sheen: 0.7, sheenColor: new THREE.Color(CHAR.coatLight), sheenRoughness: 0.45, map: clothWeave('tweed', 6), normalMap: surfaceNormal('tweed', 5), normalScale: new THREE.Vector2(0.45, 0.45) });
+  const boyShirtMat = physMat({ color: guest ? GUEST_LOOK.him.shirt : CHAR.shirt, roughness: 0.48, sheen: 0.4, sheenColor: new THREE.Color('#ffffff'), map: guest ? null : clothWeave('tweed', 8) });
+  const vestMat = physMat({ color: guest ? GUEST_LOOK.him.tie : CHAR.vest, roughness: 0.55, sheen: 0.7, sheenColor: new THREE.Color(CHAR.coatLight), sheenRoughness: 0.45, map: guest ? null : clothWeave('tweed', 6), normalMap: guest ? null : surfaceNormal('tweed', 5), normalScale: new THREE.Vector2(0.45, 0.45) });
   const lapelMat = physMat({ color: '#232a49', roughness: 0.65, sheen: 0.5, sheenColor: new THREE.Color('#5d6b9e'), map: clothWeave('tweed', 10) });
   const goldBtnMat = physMat({ color: CHAR.gold, metalness: 1, roughness: 0.2, clearcoat: 0.4 });
   const beltMat = physMat({ color: CHAR.belt, roughness: 0.45, clearcoat: 0.35, clearcoatRoughness: 0.4, normalMap: surfaceNormal('tweed', 12), normalScale: new THREE.Vector2(0.3, 0.3) });
@@ -426,15 +452,27 @@ export function createCouple(dressColor) {
     const collar = part(new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.035, 0.02), boyShirtMat), boyBody, side * 0.065, 1.48, 0.2);
     collar.rotation.z = side * -0.5;
   });
-  [-1, 1].forEach((side) => {
-    const wing = part(new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.09, 10), bowTieMat), boyBody, side * 0.045, 1.43, 0.25);
-    wing.rotation.z = side * Math.PI / 2;
-  });
-  part(new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 8), bowTieMat), boyBody, 0, 1.43, 0.25);
-  part(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.42, 0.04), vestMat), boyBody, 0, 1.15, 0.262);
-  [1.22, 1.12, 1.02].forEach((y) => {
-    part(new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 8), goldBtnMat), boyBody, 0, y, 0.29);
-  });
+  if (guest) {
+    // A tie: one flat blade down the front of the shirt, from the collar to the belt.
+    const tieMat = physMat({ color: GUEST_LOOK.him.tie, roughness: 0.4, sheen: 0.6, sheenColor: new THREE.Color('#5b6478') });
+    const knot = part(new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.045, 0.03), tieMat), boyBody, 0, 1.44, 0.25);
+    knot.rotation.x = 0.1;
+    const blade = part(new THREE.Mesh(new THREE.BoxGeometry(0.055, 0.34, 0.02), tieMat), boyBody, 0, 1.26, 0.265);
+    blade.rotation.x = 0.04;
+  } else {
+    [-1, 1].forEach((side) => {
+      const wing = part(new THREE.Mesh(new THREE.ConeGeometry(0.04, 0.09, 10), bowTieMat), boyBody, side * 0.045, 1.43, 0.25);
+      wing.rotation.z = side * Math.PI / 2;
+    });
+    part(new THREE.Mesh(new THREE.SphereGeometry(0.018, 10, 8), bowTieMat), boyBody, 0, 1.43, 0.25);
+  }
+  // The waistcoat with its three gold buttons is the family's boy; a guest's jacket is closed over his shirt.
+  if (!guest) {
+    part(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.42, 0.04), vestMat), boyBody, 0, 1.15, 0.262);
+    [1.22, 1.12, 1.02].forEach((y) => {
+      part(new THREE.Mesh(new THREE.SphereGeometry(0.014, 10, 8), goldBtnMat), boyBody, 0, y, 0.29);
+    });
+  }
   [-1, 1].forEach((side) => {
     const lapel = part(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.3, 0.03), lapelMat), boyBody, side * 0.11, 1.25, 0.27);
     lapel.rotation.z = side * -0.35;
@@ -484,12 +522,15 @@ export function createCouple(dressColor) {
       pocket.rotation.z = side * 0.06;
       part(new THREE.Mesh(new THREE.SphereGeometry(0.013, 8, 6), brass), boyBody, side * 0.15, 0.755, 0.262);
     });
-    // shoulder epaulettes, so the silhouette has a corner at each shoulder
-    [-1, 1].forEach((side) => {
-      const ep = part(new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.02, 0.1), coatTrim), boyBody, side * 0.2, 1.335, 0.02);
-      ep.rotation.z = side * -0.28;
-      part(new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6), brass), boyBody, side * 0.265, 1.363, 0.02);
-    });
+    // shoulder epaulettes, so the silhouette has a corner at each shoulder -- the family's boy only: a suit
+    // has a plain shoulder.
+    if (!guest) {
+      [-1, 1].forEach((side) => {
+        const ep = part(new THREE.Mesh(new THREE.BoxGeometry(0.15, 0.02, 0.1), coatTrim), boyBody, side * 0.2, 1.335, 0.02);
+        ep.rotation.z = side * -0.28;
+        part(new THREE.Mesh(new THREE.SphereGeometry(0.014, 8, 6), brass), boyBody, side * 0.265, 1.363, 0.02);
+      });
+    }
     // vent seams at the back, and a half belt across the back of the coat
     part(new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.035, 0.02), coatTrim), boyBody, 0, 0.86, -0.262);
     [-1, 1].forEach((side) => {
@@ -881,7 +922,11 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
     });
   }
 
+  // `color` is a colour, or nothing. Nothing means "leave her as she was built": a guest's dress colour comes
+  // from GUEST_LOOK, and every caller that used to repaint her now passes nothing for a guest (see setHerDress()
+  // in main.js). Ignoring an empty value here is the belt to that braces: no stored colour can reach her.
   function setDress(color) {
+    if (!color) return;
     dressMat.color.set(color);
   }
 

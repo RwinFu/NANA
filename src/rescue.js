@@ -4,6 +4,7 @@
 // onDone() is called once the game is won (or skipped); the intro plays after it.
 
 import { sfx } from './sfx.js';
+import { assetUrl } from './guest.js';
 import { CAT_APPEARANCE } from './cat-appearance.js';
 import { followHero, princessPose } from './princess-animation.js';
 import { VICTORY_WALK_START, VICTORY_GATE_CUE, VICTORY_EXIT, PORTAL_ZOOM_START, portalCamera, portalCharacterOpacity, ROCK_WARNING, ledgeX, helpAfterLoss } from './rescue-timing.js';
@@ -43,8 +44,8 @@ const CAT_STYLE = {
   ani: { ...CAT_APPEARANCE.ani, name: 'آنی' },
 };
 const CAT_IMAGES = {
-  pastil: loadImage(`${(import.meta.env?.BASE_URL || '/')}cats/pastil.jpg`),
-  ani: loadImage(`${(import.meta.env?.BASE_URL || '/')}cats/ani.jpg`),
+  pastil: loadImage(assetUrl('cats/pastil.jpg')),
+  ani: loadImage(assetUrl('cats/ani.jpg')),
 };
 const FONT = '"Vazirmatn Variable", Vazirmatn, sans-serif';
 
