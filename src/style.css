@@ -1273,3 +1273,29 @@ dialog.video-sheet .video-frame {
   dialog.video-sheet[open] { grid-template-columns: 1fr; gap: 20px; }
   .video-frame video { max-height: 46vh; }
 }
+
+/* The A/B switch for the frame-rate work (src/perf.js). Only on screen when a URL asks for it. */
+.perf-badge {
+  position: fixed;
+  top: 10px;
+  left: 10px;
+  z-index: 40;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 7px 11px;
+  border: 1px solid var(--faint);
+  border-radius: 12px;
+  background: rgba(20, 16, 38, 0.86);
+  color: var(--cream);
+  font-size: 12px;
+  line-height: 1;
+  direction: rtl;
+}
+
+.perf-badge a {
+  color: var(--lamp);
+  text-decoration: none;
+  border-bottom: 1px solid currentColor;
+  padding-bottom: 2px;
+}

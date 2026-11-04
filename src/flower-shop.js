@@ -1,6 +1,7 @@
 import * as THREE from 'three';
 import { surfaceNormal } from './surface.js';
 import { outdoorNormal } from './outdoor-textures.js';
+import { markDynamic } from './merge-static.js';
 
 // The flower shop at the far end of the paved walk: the square in front of the town gate, on its
 // west (left) side as you come down the lane.
@@ -431,6 +432,7 @@ export function buildFlowerShop(scene, track) {
   [-1, 1].forEach((side) => {
     const lantern = new THREE.Mesh(new THREE.SphereGeometry(0.1, 12, 10), lanternGlow);
     lantern.position.set(side * (half + 0.07), 2.42, 0.06);
+    markDynamic(lantern); // it flickers: see update()
     group.add(lantern);
     lanterns.push(lantern);
     const roof = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.11, 10), gold);

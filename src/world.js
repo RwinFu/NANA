@@ -12,6 +12,8 @@ import { outdoorNormal } from './outdoor-textures.js';
 import { roomFrameSlot, hallFrameSlot } from './room-frame-layout.js';
 import { createGardenGrass } from './garden-grass.js';
 import { gateGreeting, GATE_TRIGGER } from './town-night.js';
+import { perf } from './perf.js';
+import { mergeStaticMeshes, markDynamic } from './merge-static.js';
 import { createVideoPlayback, shouldPlayVideo } from './video-screen.js';
 import { skyLight, horizonColor } from './night-light.js';
 import { castleStone, hallInterior } from './palette.js';
@@ -191,6 +193,9 @@ function buildDoorPair({ scene, track, centre, rotY, halfWidth, spring, swing = 
   [-1, 1].forEach((side) => {
     const hinge = new THREE.Group();
     hinge.position.set(side * R, 0, 0);
+    // The leaf swings, and its trims are laid almost flush on its face: welding them would change which
+    // surface wins the depth test. A few dozen draw calls; the leaf keeps its own meshes.
+    markDynamic(hinge);
     group.add(hinge);
     leaves.push({ hinge, side });
 
@@ -1080,6 +1085,7 @@ export function buildWorld(scene, camera) {
     stone.scale.set(0.78 + 0.15 * (0.5 + 0.5 * Math.sin(i * 2.4)), 1,
       0.75 + 0.23 * (0.5 + 0.5 * Math.cos(i * 1.7)));
     stone.rotation.y = Math.sin(i * 2.3) * 0.5;
+    markDynamic(stone); // its own emissive lights up underfoot: see createStoneGlint
     scene.add(stone);
     stoneMeshes.push(stone);
   }
@@ -1116,6 +1122,7 @@ export function buildWorld(scene, camera) {
       const leaf = new THREE.Mesh(leafGeo, mat);
       leaf.position.set(dx, dy, dz);
       leaf.scale.setScalar(s * 1.2);
+      markDynamic(leaf); // it sways on its own: see update()
       tree.add(leaf);
       swayingLeaves.push({ leaf, phase: i * 1.3 + dx, baseX: dx });
     });
@@ -1877,8 +1884,15 @@ export function buildWorld(scene, camera) {
     roomVideo.remove();
   }
 
+  // Fewer draw calls, the same picture (see src/perf.js and merge-static.js). Nothing added after this
+  // point -- the couple, the cats, the decor, the envelope -- is welded: all of it is animated. `?perf=0`
+  // builds the scene the old way, one mesh at a time, so the two can be compared.
+  let mergedCalls = 0;
+  if (perf.merge) mergedCalls = mergeStaticMeshes(scene);
+
   return {
     frames,
+    get mergedDrawCalls() { return mergedCalls; },
     // Every photo is already downloading, and so is the clip.
     photos: {
       get videoStarted() { return roomVideoStarted; },

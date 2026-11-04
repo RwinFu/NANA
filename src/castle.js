@@ -3,6 +3,7 @@ import { castleStone } from './palette.js';
 import { stoneNormal, giltNormal, leadedGlass } from './architecture.js';
 import { stoneMaterial, tileMaterial, boxUV, cylinderUV, coneUV, TILE } from './castle-stone.js';
 import { LAYOUT } from './world.js';
+import { markDynamic } from './merge-static.js';
 
 // The front of the house is a princess castle, in the spirit of a storybook castle:
 // a tall central keep with a spire and a rose window, two tall flanking towers, two low outer
@@ -168,6 +169,7 @@ export function buildCastle(scene, track) {
     pole.userData.skip = true;
     const flag = track(new THREE.Mesh(new THREE.PlaneGeometry(w, w * 0.45, 6, 1), flagMat));
     flag.position.set(x + w / 2, y + 1.05, z);
+    markDynamic(flag); // it flaps: see update()
     scene.add(flag);
     pennants.push({ mesh: flag, base: flag.position.clone(), phase: pennants.length * 0.9 });
   };
@@ -408,6 +410,7 @@ export function buildCastle(scene, track) {
       const knob = new THREE.Mesh(new THREE.SphereGeometry(0.03, 8, 6), gold);
       knob.position.set(side * 0.34, -0.55, 0.05);
       pivot.add(knob);
+      markDynamic(pivot); // the leaf swings on this pivot: see update()
       shutters.push({ pivot, side, phase: i * 0.8 + (side > 0 ? 0.5 : 0) });
     });
   });
@@ -426,6 +429,7 @@ export function buildCastle(scene, track) {
     // banner: rose cloth with a gold rod at the top and a gold star in the middle
     const cloth = track(new THREE.Mesh(new THREE.PlaneGeometry(0.85, 2.6, 6, 10), bannerMat));
     cloth.position.set(x, 5.5, 0.62);
+    markDynamic(cloth); // it sways: see update()
     scene.add(cloth);
     add(new THREE.CylinderGeometry(0.03, 0.03, 1.0, 8), gold, x, 6.84, 0.66).rotation.z = Math.PI / 2;
     add(new THREE.OctahedronGeometry(0.16, 0), gold, x, 5.5, 0.66);
@@ -498,6 +502,7 @@ export function buildCastle(scene, track) {
       // three shared materials and one shared triangle, so a whole row of bunting costs little
       const flag = new THREE.Mesh(flagGeo, flagMats[i % 3]);
       flag.position.set(x, y, row.z);
+      markDynamic(flag); // it lifts and drops: see update()
       scene.add(flag);
       flags.push({ mesh: flag, baseY: y, phase: rowIndex * 1.3 + i * 0.5 });
     }
@@ -523,6 +528,7 @@ export function buildCastle(scene, track) {
         const t = i / n;
         const bulb = new THREE.Mesh(bulbGeo, bulbMat);
         bulb.position.set(row.from + (row.to - row.from) * t, row.y - Math.sin(Math.PI * t) * row.sag - 0.07, row.z);
+        markDynamic(bulb); // it twinkles: see update()
         scene.add(bulb);
         bulbs.push({ mesh: bulb, baseY: bulb.position.y, phase: i * 0.7 });
       }
@@ -569,9 +575,11 @@ export function buildCastle(scene, track) {
     const balloon = new THREE.Mesh(balloonGeo, mat);
     balloon.scale.set(1, 1.18, 1);
     balloon.position.set(x, y, z);
+    markDynamic(balloon); // it bobs, and its knot follows: see update()
     scene.add(balloon);
     const knot = new THREE.Mesh(new THREE.ConeGeometry(0.06, 0.1, 8), mat);
     knot.position.set(x, y - 0.34, z);
+    markDynamic(knot);
     scene.add(knot);
     balloons.push({ mesh: balloon, knot, base: new THREE.Vector3(x, y, z), phase: i * 0.9 });
   });
