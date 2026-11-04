@@ -1884,9 +1884,9 @@ export function buildWorld(scene, camera) {
     roomVideo.remove();
   }
 
-  // Opt-in frame-rate experiment (see src/perf.js). Off unless the URL asks: with no parameter the world
-  // is built exactly as it always was. Nothing added after this point -- the couple, the cats, the decor,
-  // the envelope -- is welded: all of it is animated.
+  // Fewer draw calls, the same picture (see src/perf.js and merge-static.js). Nothing added after this
+  // point -- the couple, the cats, the decor, the envelope -- is welded: all of it is animated. `?perf=0`
+  // builds the scene the old way, one mesh at a time, so the two can be compared.
   let mergedCalls = 0;
   if (perf.merge) mergedCalls = mergeStaticMeshes(scene);
 

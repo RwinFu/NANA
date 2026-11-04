@@ -1,46 +1,46 @@
-// The frame-rate experiments, behind one switch, in the preview only.
+// The frame-rate work, and the switch that turns it off.
 //
-// Nothing changes unless the URL asks for it, so the game as shipped is untouched:
+// The game ships with the weld on (see merge-static.js): the world is built from two thousand small
+// meshes, each one a draw call, and welding the static ones per material takes roughly a quarter of the
+// draw calls out of the frame without moving a vertex. It is on because it is the fix, not an experiment.
 //
-//   (no parameter)  the game exactly as it has always been
-//   ?perf=lights    folds the hall's chandeliers (see fewer-lights.js)
-//   ?perf=merge     welds static world meshes (see merge-static.js)
-//   ?perf=both      both
-//   ?perf=0         the plain game, said out loud
+// The switch is there so the two builds can still be compared, by eye, whenever anyone doubts it:
 //
-// The URL carries the choice so it survives a reload and can be shared, and a corner badge says which
-// build is on screen and links to the other one.
+//   (no parameter)  the weld, as shipped
+//   ?perf=0         the plain scene, every mesh on its own -- the old build
+//   ?perf=merge     the same as no parameter, said out loud
+//
+// A link keeps every other parameter, so `?pref=...` style links elsewhere in the game survive.
+// Read without assuming a browser: the tests import this module in Node, where there is no window.
 
-// Read without assuming a browser: these modules are imported by the tests in Node, where there is no
-// window, and there the answer is simply "off".
 const search = typeof window !== 'undefined' && window.location ? window.location.search : '';
 const choice = (new URLSearchParams(search).get('perf') || '').toLowerCase();
 
 export const perf = {
-  lights: choice === 'lights' || choice === 'both',
-  merge: choice === 'merge' || choice === 'both',
-  get any() { return this.lights || this.merge; },
+  merge: choice !== '0',
+  // true only when a parameter overrode the default, which is when the badge is worth showing
+  overridden: choice === '0',
 };
 
-// The link that would turn a build on or off, keeping every other parameter as it is.
-export function perfHref(lights, merge) {
-  const next = new URLSearchParams(window.location.search);
-  if (!lights && !merge) next.delete('perf');
-  else next.set('perf', lights && merge ? 'both' : lights ? 'lights' : 'merge');
+// The link that would build the scene the other way, keeping every other parameter as it is.
+export function perfHref(merge) {
+  const next = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+  if (merge) next.delete('perf');
+  else next.set('perf', '0');
   const query = next.toString();
-  return `${window.location.pathname}${query ? `?${query}` : ''}`;
+  const path = typeof window !== 'undefined' ? window.location.pathname : '/';
+  return `${path}${query ? `?${query}` : ''}`;
 }
 
-// A corner badge, only while an experiment is on: it names the build and offers the way back.
+// A corner badge, only while the URL overrides the shipped build: it says so and offers the way back.
 export function showPerfBadge() {
-  if (!perf.any) return;
-  const label = perf.lights && perf.merge ? 'لامپ کمتر + مش یکجا' : perf.lights ? 'لامپ کمتر' : 'مش یکجا';
+  if (!perf.overridden) return;
   const el = document.createElement('div');
   el.className = 'perf-badge';
   const text = document.createElement('span');
-  text.textContent = `حالت آزمایشی: ${label}`;
+  text.textContent = 'حالت مقایسه: بدون یکی‌سازی مش‌ها';
   const link = document.createElement('a');
-  link.href = perfHref(false, false);
+  link.href = perfHref(true);
   link.textContent = 'برگشت به حالت عادی';
   el.append(text, link);
   document.body.appendChild(el);
