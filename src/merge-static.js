@@ -124,6 +124,12 @@ function buildConflictTest(meshes) {
   };
 }
 
+// A branch that is animated as a whole. `markDynamic` covers the builders that know they animate their
+// own parts; this catches a group a caller moves from outside, which is how the paper lanterns drift.
+function isAnimating(object) {
+  return !!(object.userData && object.userData.animating);
+}
+
 // Weld every eligible sibling group under `root`; returns how many draw calls were removed.
 export function mergeStaticMeshes(root, { keepMaterials = new Set(), maxRadius = Infinity } = {}) {
   if (!root) return 0;
@@ -159,6 +165,12 @@ function mergeChildrenOf(parent, keepMaterials, inConflict, maxRadius) {
     // A weld that sprawls over the whole castle is one draw call but a bad one: the pieces inside it can
     // no longer be culled on their own, so a rasterizer shades far more of the screen than before.
     if (merged.geometry.boundingSphere.radius > maxRadius) continue;
+    // A scene-graph guard: a group whose own transform is animated (a lantern that drifts and fades, a
+    // seller who sways) must not be welded at all. Its parts' world placement is copied here, so moving
+    // the group afterwards would move only the parts that stayed behind -- the frame that was born 16:9
+    // and never learned the clip's own shape. The parts are marked at their source, but the weld refuses
+    // the group as well, so the next such group cannot quietly break the picture.
+    if (isAnimating(parent)) continue;
     parent.add(merged);
     for (const part of list) parent.remove(part);
     // Geometries and the shared material may still be used by a mesh that stayed; world.dispose() owns them.

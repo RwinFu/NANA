@@ -520,6 +520,7 @@ export function buildFlowerShop(scene, track) {
     // one of each colour, all five sold out before the shop says it is empty
     const rose = makeRose({ petalColor: colour.petal, ribbon: colour.ribbon });
     rose.rotation.z = 0.08 * (i % 2 ? 1 : -1);
+    markDynamic(rose); // a sold rose is hidden, and the rest sway: see refresh() and update()
     group.add(rose);
     rose.userData.spot = { x: spot.x, y: SHOP.counterY + 0.1, z: 0.12 };
     rose.position.set(spot.x, SHOP.counterY + 0.1, 0.12);
@@ -554,6 +555,7 @@ export function buildFlowerShop(scene, track) {
   const seller = makeSeller(track);
   seller.group.position.set(SHOP.seller.x, 0, SHOP.seller.z);
   seller.group.rotation.y = Math.PI; // facing the counter and the couple
+  markDynamic(seller.group); // she sways and turns her head every frame: see update()
   group.add(seller.group);
 
   // the five roses still to be sold, by index; the sold ones are hidden

@@ -1304,6 +1304,9 @@ export function buildWorld(scene, camera) {
         const jewel = new THREE.Mesh(ornamentGeo, ornamentMat);
         // BoxGeometry is only 0.08 deep: keep the jewel against its front face.
         jewel.position.set(x, y, 0.08);
+        // The corners are placed again, scaled against the photo's own size, once it has loaded:
+        // see applyPhoto. Welded, they would stay at the placeholder's size.
+        markDynamic(jewel);
         frameMesh.add(jewel);
         return { jewel, sideX: Math.sign(x), sideY: Math.sign(y) };
       });
@@ -1346,6 +1349,7 @@ export function buildWorld(scene, camera) {
       );
       // the stem's lower end sits 4 cm inside the frame's top edge, so there is no gap to read
       lampArm.position.set(0, 0.75, 0.075);
+      markDynamic(lampArm); // moved to the frame's top edge once the photo's size is known: see applyPhoto
       group.add(lampArm);
       // the shade: a shallow flared cap over the bulb, the way a gallery light actually looks
       const lampShade = new THREE.Mesh(
@@ -1354,12 +1358,14 @@ export function buildWorld(scene, camera) {
       );
       lampShade.position.set(0, 0.93, 0.13);
       lampShade.rotation.x = -0.45; // tipped down toward the picture
+      markDynamic(lampShade); // moved with the arm once the photo's size is known
       group.add(lampShade);
       const lampHead = new THREE.Mesh(
         track(new THREE.SphereGeometry(0.075, 12, 10)),
         track(new THREE.MeshBasicMaterial({ color: memory.frame.glow, fog: false }))
       );
       lampHead.position.set(0, 0.9, 0.15);
+      markDynamic(lampHead); // it pulses, and its place on the frame is set once the photo's size is known
       group.add(lampHead);
       const warmGlow = new THREE.Color(memory.frame.glow).lerp(new THREE.Color('#ffd7a6'), 0.8);
       const wash = new THREE.Sprite(glowAdd(warmGlow, 0.20));
@@ -1642,6 +1648,10 @@ export function buildWorld(scene, camera) {
     new THREE.MeshBasicMaterial({ map: videoTex, toneMapped: false })
   );
   const screenFrame = new THREE.Mesh(unitBox, gold);
+  // The frame is sized from the clip's own proportions, which are not known until its metadata lands,
+  // and the poster is swapped in later: both are posed after the world is built, so both keep their own
+  // mesh. (Welded into the shared gold material, the frame would keep the 16:9 it was born with.)
+  markDynamic(screenFrame);
   screen.position.set(x0 + 0.12, videoY, cz); // in front of its frame
   screen.rotation.y = Math.PI / 2; // face into the room
   // A still picture in front of the screen until the first video frame is ready, so the gold
@@ -1650,6 +1660,7 @@ export function buildWorld(scene, camera) {
     track(new THREE.PlaneGeometry(1, 1)),
     track(new THREE.MeshBasicMaterial({ transparent: true, toneMapped: false }))
   );
+  markDynamic(posterMesh);
   posterMesh.position.set(x0 + 0.13, videoY, cz);
   posterMesh.rotation.y = Math.PI / 2;
   posterMesh.visible = false;
