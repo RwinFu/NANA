@@ -9,6 +9,7 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { allMemories, defaults, letterParagraphs, soloVideo } from './memories.js';
 import { textFor } from './memory-text.js';
 import { createStore, formatNumber } from './state.js';
+import { showPerfBadge } from './perf.js';
 import { buildWorld, LAYOUT } from './world.js';
 import { createCouple } from './characters.js';
 import { createEnvelope } from './envelope.js';
@@ -1338,6 +1339,9 @@ function onResize() {
 }
 window.addEventListener('resize', onResize);
 
+// The A/B switch for the frame-rate work (see src/perf.js). It does nothing unless the URL asks for it.
+showPerfBadge();
+
 // ---------- adaptive resolution --------------------------------------------
 
 function adaptQuality(dt) {
@@ -1493,5 +1497,7 @@ showHowTo({
 
 // Dev-only hook for automated checks
 if (import.meta.env.DEV) {
-  window.__home = { audio, controls, camera, isSolid, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), hero: () => hero, cats: () => cats, footprints: () => footprints };
+  // `scene`, `renderer` and `world` are here for measurements taken from outside the page (the same
+  // reason the rest of this hook exists): a frame-rate change has to be proved, not assumed.
+  window.__home = { audio, controls, camera, isSolid, store, openMemory, openFinale, start: () => dom.setup.requestSubmit(), hero: () => hero, cats: () => cats, footprints: () => footprints, scene: () => scene, renderer: () => renderer, world: () => world };
 }

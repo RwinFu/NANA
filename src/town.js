@@ -9,6 +9,7 @@ import {
   PLAZA, GATE, CLOCK_TOWER, TOWN_HOUSES,
   clockHandAngles, isWindowLit, WINDOW_UPDATE_MS, WINDOWS_PER_UPDATE,
 } from './town-night.js';
+import { markDynamic } from './merge-static.js';
 
 // The town beyond the castle: a walled old town of stone houses, round towers and a clock tower,
 // with the castle's stone and rose-and-gold roofs. Warm windows glow in the night, and paper
@@ -327,6 +328,7 @@ export function buildTown(scene, track) {
       geo.translate(0, -length / 2 + 0.08, 0);
       const hand = new THREE.Mesh(track(geo), gold);
       hand.position.set(t.x, CLOCK_TOWER.dialY, faceZ + z);
+      markDynamic(hand); // the clock keeps real time: see refreshClock()
       scene.add(hand);
       return hand;
     };
