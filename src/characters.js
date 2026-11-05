@@ -572,6 +572,7 @@ export function createCouple(dressColor) {
   // Place the inner arm from the boy's shoulder to his hand (in boy-local space). The hand hangs
   // by his side and swings with the stride, or reaches for her hand while they hold hands.
   function stretchInnerArm(hold, s, walk) {
+    if (alone) hold = 0;
     root.updateMatrixWorld(true);
     handL.getWorldPosition(handWorld);
     boy.worldToLocal(reachLocal.copy(handWorld));
@@ -627,12 +628,21 @@ export function createCouple(dressColor) {
   let rootReady = false;
   // +1 puts him beside her right hand, -1 beside his left. -1 is a guest who walks in as the boy (setSwap).
   let side_sign = 1;
+  // A guest walks in alone: the second character is hidden and its place beside her is emptied (setSwap). The
+  // family's house has the two of them, so this is false for it and every line below that reads it is a no-op.
+  let alone = false;
   // Where the second character stands, a step behind and to one side. Written once here and looked at every
   // frame, so a swap made after this line (and after the model is built) is picked up on the next frame.
   const offset = new THREE.Vector3(-FOLLOW_SIDE, 0, -FOLLOW_BACK);
   function sideOf(back, hold, sit) {
     offset.x = side_sign * -THREE.MathUtils.lerp(FOLLOW_SIDE, 0.75, hold);
     offset.z = -back * (1 - sit);
+    // Alone, he is put level with her and very close: a hidden character still has to be *somewhere*, and this
+    // is the one place that cannot be seen even if it turned out to be in the way.
+    if (alone) {
+      offset.x = 0;
+      offset.z = 0;
+    }
     return offset;
   }
   let phase = 0; // stride phase: advances with the distance the couple walks, so feet do not slide
@@ -755,8 +765,11 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
     // her and a step behind, and the moment they walk he comes level with her, so his walk -- his own face
     // turned to the way they are going -- is the pair walking side by side instead of one pair of feet
     // behind the other. The dances own their own place (m.phi), so it is only the walk this moves.
-    const side = side_sign * THREE.MathUtils.lerp(FOLLOW_SIDE, 0.75, holdAmount);
-    const back = THREE.MathUtils.lerp(FOLLOW_BACK, guest ? FOLLOW_BACK_WALKING : FOLLOW_BACK, amount) * (1 - holdAmount) * (1 - sitAmount);
+    // Alone, the second character is the one the camera is looking at: its offset from the root is zero, so the
+    // character the guest chose stands exactly where the pair's middle was, under the same camera.
+    const lone = alone ? 0 : 1;
+    const side = side_sign * lone * THREE.MathUtils.lerp(FOLLOW_SIDE, 0.75, holdAmount);
+    const back = lone * THREE.MathUtils.lerp(FOLLOW_BACK, guest ? FOLLOW_BACK_WALKING : FOLLOW_BACK, amount) * (1 - holdAmount) * (1 - sitAmount);
     if (!rootReady) {
       prevRoot.copy(rootPos);
       boyWorld.copy(rootPos).add(sideOf(back, holdAmount, sitAmount).clone().applyAxisAngle(up, yaw));
@@ -785,6 +798,7 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
   }
 
   function animate(dt, t, moving, airborne = false) {
+    if (alone) { holding = false; danceId = -1; }
     const step = Math.min(dt, 0.05);
     // distance walked since the last frame (ignores large jumps such as teleports)
     root.getWorldPosition(rootPos);
@@ -893,8 +907,9 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
         THREE.MathUtils.lerp(0.12 + Math.sin(fw) * 0.14 * amount * walk + Math.sin(fi) * 0.14 * m.feetAmp * d, 0.55, sitAmount),
       );
     });
-    // Her arm on his side: hangs by default, reaches for his hand when holding, and takes the dance pose
-    arms[0].rotation.x = Math.sin(phase) * 0.04 * amount * walk + armX * d;
+    // Her arm on his side: hangs by default, reaches for his hand when holding, and takes the dance pose. With
+    // nobody there it turns in a little, holding the rose out in front of her instead of out to one side.
+    arms[0].rotation.x = Math.sin(phase) * 0.04 * amount * walk + armX * d + 0.16 * (alone ? 1 : 0);
     arms[0].rotation.z = THREE.MathUtils.lerp(THREE.MathUtils.lerp(-0.12, -0.6, holdAmount), armZ, d) - 0.35 * air + turnSwing * 0.8;
     arms[1].rotation.x = -s * 0.35 * amount * walk * (1 - 0.6 * flowerPose) + 0.15 * idle - 0.15 * d * Math.sin(fd) + 0.1 * flowerPose;
     // With flowers in her hand the arm swings out and forward instead of brushing the skirt.
@@ -943,22 +958,34 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
     });
   }
 
-  // Walk in as the boy. The guest's start screen asks which of the two the visitor is; the family's house never
-  // asks, so this is a no-op there (it is only reached with `guest` true).
+  // A guest walks in alone. The start screen asks which of the two the visitor is, and the house keeps that one
+  // and puts the other away: she walks on her own, or he does. The family's house never asks and never hides
+  // anybody, so nothing here is reached for it (it only runs with `guest` true).
   //
-  // Only two things change: which way the second character stands (+1 beside her right hand, -1 beside his
-  // left), and who carries the role the house follows. Everything else -- the walk, the hands, the dances, the
-  // bench, the faces -- is the same rig from the same side of it, which is the point: two characters already
-  // walk together in here.
-  function setSwap(on) {
-    side_sign = on ? -1 : 1;
-    leadName = on ? 'boy' : 'princess';
-    secondName = on ? 'princess' : 'boy';
-    // Her own body is mirrored down the x axis, which moves the hand he holds and the flowers to the other
-    // side in one line: her arms are numbered, not sided -- arms[0] reaches for his hand, arms[1] carries the
-    // bouquet -- and the hand and the bouquet are children of them. Three.js flips the winding for a negative
+  // The rig is always the same couple; `alone` just stops drawing the second character and mirrors her body so
+  // that the hand reaching out into empty air becomes the hand carrying her flowers, on the side away from him.
+  // Emptying the second character's place also puts out everything that was aimed at the pair -- the waves, the
+  // dances -- rather than leaving her dancing with nobody.
+  function setSwap(asHim) {
+    alone = true;
+    // The one left in front: the boy when the guest is him, her otherwise. The other one is not built a second
+    // time -- it is hidden, and its place beside the one who stayed is emptied.
+    boy.visible = asHim;
+    body.visible = !asHim;
+    // Her own body is mirrored down the x axis, which moves the hand he held and the flowers to the other side
+    // in one line: her arms are numbered, not sided -- arms[0] reaches for his hand, arms[1] carries the bouquet
+    // -- and the hand and the bouquet are children of them. Three.js flips the winding for a negative
     // determinant on its own, so nothing here shows an inside-out sleeve.
-    body.scale.set(side_sign * PRINCESS_SCALE, PRINCESS_SCALE, PRINCESS_SCALE);
+    body.scale.set((asHim ? -1 : 1) * PRINCESS_SCALE, PRINCESS_SCALE, PRINCESS_SCALE);
+    leadName = asHim ? 'boy' : 'princess';
+    secondName = asHim ? 'princess' : 'boy';
+    // Nothing to hold, nobody to dance with: the pair's own states are cleared, and stay cleared (see the guard
+    // in animate()), so a key press or a button cannot bring the empty place back into the picture.
+    holding = false;
+    danceId = -1;
+    holdAmount = 0;
+    danceAmount = 0;
+    waveAmount = 0;
   }
 
   // `color` is a colour, or nothing. Nothing means "leave her as she was built": a guest's dress colour comes
@@ -985,6 +1012,7 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
   }
 
   function toggleHolding() {
+    if (alone) return false; // there is nobody beside her to take by the hand
     holding = !holding;
     return holding;
   }
@@ -996,6 +1024,7 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
   }
   // Cycles: no dance, then each dance in turn, then no dance again
   function nextDance() {
+    if (alone) return null; // the dances are for two
     danceId += 1;
     if (danceId >= DANCE_NAMES.length) danceId = -1;
     danceT = 0;

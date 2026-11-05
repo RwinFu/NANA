@@ -134,16 +134,24 @@ test('the guest opens on that screen, and the family house opens on its 2-D game
   assert.match(main, /if \(house\.rescue\) \{\s*showHowTo\(/, 'the family\'s house no longer shows its instructions');
 });
 
-test('choosing the boy swaps the two, it does not build a third', () => {
+test('the guest walks the house alone: the one they did not choose is not there', () => {
   const chars = readFileSync(new URL('../src/characters.js', import.meta.url), 'utf8');
-  // The one that matters: her body is mirrored, which moves the hand he holds and her flowers to his side.
-  assert.match(chars, /function setSwap\(on\)[\s\S]{0,900}?body\.scale\.set\(side_sign \* PRINCESS_SCALE/,
-    'the swap does not mirror her');
-  assert.match(chars, /setSwap,/, 'the swap is not on the couple');
-  // And who the house follows moves with the role: the cats read it instead of assuming the names.
-  assert.match(chars, /lead: \(\) => leadName/, 'the couple does not report who is in front');
-  const cats = readFileSync(new URL('../src/cats.js', import.meta.url), 'utf8');
-  assert.match(cats, /'princess' is the character the player walks in front/, 'the cats assume the names');
+  // The one that matters: the second character is hidden, and its place beside her is emptied.
+  assert.match(chars, /function setSwap\(asHim\) \{[\s\S]{0,300}?alone = true;/, 'the swap does not leave them alone');
+  assert.match(chars, /boy\.visible = asHim;/, 'the character the guest did not choose is still drawn');
+  assert.match(chars, /body\.scale\.set\(\(asHim \? -1 : 1\) \* PRINCESS_SCALE/, 'her own body is not turned to face out alone');
+  // And the two things that need a second person are refused by the model itself, not only by the HUD.
+  assert.match(chars, /function toggleHolding\(\) \{\s*if \(alone\) return false;/, 'a lone guest can take nobody by the hand');
+  assert.match(chars, /function nextDance\(\) \{\s*if \(alone\) return null;/, 'a lone guest can dance alone');
+  // The family's house never sets it. Its two calls are both guarded by `house.person`, and the third (the tap
+  // on a card) is built inside a block that only a guest page has.
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  const guarded = [...main.matchAll(/if \(house\.person\) setSceneSwap\(/g)].length;
+  assert.equal(guarded, 2, "the guest's choice is not applied where the two are built and where the walk starts");
+  const calls = [...main.matchAll(/setSceneSwap\(/g)].length - 1; // minus the definition
+  assert.equal(calls, guarded + 1, 'a call to setSceneSwap is not guarded by house.person');
+  // The two buttons are not offered either.
+  assert.match(main, /'#finale-btn', '#letter-btn', '#hold-btn', '#dance-btn'/, 'the hand and the dance are still offered');
 });
 
 test('the guest page answers at /guest in development too', () => {
