@@ -151,7 +151,7 @@ test('the guest walks the house alone: the one they did not choose is not there'
   const calls = [...main.matchAll(/setSceneSwap\(/g)].length - 1; // minus the definition
   assert.equal(calls, guarded + 1, 'a call to setSceneSwap is not guarded by house.person');
   // The two buttons are not offered either.
-  assert.match(main, /'#finale-btn', '#letter-btn', '#hold-btn', '#dance-btn'/, 'the hand and the dance are still offered');
+  assert.match(main, /'#letter-btn', '#hold-btn', '#dance-btn'/, 'the hand and the dance are still offered');
 });
 
 test('the guest page answers at /guest in development too', () => {

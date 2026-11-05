@@ -64,7 +64,6 @@ const dom = {
   prompt: $('#prompt'),
   promptLabel: $('#prompt-label'),
   promptBtn: $('#prompt-btn'),
-  hint: $('#controls-hint'),
   joystick: $('#joystick'),
   curtain: $('#curtain'),
   jump: $('#jump-btn'),
@@ -533,7 +532,9 @@ dom.memory.addEventListener('keydown', (event) => {
 $('#memory-prev').addEventListener('click', () => showMemory(memoryIndex - 1));
 $('#memory-next').addEventListener('click', () => showMemory(memoryIndex + 1));
 
-// Finale
+// Finale: the anniversary note. It has no button of its own any more (the bar's «جشن سالگرد» chip was taken out
+// of the house), so it is not opened by the game itself -- the dialog and this function stay, and the dev hook at
+// the bottom of this file can still show it.
 function openFinale() {
   const s = store.get();
   $('#finale-message').textContent = s.anniversaryMsg;
@@ -1235,7 +1236,6 @@ function cycleDance() {
 dom.holdBtn.addEventListener('click', toggleHold);
 dom.danceBtn.addEventListener('click', cycleDance);
 
-$('#finale-btn').addEventListener('click', () => openFinale());
 $('#letter-btn').addEventListener('click', () => openDialog(dom.letter));
 
 // What the guest house does not have, it does not offer. The anniversary note is somebody's own message and
@@ -1253,7 +1253,7 @@ function hideGuestButtons() {
   [...document.querySelectorAll('#help-dialog .help-list li')].forEach((li) => {
     if (li.textContent.includes('دست') || li.textContent.includes('رقص')) li.hidden = true;
   });
-  ['#finale-btn', '#letter-btn', '#hold-btn', '#dance-btn'].forEach((sel) => {
+  ['#letter-btn', '#hold-btn', '#dance-btn'].forEach((sel) => {
     const btn = $(sel);
     if (btn) btn.hidden = true;
   });
@@ -1365,7 +1365,6 @@ function start(state) {
 
   dom.intro.classList.add('is-leaving');
   dom.hud.hidden = false;
-  dom.hint.hidden = coarse;
   dom.joystick.hidden = !coarse;
   dom.jump.hidden = !coarse;
   window.setTimeout(() => {
