@@ -4,7 +4,7 @@ import * as THREE from 'three';
 // out of the castle after having been inside it.
 //
 // This file is the *story* of that scene, as plain numbers, so the beats can be reasoned about (and
-// tested) without a renderer. The gold itself is built in necklace.js; the flight is in fairy.js; the
+// tested) without a renderer. The necklace itself is built in necklace.js; the flight is in fairy.js; the
 // trigger and the prompts are in main.js. Everything time-related here is measured from the moment the
 // scene starts, in seconds.
 
@@ -57,17 +57,17 @@ export function giftReady({ wasInside, isOutside, alreadyGiven, sceneActive }) {
   return !!wasInside && !!isOutside && !alreadyGiven && !sceneActive;
 }
 
-// Where the necklace ends up on her neck, in the princess's own frame: the gold choker sits at
+// Where the necklace ends up on her neck, in the princess's own frame: the choker she already wears sits at
 // y = 1.68 and the body is scaled as a whole (see characters.js), so the pendant hangs a little under
 // that, on the front of her throat. The chain's own centre is the choker's height. main.js holds the same
 // two numbers as NECK_Y / NECK_Z for placing the group; tests/gift.test.js keeps them in step.
 // Measured off her rig, not guessed. Her neck is a short cone: radius 0.113 at y 1.68 (which is exactly where
-// her built-in gold choker sits, outer edge 0.137) and already 0.21 by y 1.66, where the bodice and its pearl
+// her own choker sits, outer edge 0.137) and already 0.21 by y 1.66, where the bodice and its pearl
 // collar begin. So the necklace has to be *just* outside the choker and a hair below it, and the pendant has
 // to hang forward of the bodice's front face (z ~0.21) or it ends up inside her dress.
 export const NECK = { y: 1.666, pendantY: 1.53, z: 0.15, chainRadius: 0.145 };
 // Where the whole necklace goes when she wears it: the chain's centre, in her *body's* frame (the frame
-// the gold choker is built in, characters.js y = 1.68). One number, used by the flight's landing point and
+// the choker is built in, characters.js y = 1.68). One number, used by the flight's landing point and
 // by the code that mounts it, so the two cannot disagree.
 export const NECK_POSE = { y: NECK.y, z: 0.0 };
 // The necklace's own model is drawn in *her body's* frame, so when it is worn its local scale is 1: her body
@@ -90,7 +90,7 @@ export function necklacePose(t, { boxAt, neckAt, holdAt }) {
   const inAir = giftBeatProgress(t);
   const at = { x: 0, y: 0, z: 0, scale: 1, spin: 0, swing: 0 };
   if (t < 5.4) {
-    // still inside the box: a glint of gold in the dark, so the box reads as "something is in here"
+    // still inside the box: a glint of silver in the dark, so the box reads as "something is in here"
     at.x = boxAt.x;
     at.y = boxAt.y;
     at.z = boxAt.z;
@@ -164,4 +164,4 @@ export const GIFT_LINES = {
 };
 
 // A line for the first time she wears it and walks: the small, afterwards beat.
-export const GIFT_AFTER = 'آویزِ قلبت رو دیدم؛ هر بار برق می‌زنه، یادم می‌افته.';
+export const GIFT_AFTER = 'سنگِ گردنبندت رو دیدم؛ هر بار برق می‌زنه، یادم می‌افته.';

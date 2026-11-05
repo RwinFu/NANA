@@ -153,10 +153,37 @@ test('the necklace never jumps: every frame of the scene moves it a little', () 
 
 // ---------- the props ----------------------------------------------------------
 
-test('the necklace is jewellery: a chain, a heart and a stone, and small', () => {
+test('the necklace is jewellery: a silver chain, a round stone in a setting, and small', () => {
   withCanvas(() => {
     const n = createNecklace((o) => o);
-    assert.ok(n.counts.meshes >= 5 && n.counts.meshes <= 12, `the necklace is ${n.counts.meshes} meshes`);
+    assert.ok(n.counts.meshes >= 5 && n.counts.meshes <= 20, `the necklace is ${n.counts.meshes} meshes`);
+    // A round stone in a setting, not a heart: the pendant is a bezel, four claws, a seat, a bail and the stone.
+    for (const name of ['necklace-bezel', 'necklace-bail', 'necklace-stone', 'necklace-drop']) {
+      assert.ok(n.group.getObjectByName(name), `the pendant has no ${name}`);
+    }
+    const claws = [];
+    n.group.traverse((o) => { if (o.name === 'necklace-claw') claws.push(o); });
+    assert.equal(claws.length, 4, `the setting has ${claws.length} claws`);
+    assert.equal(n.group.getObjectByName('necklace-heart-plate'), undefined, 'the heart-shaped plate is still there');
+    // The stone is round: looking at it you see a circle and not two lobes over a point. It stands face-on (its
+    // table toward the camera), so what has to be equal is its width and its height; how far the cut runs back into
+    // the setting is the depth, and a round brilliant's is a little under two thirds of its width.
+    const gemSize = new THREE.Box3().setFromObject(n.gem).getSize(new THREE.Vector3());
+    assert.ok(Math.abs(gemSize.x - gemSize.y) < 0.004, `the stone is ${gemSize.x.toFixed(3)} across x ${gemSize.y.toFixed(3)} tall`);
+    const depth = gemSize.z / gemSize.x;
+    assert.ok(depth > 0.4 && depth < 0.95, `the stone's cut is ${depth.toFixed(2)} of its width deep`);
+    // The metal is silver: light, and cool rather than warm (blue no lower than red).
+    const metals = [];
+    n.group.traverse((o) => { if (o.isMesh && o.material && o.material.metalness >= 0.9) metals.push(o.material.color); });
+    assert.ok(metals.length >= 2, 'the chain and the setting are metal');
+    // (the colours are sRGB hex, which three.js keeps as it was given them; comparing channels as given is the
+    // only way to say "cool grey" without dragging colour-space conversion into a test)
+    for (const c of metals) {
+      const channels = [c.r, c.g, c.b];
+      assert.ok(Math.min(...channels) > 0.7, `a metal is dark: #${c.getHexString()}`);
+      assert.ok(c.b >= c.r - 0.005, `a metal is warm, not silver: #${c.getHexString()}`);
+      assert.ok(c.b - c.r < 0.15, `a metal is blue: #${c.getHexString()}`);
+    }
     const box = new THREE.Box3().setFromObject(n.group);
     const size = box.getSize(new THREE.Vector3());
     // it must fit on a neck: 30 cm across is a necklace, 3 m across is not
@@ -171,7 +198,7 @@ test('the necklace is jewellery: a chain, a heart and a stone, and small', () =>
   });
 });
 
-test('the necklace sits exactly where her gold choker is', () => {
+test('the necklace sits exactly where her choker is', () => {
   // characters.js puts the choker at y = 1.68 and the body is scaled as a whole, so the necklace's own
   // chain has to be at that same height or it floats above her collar or cuts through her throat.
   // her built-in choker is the torus at y = 1.68 in her body's frame; the necklace sits just under it and
@@ -416,10 +443,10 @@ test('nothing of hers is in front of the necklace, from any shot of the film', a
     return ray.intersectObjects(occluders, false).filter((h) => h.object.visible).length === 0;
   };
 
-  // the three things a viewer must see: the white stone, the heart it is set in, and the chain it hangs from
+  // the three things a viewer must see: the white stone, the silver it is set in, and the chain it hangs from
   const parts = {
     stone: n.group.getObjectByName('necklace-stone').getWorldPosition(new THREE.Vector3()),
-    heart: n.group.getObjectByName('necklace-heart-plate').getWorldPosition(new THREE.Vector3()),
+    bezel: n.group.getObjectByName('necklace-bezel').getWorldPosition(new THREE.Vector3()),
     strand: hero.dressSpace.localToWorld(new THREE.Vector3(0, NECK_POSE.y - 0.05, 0.262)),
   };
   // the film's own shots: from when the camera is out in the open beside her until it starts to hand back
@@ -438,7 +465,23 @@ test('the stone is a white brilliant, not a pink bead', () => {
     const stone = n.group.getObjectByName('necklace-stone');
     assert.ok(stone, 'there is a stone');
     assert.equal(stone.material.color.getHexString(), 'ffffff', 'it is white');
-    assert.ok(stone.material.emissiveIntensity > 0.2, 'and lit from within, so it is not a dull grey chip');
+    // The stone is a *cut* solid: flat facets, each with its own pale cool tint, which is what reads as sparkle at
+    // this size -- so the material must actually read those per-facet colours, and the self-light stays low enough
+    // that the tints are not washed out into one white blob.
+    assert.ok(stone.material.vertexColors, 'the stone carries its facets\' own tints');
+    const facet = stone.geometry.getAttribute('color');
+    assert.ok(facet && facet.count === stone.geometry.attributes.position.count, 'every facet vertex is tinted');
+    // (vertex colours are linear, so these are linear channels: #ffffff is 1 and the palest grey facet is ~0.45)
+    const shades = new Set();
+    for (let i = 0; i < facet.count; i += 1) {
+      const c = [facet.getX(i), facet.getY(i), facet.getZ(i)];
+      assert.ok(Math.max(...c) > 0.4, 'a facet is not dark');
+      assert.ok(c[2] >= c[0] - 0.02, 'a facet is cool white, not warm');
+      assert.ok(c[2] - c[0] < 0.2, 'a facet is grey, not blue');
+      shades.add(c.map((v) => v.toFixed(2)).join(','));
+    }
+    assert.ok(shades.size >= 3, `the facets are all one shade (${shades.size})`);
+    assert.ok(stone.material.emissiveIntensity > 0.03 && stone.material.emissiveIntensity < 0.2, 'and not over-lit');
     assert.ok(stone.material.clearcoat > 0.8 && stone.material.roughness < 0.1, 'cut, not matte');
     // a white gem reads as bright through one hard highlight: check the glint exists and is not tinted
     const glint = n.group.getObjectByName('necklace-glint');
