@@ -29,7 +29,7 @@ import {
 import { giftCamera, giftCameraBlend, keepCameraClear } from './gift-camera.js';
 import { composePostcard, canvasToBlob } from './postcard.js';
 import { createRescueGame, showHowTo } from './rescue.js';
-import { house } from './guest.js';
+import { house, GUEST_AS, GUEST_AS_DEFAULT, GUEST_AS_LABEL } from './guest.js';
 import { createQuality } from './quality.js';
 import { createCats } from './cats.js';
 import { buildDecor, GARDEN_BENCH } from './decor.js';
@@ -53,6 +53,9 @@ const dom = {
   enter: $('#enter-btn'),
   webgl: $('#webgl-error'),
   swatchRow: $('#swatch-row'),
+  swatches: $('#swatches'),
+  people: $('#people'),
+  personRow: $('#person-row'),
   hud: $('#hud'),
   hudSub: $('#hud-subtitle'),
   musicBtn: $('#music-btn'),
@@ -84,6 +87,51 @@ const coarse = window.matchMedia('(pointer: coarse)').matches;
 
 let selectedColor = store.get().avatarColor;
 
+// The guest's start screen: which of the two the visitor is. `house.person` is true only for `/guest`
+// (src/guest.js), and the family's screen never reads it. Not kept in the store: it is not a memory of the
+// house, it is which side of the pair this visit is watched from. `?as=him` (or `?as=her`) can open the page
+// with one of them already chosen, which is handy for a link that goes to one friend in particular.
+const asParam = new URLSearchParams(window.location.search).get('as');
+let selectedPerson = GUEST_AS.includes(asParam) ? asParam : GUEST_AS_DEFAULT;
+
+// A tiny line drawing for each card: a head and shoulders for him, a head and a skirt for her. The same stroke
+// weight as the icon buttons in the HUD, drawn at 48 and scaled by CSS.
+const PERSON_ART = {
+  him: '<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="13" r="6.4" /><path d="M13.4 41.5V32c0-6.4 4.3-10.4 10.6-10.4S34.6 25.6 34.6 32v9.5" /><path d="M24 21.6v19.9" /><path d="M19.6 22.8 24 28.6l4.4-5.8" /></svg>',
+  her: '<svg viewBox="0 0 48 48" aria-hidden="true"><circle cx="24" cy="12.6" r="6.2" /><path d="M24 20.4c-4.8 0-7.4 3.6-8.2 8.6L13.6 41.5h20.8l-2.2-12.5c-.8-5-3.4-8.6-8.2-8.6Z" /></svg>',
+};
+
+if (house.person) {
+  // The two cards. A ring on the one chosen, and the couple in front of the castle is told which way round it
+  // stands before anyone walks (see setSwap in src/characters.js): the choice is visible while it is being made.
+  GUEST_AS.forEach((who) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `person person-${who}`;
+    btn.dataset.who = who;
+    btn.setAttribute('aria-pressed', String(who === selectedPerson));
+    btn.setAttribute('aria-label', GUEST_AS_LABEL[who]);
+    const art = document.createElement('span');
+    art.className = 'person-art';
+    art.setAttribute('aria-hidden', 'true');
+    art.innerHTML = PERSON_ART[who];
+    const name = document.createElement('span');
+    name.className = 'person-name';
+    name.textContent = GUEST_AS_LABEL[who];
+    btn.append(art, name);
+    btn.addEventListener('click', () => {
+      selectedPerson = who;
+      dom.personRow.querySelectorAll('.person').forEach((el) => {
+        el.setAttribute('aria-pressed', String(el.dataset.who === who));
+      });
+      setSceneSwap(who === 'him');
+    });
+    dom.personRow.appendChild(btn);
+  });
+  dom.swatches.hidden = true;
+  dom.people.hidden = false;
+}
+
 SWATCHES.forEach(([color, label]) => {
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -109,6 +157,12 @@ SWATCHES.forEach(([color, label]) => {
 function setHerDress(color) {
   if (!hero) return;
   hero.setDress(house.form ? color : undefined);
+}
+
+// Which way round the couple stands, seen while the choice is still being made: the castle behind the start
+// screen has the two of them in front of it, and choosing the boy swaps their places at once.
+function setSceneSwap(on) {
+  hero?.setSwap?.(on);
 }
 
 // The start screen asks one thing: her dress colour. The names and the two messages are not asked for any
@@ -172,7 +226,6 @@ const camera = new THREE.PerspectiveCamera(
 );
 let world = null;
 let hero = null;
-let photoTick = 0; // seconds since the clip's trigger was last checked
 let cats = null;
 let decor = null;
 let trail = null;
@@ -251,28 +304,10 @@ function beginRescue() {
   // canvas' first idle moment, so they cannot cost the game a frame.
   scheduleWarmUp(() => cats?.warm());
   if (!house.rescue) {
-    // The guest house has no 2-D game: no instructions card, no rescue, no camera flight. The gate is
-    // already there (world.js builds it), so the guest walks straight in. The garage behind the flow is the
-    // same one the rescue ends in, so nothing else has to change.
-    dom.intro.hidden = true;
-    started = true;
-    townVisited = false;
-    audio.unlock();
-    setMusicUi();
-    dom.hudSub.textContent = 'خانه‌ی خاطره‌ها';
-    if (world) world.setDedication(store.get().dedication);
-    setHerDress(store.get().avatarColor);
-    dom.hud.hidden = false;
-    dom.hint.hidden = coarse;
-    dom.joystick.hidden = !coarse;
-    dom.jump.hidden = !coarse;
-    // The HUD's and the help card's buttons for the letter and the anniversary are not offered in a house
-    // that has neither (see hideGuestButtons()).
-    hideGuestButtons();
-    audio.startSong();
-    toast(coarse ? 'با جوی‌استیک پایین صفحه حرکت کن' : 'با W A S D حرکت کن و با E نزدیک قاب‌ها بشو', 4200);
+    openIntro();
     return;
   }
+  // The cats are warm; the gate is the 2-D game.
   rescue = createRescueGame({
     onDone: finishRescue,
     autoStart: true,
@@ -288,6 +323,21 @@ function beginRescue() {
       rescue.state().endT = 0;
     }
   }
+}
+
+// The guest house opens on its start screen, not on a game and not at the gate: the castle's own flight plays
+// (the same one the family's house ends on after their 2-D game), and the one question -- which of the two the
+// visitor is -- comes up over the castle once it has settled. `beginRescue()` is what the first frame reaches,
+// so this is where a guest's visit begins.
+function openIntro() {
+  rescueActive = false;
+  introPlaying = true;
+  introFired = false;
+  introReady = false;
+  introSettled = false;
+  introT0 = clock.elapsedTime;
+  dom.intro.classList.remove('is-ready', 'is-leaving', 'flight-only');
+  dom.intro.hidden = false;
 }
 
 function finishRescue(quick) {
@@ -333,6 +383,10 @@ if (renderer) {
     introFairy.attachGiftBox(giftBox, giftBox.setOpen);
   }
   hero = createCouple(store.get().avatarColor);
+  // One of them is already chosen when the start screen opens (from ?as=, or her by default), so the two in
+  // front of the castle already stand the way the visitor will walk them in. Here, not at the top of the file:
+  // `hero` does not exist until this line, and reading it earlier throws (see tests/startup-order.test.js).
+  if (house.person) setSceneSwap(selectedPerson === 'him');
   syncBouquet(); // hangs her bouquet on her free arm (empty until she buys a rose)
   scene.add(hero.root);
   // The necklace hangs on her *body*, not on her root: `dressSpace` is the group the choker is built in,
@@ -1284,9 +1338,17 @@ function start(state) {
   audio.unlock();
   setMusicUi();
 
-  dom.hudSub.textContent = `از طرف ${state.fromName} برای ${state.toName}`;
+  // The guest house is not theirs: its HUD keeps the line its page gives it, and never their names.
+  if (house.person) dom.hudSub.textContent = 'برای مهمان‌ها';
+  else dom.hudSub.textContent = `از طرف ${state.fromName} برای ${state.toName}`;
   if (world) world.setDedication(state.dedication);
+  // A guest opens on the castle, so the song starts with the visit itself. The family's house starts it at the
+  // gate of their 2-D game, which a guest never plays.
+  if (!house.rescue) audio.startSong();
   setHerDress(state.avatarColor);
+  // Which way round the two walk in. A guest's choice, so it is applied here as well as on the tap that made
+  // it: the second character is beside her right hand unless the visitor chose to walk in as him.
+  if (house.person) setSceneSwap(selectedPerson === 'him');
   fillLetter(state);
   if (envelope) envelope.setNames(state.fromName, state.toName, letterParagraphs);
 
@@ -1492,12 +1554,8 @@ function frame() {
   if (started) updateSparkles(t, dt, 1);
 
   if (started) world.updateDoors(dt, hero.root.position.x, hero.root.position.z);
-  // The photos are all downloading already; the room's clip waits until the couple is near its screen.
-  photoTick += dt;
-  if (started && photoTick > 0.5) {
-    photoTick = 0;
-    world.photos.near({ x: hero.root.position.x, z: hero.root.position.z });
-  }
+  // The photos are all downloading already, and the room's clip plays from the world's own update when the
+  // couple is near its screen (see the video's shouldPlayVideo in src/world.js) -- nothing to tick here.
   updateBouquetPose(dt);
   // The couple stands still while the letter is being opened and read, and so do the effects that
   // follow their feet: they follow the couple's movement, not the camera's.
@@ -1563,7 +1621,7 @@ if (house.rescue) {
     },
   });
 } else {
-  // The guest house opens at the gate: no instructions card, no tap to start, no 2-D game.
+  // The guest house opens on its start screen: no instructions card, no 2-D game, no gate.
   beginRescue();
 }
 

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { isGuest, joinAsset, GUEST_HAS, MAIN_HAS, GUEST_LOOK } from '../src/guest.js';
+import { isGuest, joinAsset, GUEST_HAS, MAIN_HAS, GUEST_LOOK, GUEST_AS, GUEST_AS_LABEL, GUEST_AS_DEFAULT } from '../src/guest.js';
 
 // `/guest` is the house sent to friends: no 2-D rescue game, no letter, no present, and two plainly dressed
 // characters instead of the princess and her boy. These tests hold the three things that could quietly go
@@ -98,4 +98,59 @@ test('her dress is the guest’s own, whatever the visitor’s browser remembers
   assert.doesNotMatch(main, /hero\??\.setDress\(state/, 'main.js still paints the form colour directly');
   assert.doesNotMatch(main, /hero\??\.setDress\(color\)/, 'the swatches still paint directly');
   assert.match(main, /hero\.setDress\(house\.form \? color : undefined\)/, 'setHerDress no longer withholds the colour');
+});
+
+test('the guest is asked which of the two they are, where the family’s house asks for a colour', async () => {
+  // One question, in the same box: a guest is never asked for her dress colour, and the family's house is
+  // never asked which of the two the visitor is.
+  // (the module is imported here without a window, where `guest` is false and `house` is the family's -- so the
+  // guest's own flags are what is checked)
+  assert.equal(GUEST_HAS.form, false, 'a guest is asked for a dress colour');
+  assert.equal(GUEST_HAS.person, true, 'a guest is not asked who they are');
+  assert.equal(MAIN_HAS.form, true, 'the family house lost its dress colours');
+  assert.equal(MAIN_HAS.person, false, 'the family house was given a character choice');
+  assert.deepEqual([...GUEST_AS], ['him', 'her']);
+  assert.equal(GUEST_AS_LABEL.him, 'پسر');
+  assert.equal(GUEST_AS_LABEL.her, 'دختر');
+  assert.ok(GUEST_AS.includes(GUEST_AS_DEFAULT), 'the screen opens with one of them already chosen');
+
+  const guest = readFileSync(new URL('../guest.html', import.meta.url), 'utf8');
+  const main = readFileSync(new URL('../index.html', import.meta.url), 'utf8');
+  // The guest page has the two cards; the family's page does not have them at all.
+  assert.match(guest, /id="people"[\s\S]{0,200}id="person-row"/, 'the guest page has no choice of characters');
+  assert.doesNotMatch(main, /person-row/, 'the family start screen grew a character choice');
+  assert.match(guest, /id="swatches"[^>]*hidden/, 'a guest is still asked for a dress colour');
+  assert.doesNotMatch(main, /id="swatches"[^>]*hidden/, 'the family dress colours are hidden');
+});
+
+test('the guest opens on that screen, and the family house opens on its 2-D game', () => {
+  const main = readFileSync(new URL('../src/main.js', import.meta.url), 'utf8');
+  // The first frame reaches beginRescue(); only a guest is turned into the start screen from there.
+  assert.match(main, /if \(!house\.rescue\) \{\s*openIntro\(\);\s*return;/,
+    'a guest is sent somewhere other than the start screen');
+  // openIntro shows it: the page starts hidden (so the castle is drawn first) and is unhidden here.
+  assert.match(main, /function openIntro\(\)[\s\S]{0,700}?dom\.intro\.hidden = false;/,
+    'the guest start screen is never shown');
+  assert.match(main, /if \(house\.rescue\) \{\s*showHowTo\(/, 'the family\'s house no longer shows its instructions');
+});
+
+test('choosing the boy swaps the two, it does not build a third', () => {
+  const chars = readFileSync(new URL('../src/characters.js', import.meta.url), 'utf8');
+  // The one that matters: her body is mirrored, which moves the hand he holds and her flowers to his side.
+  assert.match(chars, /function setSwap\(on\)[\s\S]{0,900}?body\.scale\.set\(side_sign \* PRINCESS_SCALE/,
+    'the swap does not mirror her');
+  assert.match(chars, /setSwap,/, 'the swap is not on the couple');
+  // And who the house follows moves with the role: the cats read it instead of assuming the names.
+  assert.match(chars, /lead: \(\) => leadName/, 'the couple does not report who is in front');
+  const cats = readFileSync(new URL('../src/cats.js', import.meta.url), 'utf8');
+  assert.match(cats, /'princess' is the character the player walks in front/, 'the cats assume the names');
+});
+
+test('the guest page answers at /guest in development too', () => {
+  // In production it is dist/guest/index.html; in development Vite serves the same entry for every path, but
+  // it does not know `/guest` means the guest page -- and the page decides what it is from the path, not a
+  // query, because that is the link that goes into a story.
+  const vite = readFileSync(new URL('../vite.config.js', import.meta.url), 'utf8');
+  assert.match(vite, /req\.url = '\/guest\.html'/, 'development does not route /guest to the guest page');
+  assert.match(vite, /plugins: \[guestPageInDev\(\)\]/, 'the dev route is not installed');
 });

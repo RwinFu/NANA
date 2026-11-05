@@ -19,7 +19,8 @@ const ARM_R = 0.07;
 const PRINCESS_SCALE = 0.68;
 // The boy walks beside her on her right side (her -x), a little behind, and follows her
 const FOLLOW_SIDE = 0.95;
-const FOLLOW_BACK = 0.45;
+const FOLLOW_BACK = 0.45; // standing still: a step behind her
+const FOLLOW_BACK_WALKING = 0.05; // walking, guest house only: level with her, so the pair walks side by side
 const FOLLOW_RATE = 16; // higher means the boy keeps closer to his spot
 // Distance (in metres) the couple covers in one full stride cycle (two steps)
 const STRIDE = 3.4;
@@ -422,6 +423,12 @@ export function createCouple(dressColor) {
   const boy = new THREE.Group();
   boy.name = 'boy';
   root.add(boy);
+  // Who is who. The body above is the one the name and the stick depend on: the cats follow the character in
+  // front, the footprint trail spawns under the feet in front, and the decorations are measured from the head
+  // in front. A guest can walk in as the boy (see setSwap below), and then that character is the one standing
+  // here -- so the labels move with the role. The family's house never swaps.
+  let leadName = 'princess';
+  let secondName = 'boy';
   // His coat: a slate blue with a real tweed on both slots, so it is cloth at arm's length and does not
   // read as a silhouette beside her.
   // A guest wears a suit: coat and trousers in one cloth, no tweed, no epaulettes, a plain tie instead of a
@@ -547,6 +554,8 @@ export function createCouple(dressColor) {
   part(new THREE.Mesh(new THREE.CylinderGeometry(0.082, 0.082, 0.06, 14), physMat({ color: '#232a49', roughness: 0.6, map: clothWeave('tweed', 8) })), freeArm, 0, -0.44, 0);
   part(new THREE.Mesh(new THREE.SphereGeometry(0.085, 18, 14), skinMat), freeArm, 0, -0.56, 0);
 
+  // His arm on her side, and her arm on his: which side that is depends on where they stand (side_sign), so
+  // the arm is placed from the shoulder's own x rather than from a fixed positive one.
   const innerShoulder = new THREE.Vector3(0.34, 1.35, 0);
   const innerArm = new THREE.Mesh(new THREE.CylinderGeometry(ARM_R, ARM_R, 1, 10), coatMat);
   boy.add(innerArm);
@@ -613,10 +622,19 @@ export function createCouple(dressColor) {
   const rootPos = new THREE.Vector3();
   const boyTarget = new THREE.Vector3();
   const boyWorld = new THREE.Vector3();
-  const offset = new THREE.Vector3(-FOLLOW_SIDE, 0, -FOLLOW_BACK);
   const offsetLocal = new THREE.Vector3();
   let boyYaw = 0;
   let rootReady = false;
+  // +1 puts him beside her right hand, -1 beside his left. -1 is a guest who walks in as the boy (setSwap).
+  let side_sign = 1;
+  // Where the second character stands, a step behind and to one side. Written once here and looked at every
+  // frame, so a swap made after this line (and after the model is built) is picked up on the next frame.
+  const offset = new THREE.Vector3(-FOLLOW_SIDE, 0, -FOLLOW_BACK);
+  function sideOf(back, hold, sit) {
+    offset.x = side_sign * -THREE.MathUtils.lerp(FOLLOW_SIDE, 0.75, hold);
+    offset.z = -back * (1 - sit);
+    return offset;
+  }
   let phase = 0; // stride phase: advances with the distance the couple walks, so feet do not slide
   let amount = 0; // 0 standing, 1 walking, eased in and out
   let airAmount = 0; // 0 on the ground, 1 mid-jump, eased in and out
@@ -733,18 +751,21 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
   function followPrincess(dt, m) {
     root.getWorldPosition(rootPos);
     const yaw = root.rotation.y;
-    // Holding hands brings him in closer
-    const side = THREE.MathUtils.lerp(FOLLOW_SIDE, 0.75, holdAmount);
-    const back = FOLLOW_BACK * (1 - holdAmount) * (1 - sitAmount);
+    // Holding hands brings him in closer. The step back is no longer a constant: standing still he is beside
+    // her and a step behind, and the moment they walk he comes level with her, so his walk -- his own face
+    // turned to the way they are going -- is the pair walking side by side instead of one pair of feet
+    // behind the other. The dances own their own place (m.phi), so it is only the walk this moves.
+    const side = side_sign * THREE.MathUtils.lerp(FOLLOW_SIDE, 0.75, holdAmount);
+    const back = THREE.MathUtils.lerp(FOLLOW_BACK, guest ? FOLLOW_BACK_WALKING : FOLLOW_BACK, amount) * (1 - holdAmount) * (1 - sitAmount);
     if (!rootReady) {
       prevRoot.copy(rootPos);
-      boyWorld.copy(rootPos).add(offset.clone().applyAxisAngle(up, yaw));
+      boyWorld.copy(rootPos).add(sideOf(back, holdAmount, sitAmount).clone().applyAxisAngle(up, yaw));
       boyYaw = yaw;
       rootReady = true;
     }
     offsetLocal
       .set(
-        THREE.MathUtils.lerp(-side, m.R * Math.sin(m.phi), danceAmount),
+        THREE.MathUtils.lerp(-side, side_sign * m.R * Math.sin(m.phi), danceAmount),
         0,
         THREE.MathUtils.lerp(-back, m.R * Math.cos(m.phi), danceAmount),
       )
@@ -922,6 +943,24 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
     });
   }
 
+  // Walk in as the boy. The guest's start screen asks which of the two the visitor is; the family's house never
+  // asks, so this is a no-op there (it is only reached with `guest` true).
+  //
+  // Only two things change: which way the second character stands (+1 beside her right hand, -1 beside his
+  // left), and who carries the role the house follows. Everything else -- the walk, the hands, the dances, the
+  // bench, the faces -- is the same rig from the same side of it, which is the point: two characters already
+  // walk together in here.
+  function setSwap(on) {
+    side_sign = on ? -1 : 1;
+    leadName = on ? 'boy' : 'princess';
+    secondName = on ? 'princess' : 'boy';
+    // Her own body is mirrored down the x axis, which moves the hand he holds and the flowers to the other
+    // side in one line: her arms are numbered, not sided -- arms[0] reaches for his hand, arms[1] carries the
+    // bouquet -- and the hand and the bouquet are children of them. Three.js flips the winding for a negative
+    // determinant on its own, so nothing here shows an inside-out sleeve.
+    body.scale.set(side_sign * PRINCESS_SCALE, PRINCESS_SCALE, PRINCESS_SCALE);
+  }
+
   // `color` is a colour, or nothing. Nothing means "leave her as she was built": a guest's dress colour comes
   // from GUEST_LOOK, and every caller that used to repaint her now passes nothing for a guest (see setHerDress()
   // in main.js). Ignoring an empty value here is the belt to that braces: no stored colour can reach her.
@@ -935,7 +974,9 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
     const princessBox = new THREE.Box3().setFromObject(body);
     const boyBox = new THREE.Box3().setFromObject(boy);
     return {
-      princessTop: +princessBox.max.y.toFixed(3),
+      // `princessTop` is the head of whoever is in front -- the pair is what the house's decor (the hair
+      // sparkles over her head) and the necklaces are measured from, and after setSwap() that is him.
+      princessTop: +(leadName === 'boy' ? boyBox.max.y : princessBox.max.y).toFixed(3),
       boyTop: +boyBox.max.y.toFixed(3),
       braids: braids.map((b) => b.angles()),
       boyWorld: [+boyWorld.x.toFixed(3), +boyWorld.z.toFixed(3)],
@@ -977,6 +1018,11 @@ const TURN_ACCEL = 60; // radians/second squared: the ramp at the start and the 
     setFacing(yaw) { facingYaw = yaw; },
     facing: () => facingYaw,
     drawnFacing: () => turnYaw,
+    // Who is in front -- 'princess' (the family's house, always) or 'boy' (a guest who chose him). The cats
+    // read this instead of assuming names: they follow the character the player is walking.
+    lead: () => leadName,
+    second: () => secondName,
+    setSwap,
     // for the flower shop: her free arm, the group a bought rose hangs from, and the pose it needs
     flowerArm: arms[1],
     bouquetGroup: handBouquet,
