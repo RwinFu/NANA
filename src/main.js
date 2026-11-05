@@ -159,8 +159,9 @@ function setHerDress(color) {
   hero.setDress(house.form ? color : undefined);
 }
 
-// Which way round the couple stands, seen while the choice is still being made: the castle behind the start
-// screen has the two of them in front of it, and choosing the boy swaps their places at once.
+// Who walks in. A guest is one of the two, alone: the castle behind the start screen has the couple in front of
+// it, and choosing the boy (or her) puts the other one away at once, so the choice can be seen while it is being
+// made. The family's house never asks and keeps the two of them.
 function setSceneSwap(on) {
   hero?.setSwap?.(on);
 }
@@ -1216,6 +1217,7 @@ function syncCoupleUi() {
 
 function toggleHold() {
   if (!hero) return;
+  if (house.person) { toast('اینجا تنها قدم می‌زنی ✨', 2200); return; }
   const on = hero.toggleHolding();
   toast(on ? 'دستش را گرفت' : 'دستش را رها کرد', 2200);
   syncCoupleUi();
@@ -1223,6 +1225,7 @@ function toggleHold() {
 
 function cycleDance() {
   if (!hero) return;
+  if (house.person) { toast('رقص دو نفره است؛ اینجا تنهایی ✨', 2200); return; }
   if (benchSeated) { toast('برای رقص اول از نیمکت بلند شو ✨'); return; }
   const name = hero.nextDance();
   toast(name ? `رقص «${name}»` : 'رقص تمام شد', 2600);
@@ -1236,7 +1239,8 @@ $('#finale-btn').addEventListener('click', () => openFinale());
 $('#letter-btn').addEventListener('click', () => openDialog(dom.letter));
 
 // What the guest house does not have, it does not offer. The anniversary note is somebody's own message and
-// the letter is theirs to read; a guest gets the house, its photographs, its clip and its music.
+// the letter is theirs to read; a guest gets the house, its photographs, its clip and its music -- and walks it
+// on their own, so the two things that need a second person (his hand, a dance) are not offered either.
 function hideGuestButtons() {
   if (house.letter) return;
   // The help card lists E as "the frames and the envelope at the end of the hall"; a guest has no envelope.
@@ -1245,7 +1249,11 @@ function hideGuestButtons() {
   if (envelopeLine) {
     envelopeLine.innerHTML = '<kbd>E</kbd> نزدیک قاب‌ها، تعامل را شروع می‌کند';
   }
-  ['#finale-btn', '#letter-btn'].forEach((sel) => {
+  // The two lines about taking her hand and dancing: there is nobody beside them to do either with.
+  [...document.querySelectorAll('#help-dialog .help-list li')].forEach((li) => {
+    if (li.textContent.includes('دست') || li.textContent.includes('رقص')) li.hidden = true;
+  });
+  ['#finale-btn', '#letter-btn', '#hold-btn', '#dance-btn'].forEach((sel) => {
     const btn = $(sel);
     if (btn) btn.hidden = true;
   });
