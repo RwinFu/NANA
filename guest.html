@@ -41,7 +41,7 @@
     <link rel="preload" as="image" href="./memories/solo-video.mp4" />
     <link rel="preload" as="image" href="./memories/solo-video-poster.jpg" />
     <meta name="description" content="خانه‌ی خاطره‌ها؛ یک راهروی سه‌بعدی پر از عکس و فیلم." />
-    <title>خانه‌ی خاطره‌ها · مهمان</title>
+    <title>OUR HOUSE · مهمان</title>
   </head>
   <body>
     <div id="app">
@@ -50,19 +50,25 @@
       <div class="vignette" aria-hidden="true"></div>
       <div class="flash" id="flash" aria-hidden="true"></div>
 
-      <!-- The start screen is not shown to a guest (see GUEST_FLOW in src/guest.js); it is kept here because
-           main.js reads the same elements the main house has. -->
+      <!-- The guest's start screen. The family's house asks for her dress colour; a guest is asked which of the
+           two they are, and the cards are built from GUEST_AS in src/guest.js (the swatch row is only built
+           where a colour is asked for). The page starts hidden and main.js shows it, as it does on the main
+           page, so the castle is drawn behind it before the sentence arrives. -->
       <section class="intro" id="intro" aria-labelledby="intro-title" hidden>
         <div class="intro-inner">
-          <h1 id="intro-title" class="intro-title-line">خاطره‌ها یه جایی زندگی می‌کنن؛ برای تو خانه‌ای ساختم که توش بمونن.</h1>
+          <h1 id="intro-title" class="intro-title-line">خاطره‌ها یه جایی زندگی می‌کنن؛ برات خونه‌ای ساختم که توش بمونن.</h1>
           <form id="setup" class="setup" novalidate>
-            <fieldset class="swatches">
+            <fieldset class="swatches" id="swatches" hidden>
               <legend>رنگ لباس‌تو انتخاب کن پرنسس</legend>
               <div class="swatch-row" id="swatch-row"></div>
             </fieldset>
+            <fieldset class="people" id="people">
+              <legend>تو کدومیشی؟</legend>
+              <div class="person-row" id="person-row"></div>
+            </fieldset>
             <p class="form-error" id="form-error" role="alert" hidden></p>
             <button class="enter" id="enter-btn" type="submit">
-              <span>پاشو بریم</span>
+              <span>بزن بریم</span>
               <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" /></svg>
             </button>
           </form>
@@ -75,7 +81,7 @@
       <!-- In-game HUD. The anniversary and letter buttons are hidden by main.js for a guest. -->
       <header class="hud" id="hud" hidden>
         <div class="hud-title">
-          <strong>خانه‌ی خاطره‌ها</strong>
+          <strong>OUR HOUSE</strong>
           <small id="hud-subtitle">برای مهمان‌ها</small>
         </div>
         <div class="hud-actions">

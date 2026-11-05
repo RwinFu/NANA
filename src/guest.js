@@ -8,7 +8,10 @@
 //     necklace. The photo room, its clip and the music are exactly what the house already has;
 //   * the two characters are dressed plainly: he in a business suit, she in a simple dark dress, no tiara,
 //     no braids, no bow tie, no epaulettes -- so the story reads as "a house of memories" rather than as
-//     somebody's wedding.
+//     somebody's wedding;
+//   * the start screen asks which of the two the visitor is, where the family's house asks for her dress
+//     colour. Whoever is chosen walks in front and the other walks beside: choosing the boy swaps the two
+//     places rather than building a second model (see setSwap in src/characters.js).
 //
 // Nothing here is a separate copy of the game: `guest` is false everywhere in the main house, and every
 // branch below is a no-op when it is false. The main link behaves exactly as it did.
@@ -67,6 +70,20 @@ export function isGuest(where = typeof window === 'undefined' ? null : window.lo
   return /\/guest(\/|$)/.test(where.pathname || '');
 }
 
+/**
+ * Which of the two a guest is. This is the guest's start screen: the family's house asks for her dress colour,
+ * a guest is asked which of the two they are, and the answer decides who walks in front (see setSwap() in
+ * src/characters.js -- the boy is the couple's second character, so walking in as the boy swaps the two places
+ * rather than building a second model).
+ */
+export const GUEST_AS = ['him', 'her'];
+
+/** The two words under the two cards. */
+export const GUEST_AS_LABEL = { him: 'پسر', her: 'دختر' };
+
+/** Which one the start screen opens on: the house is hers, so she is the one it starts on. */
+export const GUEST_AS_DEFAULT = 'her';
+
 /** The guest house itself: the flags every branch in the game reads. */
 export const guest = isGuest();
 
@@ -97,12 +114,14 @@ export const GUEST_LOOK = {
  *
  *   rescue  the 2-D game with its instructions card and the camera flight that follows it
  *   form    the start screen that asks for the dress colour
+ *   person  the start screen that asks which of the two the visitor is (a guest gets this instead of `form`)
  *   letter  the envelope standing at the end of the hall, and the letter in it
  *   present the fairy, the box and the necklace
  */
 export const GUEST_HAS = {
   rescue: false,
   form: false,
+  person: true,
   letter: false,
   present: false,
 };
@@ -114,6 +133,7 @@ export const GUEST_HAS = {
 export const MAIN_HAS = {
   rescue: true,
   form: true,
+  person: false,
   letter: true,
   present: true,
 };

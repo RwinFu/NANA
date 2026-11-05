@@ -142,6 +142,8 @@ export function createCats(scene, hero, { butterflies = () => [], frames = [] } 
     return built;
   }
 
+  // 'princess' is the character the player walks in front (always the model in the middle of the couple, whoever
+  // the guest chose to be -- see setSwap in src/characters.js); 'boy' is the one following beside them.
   function leaderPos(name, out) {
     if (name === 'princess') return out.copy(hero.root.position);
     if (boyNode) {
