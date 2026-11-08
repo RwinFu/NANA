@@ -10,7 +10,9 @@
 //   * its trim is champagne, its sash a warmer pink, so the details separate from the cloth;
 //   * the boy is slate blue and cocoa brown with cream — three tones that are distinct at a distance,
 //     where navy trousers and a navy coat used to merge into one dark mass.
-export const CHAR = {
+import { edition } from './memories.js';
+
+export const CHAR = edition.characterPalette ?? {
   // skin, shared by both so they read as the same painter's work
   skin: '#efc09c',
   skinShade: '#d79a78',

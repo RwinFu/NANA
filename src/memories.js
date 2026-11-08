@@ -2,6 +2,23 @@
 // Every photo path goes through memoryImage() so it also works on GitHub Pages subpaths.
 import { assetUrl } from './guest.js';
 
+// Edition-specific names and media. The original build keeps its defaults; the sale build
+// replaces this whole module through vite.sale.config.js, so no personal media enters that build.
+export const edition = {
+  id: 'original',
+  brand: 'خانه‌ی ما',
+  storageKey: 'our-home-v10',
+  songUrl: 'music/khooneye-man.mp3',
+  fairyLines: ['سالگردمون مبارک', 'خوشگلترین پرنسس دنیا'],
+  finaleTitle: 'اولین سالگرد یکی شدنمون مبارک!',
+  postcardSubtitle: '۳۶۵ روز خاطره‌ی قشنگ · تا ابد در قلبم',
+  postcardFile: 'khaneye-ma.png',
+  cats: {
+    ani: { name: 'آنی', image: 'cats/ani.jpg' },
+    pastil: { name: 'پاستیل', image: 'cats/pastil.jpg' },
+  },
+};
+
 export const defaults = {
   // The two names the house is for. `fromName` is the signature under the letter and the "from" line on the
   // envelope; `toName` is who it is addressed to.

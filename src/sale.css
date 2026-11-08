@@ -1,0 +1,19 @@
+/* The disclosure belongs to the demo, not to the photographs or the 3D scene. */
+.edition-note {
+  max-width: 430px;
+  margin: 18px 0 0;
+  color: rgba(255, 241, 225, 0.78);
+  font-size: 12px;
+  line-height: 1.9;
+}
+.edition-help {
+  margin: 18px 0;
+  padding-top: 14px;
+  border-top: 1px solid rgba(255, 241, 225, 0.16);
+  color: rgba(255, 241, 225, 0.72);
+  font-size: 12px;
+  line-height: 1.9;
+}
+@media (max-width: 600px) {
+  .edition-note { font-size: 11px; max-width: 310px; }
+}
