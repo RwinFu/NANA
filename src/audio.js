@@ -1,23 +1,24 @@
 // Small Web Audio synth: a soft arpeggiated loop plus a few sound effects.
 // Everything is generated in code, so there are no audio files to download.
+import { edition } from './memories.js';
 import { assetUrl } from './guest.js';
 
 // The loop is in C# minor, the key of the family song. The melody opens on C# then G#,
 // the first two notes of the song, and moves through its E, D# and F# colour.
-const CHORDS = [
+const CHORDS = edition.music?.chords ?? [
   [277.18, 329.63, 415.3, 554.37], // C#m: C# E G# C#
   [220.0, 277.18, 329.63, 440.0], // A: A C# E A
   [164.81, 207.65, 246.94, 329.63], // E: E G# B E
   [246.94, 311.13, 369.99, 493.88], // B: B D# F# B
 ];
-const PATTERN = [0, 2, 1, 2, 3, 1, 2, 1];
+const PATTERN = edition.music?.pattern ?? [0, 2, 1, 2, 3, 1, 2, 1];
 // The song's detected beat is about 172 BPM. Its half-time pulse, about 86, is the one the loop follows.
-const BPM = 86;
+const BPM = edition.music?.bpm ?? 86;
 const STEP = 60 / BPM / 2; // eighth notes
 const LOOKAHEAD_S = 0.25;
 // The song from the family folder. Starts at the gate and keeps playing through the tour.
 // assetUrl, not BASE_URL: the guest page sits one level deeper (see src/guest.js).
-const SONG_URL = assetUrl('music/khooneye-man.mp3');
+const SONG_URL = edition.songUrl ? assetUrl(edition.songUrl) : null;
 
 export function createAudio() {
   let ctx = null;
@@ -54,6 +55,7 @@ export function createAudio() {
 
   // Creates the song element once and starts downloading it early, so it plays right at the gate.
   function ensureSong() {
+    if (!SONG_URL) return null;
     if (song) return song;
     song = new Audio(SONG_URL);
     song.loop = true;
@@ -203,11 +205,14 @@ export function createAudio() {
       if (on) startLoop();
       else stopLoop();
     },
-    // The family song takes over from the synth loop and loops until the end.
+    // A licensed edition track takes over; editions without a track keep their own synth loop.
     // Starts the song right away at the gate.
     // The synth loop fades out slowly while the song fades in, so the two overlap softly.
     startSong() {
-      ensureSong();
+      if (!ensureSong()) {
+        if (musicOn) startLoop();
+        return;
+      }
       songActive = true;
       fadeLoopOut(3.2);
       if (!musicOn) return;

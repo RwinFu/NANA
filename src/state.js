@@ -1,8 +1,8 @@
-import { defaults } from './memories.js';
+import { defaults, edition } from './memories.js';
 
 // v10: the stored names win over the defaults -- which is right for a name the owner typed and wrong for a
 // name we got wrong. The key goes up when a default changes, so a stored pair cannot mask it.
-const STORAGE_KEY = 'our-home-v10';
+const STORAGE_KEY = edition.storageKey;
 const HEX = /^#[0-9a-f]{6}$/i;
 
 function clampText(value, fallback, max) {

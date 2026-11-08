@@ -1,0 +1,193 @@
+<!doctype html>
+<html lang="fa" dir="rtl">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="theme-color" content="#0b0c1c" />
+
+    <link rel="preload" as="image" href="/sale/memories/memory-01.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-02.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-03.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-04.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-05.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-06.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-07.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-08.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-09.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-10.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-11.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-12.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-13.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-14.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-15.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-16.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-17.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/memory-18.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/solo-01.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/solo-02.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/solo-03.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/solo-04.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/solo-05.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/solo-06.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/solo-07.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/solo-08.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/solo-09.jpg" />
+    <link rel="preload" as="image" href="/sale/memories/motion-portrait-poster.jpg" />
+    <link rel="preload" as="video" href="/sale/memories/motion-portrait.mp4" />
+    <meta name="description" content="خانه‌ی مهر؛ یک تجربه‌ی عاشقانه‌ی سه‌بعدی با شخصیت‌ها و تصاویر خیالی." />
+    <title>خانه‌ی مهر · نسخه نمایشی</title>
+    <link rel="stylesheet" href="/src/sale.css" />
+  </head>
+  <body>
+    <div id="app">
+      <canvas id="scene" aria-label="راهروی سه‌بعدی خاطره‌ها"></canvas>
+      <canvas id="fx" aria-hidden="true"></canvas>
+      <div class="vignette" aria-hidden="true"></div>
+      <div class="flash" id="flash" aria-hidden="true"></div>
+
+      <section class="intro" id="intro" aria-labelledby="intro-title">
+        <div class="intro-inner">
+          <h1 id="intro-title" class="intro-title-line">بعضی قصه‌ها خونه می‌خوان؛ به خانه‌ی مهر خوش اومدی.</h1>
+
+          <p class="edition-note">نسخه‌ی نمایشی · شخصیت‌ها، رابطه و تصاویر خیالی و تولیدشده با هوش مصنوعی‌اند.</p>
+          <form id="setup" class="setup" novalidate>
+            <fieldset class="swatches">
+              <legend>رنگ لباس‌تو انتخاب کن پرنسس</legend>
+              <div class="swatch-row" id="swatch-row"></div>
+            </fieldset>
+            <p class="form-error" id="form-error" role="alert" hidden></p>
+            <button class="enter" id="enter-btn" type="submit">
+              <span>پاشو بریم</span>
+              <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12h15M13 6l6 6-6 6" /></svg>
+            </button>
+          </form>
+          <p class="intro-webgl" id="webgl-error" hidden>
+            این مرورگر نمی‌تواند صحنه‌ی سه‌بعدی را نشان دهد. لطفاً با یک مرورگر به‌روزتر باز کن.
+          </p>
+        </div>
+      </section>
+
+      <header class="hud" id="hud" hidden>
+        <div class="hud-title">
+          <strong>خانه‌ی مهر</strong>
+          <small id="hud-subtitle">یک قصه‌ی خیالی، برای لحظه‌های واقعی</small>
+        </div>
+        <div class="hud-actions">
+          <button class="chip" id="letter-btn" type="button">نامه</button>
+          <button class="chip" id="hold-btn" type="button" aria-pressed="false" title="دست همسفر را بگیر یا رها کن (G)">دست بگیر</button>
+          <button class="chip" id="dance-btn" type="button" aria-pressed="false" title="رقص دونفره (R)">رقص</button>
+          <button class="chip icon-chip" id="photo-btn" type="button" aria-label="عکس یادگاری از همین نما">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 8h3l2-3h6l2 3h3v11H4z" /><circle cx="12" cy="13" r="3.5" /></svg>
+          </button>
+          <button class="chip icon-chip" id="music-btn" type="button" aria-pressed="true" aria-label="موسیقی">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 18V5l11-2v13" /><circle cx="6" cy="18" r="3" /><circle cx="17" cy="16" r="3" /></svg>
+          </button>
+          <button class="chip icon-chip" id="help-btn" type="button" aria-label="راهنما">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.6.3-1 .9-1 1.6V14M12 17.5v.5" /></svg>
+          </button>
+        </div>
+      </header>
+
+      <div class="prompt" id="prompt" hidden>
+        <span class="prompt-key" id="prompt-key">E</span>
+        <button class="prompt-text" id="prompt-btn" type="button">
+          <span id="prompt-label">دیدن خاطره</span>
+        </button>
+      </div>
+
+      <div class="joystick" id="joystick" aria-hidden="true" hidden>
+        <div class="joystick-knob" id="joystick-knob"></div>
+      </div>
+
+      <button class="jump-btn" id="jump-btn" type="button" aria-label="پرش" hidden>
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5 5 13h4v6h6v-6h4z"/></svg>
+      </button>
+
+      <div class="gift-vignette" id="gift-vignette" aria-hidden="true"></div>
+      <div class="curtain" id="curtain" aria-hidden="true"></div>
+
+      <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+      <dialog class="sheet memory-sheet" id="memory-dialog" aria-label="قاب‌های خاطره">
+        <button class="close" type="button" data-close aria-label="بستن">×</button>
+
+        <div class="memory-media">
+          <figure class="memory-frame" id="memory-frame">
+            <img id="memory-photo" alt="" />
+          </figure>
+        </div>
+        <div class="memory-bar">
+          <button class="chip memory-step" id="memory-prev" type="button" aria-label="قبلی">‹ قبلی</button>
+          <span class="meta-count" id="memory-count"></span>
+          <button class="chip memory-step" id="memory-next" type="button" aria-label="بعدی">بعدی ›</button>
+        </div>
+      </dialog>
+
+      <dialog class="sheet video-sheet" id="video-dialog" aria-label="ویدیوی اتاق">
+        <button class="close" type="button" data-close aria-label="بستن">×</button>
+        <div class="video-media">
+          <figure class="memory-frame video-frame">
+
+            <video id="video-player" controls playsinline preload="auto" muted></video>
+          </figure>
+        </div>
+      </dialog>
+
+      <dialog class="sheet finale-sheet" id="finale-dialog" aria-labelledby="finale-title">
+        <button class="close" type="button" data-close aria-label="بستن">×</button>
+        <p class="finale-kicker">قصه‌ی مهر</p>
+        <h2 id="finale-title">هر روز، یک بهانه برای با هم بودن</h2>
+        <p class="finale-message" id="finale-message"></p>
+        <dl class="stats">
+          <div><dt>دوستِ کوچولو</dt><dd>۲</dd></div>
+          <div><dt>قاب خاطره</dt><dd>۲۷</dd></div>
+          <div><dt>عشق تا بی‌نهایت</dt><dd>∞</dd></div>
+        </dl>
+        <div class="finale-actions">
+          <button class="chip" id="finale-photo" type="button">ساختن کارت پستال</button>
+        </div>
+      </dialog>
+
+      <dialog class="sheet letter-sheet" id="letter-dialog" aria-labelledby="letter-title">
+        <button class="close" type="button" data-close aria-label="بستن">×</button>
+        <p class="finale-kicker">نامه‌ای از سامان</p>
+        <h2 id="letter-title">برای نیکا</h2>
+        <div class="letter-body" id="letter-body"></div>
+        <p class="letter-sign"><span>با تمام قلب و وجودم،</span><strong id="letter-from-sign"></strong></p>
+      </dialog>
+
+      <dialog class="sheet postcard-sheet" id="postcard-dialog" aria-labelledby="postcard-title">
+        <button class="close" type="button" data-close aria-label="بستن">×</button>
+        <h2 id="postcard-title">کارت پستال خانه‌ی مهر</h2>
+        <div class="postcard-preview">
+          <img id="postcard-img" alt="کارت پستال ساخته‌شده از راهرو" />
+          <p class="postcard-busy" id="postcard-busy">در حال ساختن…</p>
+        </div>
+        <div class="finale-actions">
+          <a class="enter small" id="postcard-download" download="mehr-house-postcard.png" href="#">
+            <span>دانلود کارت پستال</span>
+          </a>
+        </div>
+      </dialog>
+
+      <dialog class="sheet help-sheet" id="help-dialog" aria-labelledby="help-title">
+        <button class="close" type="button" data-close aria-label="بستن">×</button>
+        <h2 id="help-title">راهنما</h2>
+        <ul class="help-list">
+          <li><kbd>W A S D</kbd> یا کلیدهای جهت‌نما برای حرکت</li>
+          <li><kbd>Shift</kbd> برای دویدن</li>
+          <li><kbd>E</kbd> نزدیک قاب‌ها و پاکت نامه‌ی انتهای راهرو، تعامل را شروع می‌کند</li>
+          <li><kbd>G</kbd> دست همسفر را بگیر یا رها کن؛ او کنار تو می‌ماند</li>
+          <li><kbd>Space</kbd> پرش پرنسس. در گوشی: دکمه‌ی پرش سمت چپ پایین</li>
+          <li><kbd>R</kbd> رقص دونفره: هر بار بزنی رقص بعدی می‌آید؛ با قدم زدن رقص تمام می‌شود</li>
+          <li>کشیدن ماوس یا انگشت: چرخش دوربین. چرخ ماوس یا دو انگشت: نزدیک و دور</li>
+          <li>در گوشی: جوی‌استیک گوشه‌ی پایین برای حرکت</li>
+          <li><kbd>Esc</kbd> بستن پنجره‌ها</li>
+        </ul>
+        <p class="edition-help">این نسخه هیچ عکس، فیلم، نامه یا موسیقی شخصی ندارد. تصاویر از شخصیت‌های خیالی ساخته شده‌اند و موسیقی در خود بازی تولید می‌شود.</p>
+        <button class="enter small" type="button" data-close><span>متوجه شدم</span></button>
+      </dialog>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

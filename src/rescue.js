@@ -3,6 +3,7 @@
 // frees the princess and runs with her out of the falling castle to the gate.
 // onDone() is called once the game is won (or skipped); the intro plays after it.
 
+import { edition } from './memories.js';
 import { sfx } from './sfx.js';
 import { assetUrl } from './guest.js';
 import { CAT_APPEARANCE } from './cat-appearance.js';
@@ -40,12 +41,12 @@ const ROPES = [
 // Pastil is caged in the dragon's yard and opens when the dragon flees
 const CAT_AT = { ani: { x: 790, y: 150 }, pastil: { x: 1985, y: GROUND_Y } };
 const CAT_STYLE = {
-  pastil: { ...CAT_APPEARANCE.pastil, name: 'پاستیل' },
-  ani: { ...CAT_APPEARANCE.ani, name: 'آنی' },
+  pastil: { ...CAT_APPEARANCE.pastil, name: edition.cats.pastil.name },
+  ani: { ...CAT_APPEARANCE.ani, name: edition.cats.ani.name },
 };
 const CAT_IMAGES = {
-  pastil: loadImage(assetUrl('cats/pastil.jpg')),
-  ani: loadImage(assetUrl('cats/ani.jpg')),
+  pastil: loadImage(assetUrl(edition.cats.pastil.image)),
+  ani: loadImage(assetUrl(edition.cats.ani.image)),
 };
 const FONT = '"Vazirmatn Variable", Vazirmatn, sans-serif';
 
@@ -411,7 +412,7 @@ function updateCats(g, dt) {
     g.shake = 0.4;
     sfx.play('chime');
     burst(g, CAT_AT.ani.x, CAT_AT.ani.y - 30, '#ffd66b', 26, 260);
-    say(g, 'آنی نجات یافت! دکمه‌ی جرقه را نگه دار تا سریع‌تر شلیک کنی', 4.5);
+    say(g, `${CAT_STYLE.ani.name} نجات یافت! دکمه‌ی جرقه را نگه دار تا سریع‌تر شلیک کنی`, 4.5);
   }
   if (!pa.freed && g.cageOpen && Math.abs(p.x - CAT_AT.pastil.x) < 64) {
     pa.freed = true;
@@ -420,7 +421,7 @@ function updateCats(g, dt) {
     g.shake = 0.4;
     sfx.play('chime');
     burst(g, CAT_AT.pastil.x, CAT_AT.pastil.y - 30, '#ff8fb8', 26, 260);
-    say(g, 'پاستیل نجات یافت! در هوا دوباره دکمه‌ی پرش را بزن', 4.5);
+    say(g, `${CAT_STYLE.pastil.name} نجات یافت! در هوا دوباره دکمه‌ی پرش را بزن`, 4.5);
   }
 
   if (g.phase === 'play' && g.rescued && p.x >= GATE_X - 120 && (!an.freed || !pa.freed) && g.msgT <= 0) {

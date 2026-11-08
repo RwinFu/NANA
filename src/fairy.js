@@ -1,3 +1,4 @@
+import { edition } from './memories.js';
 import * as THREE from 'three';
 
 // A delicate butterfly carries the anniversary card through the castle intro.
@@ -7,7 +8,7 @@ const TRAIL_SAMPLES = 34;
 const TRAIL_SPACING = 0.1;
 const SPARKLE_COUNT = 28;
 const LETTER_FONT = '"Vazirmatn Variable", Vazirmatn, sans-serif';
-const LETTER_LINES = ['سالگردمون مبارک', 'خوشگلترین پرنسس دنیا'];
+const LETTER_LINES = edition.fairyLines;
 const LETTER_W = 1.05;
 const LETTER_H = 0.71;
 

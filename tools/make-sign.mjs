@@ -23,10 +23,10 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 // sign reads as a sign rather than as a sticker. (Lalezar, the face before it, is a Persian display face: in
 // Latin it is a condensed grotesque, which is exactly the "dry" the owner objected to.)
 const FONT = path.join(root, 'node_modules/@fontsource/baloo-2/files/baloo-2-latin-800-normal.woff');
-const OUT = path.join(root, 'src/sign-outline.js');
+const OUT = path.resolve(root, process.argv[3] || 'src/sign-outline.js');
 
 // The line on the front of the house.
-export const SIGN_TEXT = 'OUR HOUSE';
+export const SIGN_TEXT = process.argv[2] || 'OUR HOUSE';
 // Extra space between letters, in font units (1000 to the em). A rounded face wants a little more air between
 // its letters than it ships with, or the bowls touch.
 const TRACKING = 40;

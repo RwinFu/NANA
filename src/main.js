@@ -6,7 +6,7 @@ import '@fontsource/lalezar/400.css';
 import './style.css';
 import * as THREE from 'three';
 import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
-import { allMemories, defaults, letterParagraphs, soloVideo } from './memories.js';
+import { allMemories, defaults, edition, letterParagraphs, soloVideo } from './memories.js';
 import { createStore, formatNumber } from './state.js';
 import { perf, showPerfBadge } from './perf.js';
 import { createFrameCost } from './frame-cost.js';
@@ -538,7 +538,7 @@ $('#memory-next').addEventListener('click', () => showMemory(memoryIndex + 1));
 function openFinale() {
   const s = store.get();
   $('#finale-message').textContent = s.anniversaryMsg;
-  $('#finale-title').textContent = 'اولین سالگرد یکی شدنمون مبارک!';
+  $('#finale-title').textContent = edition.finaleTitle;
   openDialog(dom.finale);
   audio.fanfare();
   fx.show(7, 0.45);
@@ -648,15 +648,16 @@ async function openPostcard() {
   try {
     const canvas = await composePostcard({
       snapshot,
-      title: 'خانه‌ی ما',
+      title: edition.brand,
       names: `${s.fromName} & ${s.toNameJoint ?? s.toName}`,
-      subtitle: '۳۶۵ روز خاطره‌ی قشنگ · تا ابد در قلبم',
+      subtitle: edition.postcardSubtitle,
     });
     const blob = await canvasToBlob(canvas);
     if (postcardUrl) URL.revokeObjectURL(postcardUrl);
     postcardUrl = URL.createObjectURL(blob);
     img.src = postcardUrl;
     $('#postcard-download').href = postcardUrl;
+    $('#postcard-download').download = edition.postcardFile;
     img.hidden = false;
   } catch {
     toast('ساخت کارت پستال انجام نشد. دوباره امتحان کن.');

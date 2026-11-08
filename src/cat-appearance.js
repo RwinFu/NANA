@@ -1,6 +1,8 @@
-// Shared palette and proportions, based on the cats' reference photos.
+import { edition } from './memories.js';
+
+// Shared palette and proportions; each edition supplies its own fictional cats.
 // DSH describes Pastil's short coat, not a single prescribed body or colour.
-export const CAT_APPEARANCE = {
+export const CAT_APPEARANCE = edition.catAppearance ?? {
   pastil: {
     base: '#a7a098', stripe: '#5b5249', eye: '#e8b64c',
     muzzle: '#e6d6c4', folded: false, collar: true,
