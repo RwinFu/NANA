@@ -396,10 +396,13 @@ if (renderer) {
   if (necklace) hero.dressSpace.add(necklace.worn);
   // Start in the garden, not at the origin: the origin is the middle of the door, and the couple sank into it before the walk began
   hero.root.position.copy(LAYOUT.spawn);
-  // A soft studio reflection for the characters' glossy parts (hair, eyes, gold, shoes)
+  // A soft studio reflection for the characters' glossy parts (hair, eyes, gold, shoes) -- and for the necklace's
+  // silver, which has no colour of its own to show and would render black without something to reflect.
   const pmrem = new THREE.PMREMGenerator(renderer);
-  hero.setEnvironment(pmrem.fromScene(new RoomEnvironment(), 0.04).texture);
+  const studioEnv = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
   pmrem.dispose();
+  hero.setEnvironment(studioEnv);
+  if (necklace) necklace.setEnvironment(studioEnv);
   cats = createCats(scene, hero, { frames: world.frames, butterflies: () => (decor ? decor.butterflies : []) });
   decor = buildDecor(scene, { hero });
   trail = createTrail(scene);
